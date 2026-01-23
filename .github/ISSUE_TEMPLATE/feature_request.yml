@@ -1,0 +1,20 @@
+name: Feature request
+description: Suggest an idea for this project.
+labels:
+  - feature
+body:
+  - type: textarea
+    attributes:
+      label: What feature are you requesting?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Why are you requesting this feature?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: What is your proposed implementation for this feature?
+    validations:
+      required: false

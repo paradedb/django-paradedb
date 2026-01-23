@@ -7,7 +7,7 @@ name = "django-paradedb"
 version = "0.1.0"
 description = "ParadeDB full-text search integration for Django ORM"
 readme = "README.md"
-license = "AGPL-3.0-or-later"
+license = "MIT"
 requires-python = ">=3.12"
 authors = [
     { name = "ParadeDB", email = "support@paradedb.com" },
@@ -16,9 +16,15 @@ keywords = [
     "django",
     "paradedb",
     "postgres",
-    "full-text-search",
-    "bm25",
+    "postgresql",
     "search",
+    "bm25",
+    "text search",
+    "full text search",
+    "full-text search",
+    "hybrid search",
+    "faceted search",
+    "facets",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -27,7 +33,7 @@ classifiers = [
     "Framework :: Django :: 5.0",
     "Framework :: Django :: 5.1",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",

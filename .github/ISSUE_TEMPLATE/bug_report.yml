@@ -1,0 +1,43 @@
+name: Bug report
+description: Create a report to help us improve.
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: "### Bug Report"
+  - type: markdown
+    attributes:
+      value: >
+        Please report security vulnerabilities using GitHub's [report vulnerability form](https://github.com/paradedb/django-paradedb/security/advisories/new).
+  - type: textarea
+    attributes:
+      label: What happens?
+      description: A short, clear and concise description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: To Reproduce
+      description: |
+        Please provide steps to reproduce the behaviour, preferably a [minimal reproducible example](https://en.wikipedia.org/wiki/Minimal_reproducible_example).
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Environment
+      description: |
+        Please provide details about your environment:
+        - Python version
+        - Django version
+        - django-paradedb version
+        - PostgreSQL version
+        - pg_search extension version
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have searched for existing issues that might cover this bug.
+          required: true

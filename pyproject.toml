@@ -56,15 +56,9 @@ dev = [
     "pytest-cov>=6.0",
     "syrupy>=4.8",  # Snapshot testing for SQL assertions
 ]
-docs = [
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.27",
-]
-
 [project.urls]
 Homepage = "https://github.com/paradedb/django-paradedb"
-Documentation = "https://paradedb.github.io/django-paradedb"
+Documentation = "https://docs.paradedb.com"
 Repository = "https://github.com/paradedb/django-paradedb"
 Issues = "https://github.com/paradedb/django-paradedb/issues"
 

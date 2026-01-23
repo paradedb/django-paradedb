@@ -67,7 +67,7 @@ class BM25Index(models.Index):
         kwargs["name"] = self.name
         return path, args, kwargs
 
-    def create_sql(self, model, schema_editor, using="", **kwargs):
+    def create_sql(self, model, schema_editor, _using="", **_kwargs):
         table = schema_editor.quote_name(model._meta.db_table)
         index_name = schema_editor.quote_name(self.name)
 
@@ -126,7 +126,7 @@ class BM25Index(models.Index):
         column: str,
         field_name: str,
         json_keys: dict[str, dict[str, Any]],
-        schema_editor,
+        _schema_editor,
     ) -> list[str]:
         expressions: list[str] = []
         for key, config in json_keys.items():

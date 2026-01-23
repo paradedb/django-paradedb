@@ -4,15 +4,15 @@ This plugin tests SQL string generation only - no database required.
 Uses syrupy for snapshot testing. Run `pytest --snapshot-update` to update.
 """
 
-from paradedb.functions import Score, Snippet
-from paradedb.indexes import BM25Index
 from django.db.models import F, Q, Window
 from django.db.models.functions import RowNumber
 
+from paradedb.functions import Score, Snippet
+from paradedb.indexes import BM25Index
 from paradedb.search import (
+    PQ,
     Fuzzy,
     MoreLikeThis,
-    PQ,
     ParadeDB,
     Parse,
     Phrase,
@@ -107,7 +107,9 @@ class TestFuzzySearch:
     def test_multiple_fuzzy_terms(self, snapshot) -> None:
         """Multiple fuzzy terms generate OR array."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Fuzzy("runnning", distance=1), Fuzzy("shoez", distance=1))
+            description=ParadeDB(
+                Fuzzy("runnning", distance=1), Fuzzy("shoez", distance=1)
+            )
         )
         assert str(queryset.query) == snapshot
 
@@ -153,16 +155,20 @@ class TestScoreAnnotation:
 
     def test_score_with_ordering(self, snapshot) -> None:
         """Score with ORDER BY search_score DESC."""
-        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
-            search_score=Score()
-        ).order_by("-search_score")
+        queryset = (
+            Product.objects.filter(description=ParadeDB("shoes"))
+            .annotate(search_score=Score())
+            .order_by("-search_score")
+        )
         assert str(queryset.query) == snapshot
 
     def test_score_filter(self, snapshot) -> None:
         """Filter by score: WHERE pdb.score(id) > 0."""
-        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
-            search_score=Score()
-        ).filter(search_score__gt=0)
+        queryset = (
+            Product.objects.filter(description=ParadeDB("shoes"))
+            .annotate(search_score=Score())
+            .filter(search_score__gt=0)
+        )
         assert str(queryset.query) == snapshot
 
 
@@ -257,7 +263,9 @@ class TestMoreLikeThis:
     def test_mlt_with_parameters(self, snapshot) -> None:
         """MLT with tuning parameters."""
         queryset = Product.objects.filter(
-            MoreLikeThis(product_id=5, min_term_freq=2, max_query_terms=10, min_doc_freq=1)
+            MoreLikeThis(
+                product_id=5, min_term_freq=2, max_query_terms=10, min_doc_freq=1
+            )
         )
         assert str(queryset.query) == snapshot
 

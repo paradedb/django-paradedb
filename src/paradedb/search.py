@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Literal
+from typing import Literal
 
 from django.db.models import BooleanField, CharField, TextField
 from django.db.models.expressions import Expression
@@ -96,7 +97,7 @@ class MoreLikeThis(Expression):
         if self.product_ids is not None and not self.product_ids:
             raise ValueError("MoreLikeThis product_ids cannot be empty.")
 
-    def resolve_expression(self, *args, **kwargs) -> "MoreLikeThis":
+    def resolve_expression(self, *_args, **_kwargs) -> MoreLikeThis:
         return self
 
     def get_source_expressions(self) -> list[object]:
@@ -121,7 +122,9 @@ class MoreLikeThis(Expression):
         query = compiler.query
         alias = query.get_initial_alias()
         pk_column = query.model._meta.pk.column
-        return f"{connection.ops.quote_name(alias)}.{connection.ops.quote_name(pk_column)}"
+        return (
+            f"{connection.ops.quote_name(alias)}.{connection.ops.quote_name(pk_column)}"
+        )
 
     def _render_mlt_call(self, value: int | str | None) -> str:
         args: list[str] = []
@@ -173,13 +176,13 @@ class PQ:
         object.__setattr__(self, "terms", (term,))
         object.__setattr__(self, "operator", None)
 
-    def __or__(self, other: "PQ") -> "PQ":
+    def __or__(self, other: PQ) -> PQ:
         return self._combine("OR", other)
 
-    def __and__(self, other: "PQ") -> "PQ":
+    def __and__(self, other: PQ) -> PQ:
         return self._combine("AND", other)
 
-    def _combine(self, operator: PQOperator, other: "PQ") -> "PQ":
+    def _combine(self, operator: PQOperator, other: PQ) -> PQ:
         if not isinstance(other, PQ):
             raise TypeError("PQ objects can only be combined with PQ instances.")
 
@@ -192,7 +195,7 @@ class PQ:
         return PQ._from_terms(terms, operator)
 
     @classmethod
-    def _from_terms(cls, terms: Iterable[str], operator: PQOperator) -> "PQ":
+    def _from_terms(cls, terms: Iterable[str], operator: PQOperator) -> PQ:
         instance = cls.__new__(cls)
         object.__setattr__(instance, "terms", tuple(terms))
         object.__setattr__(instance, "operator", operator)
@@ -206,18 +209,20 @@ class ParadeDB:
     contains_over_clause = False
     contains_column_references = False
 
-    def __init__(self, *terms: str | PQ | Phrase | Fuzzy | Parse | Term | Regex) -> None:
+    def __init__(
+        self, *terms: str | PQ | Phrase | Fuzzy | Parse | Term | Regex
+    ) -> None:
         if not terms:
             raise ValueError("ParadeDB requires at least one search term.")
         self._terms = terms
 
-    def resolve_expression(self, *args, **kwargs) -> "ParadeDB":
+    def resolve_expression(self, *_args, **_kwargs) -> ParadeDB:
         return self
 
     def get_source_expressions(self) -> list[object]:
         return []
 
-    def as_sql(self, compiler, connection, lhs_sql: str) -> tuple[str, list[object]]:
+    def as_sql(self, _compiler, _connection, lhs_sql: str) -> tuple[str, list[object]]:
         operator, terms = self._resolve_terms()
         literals = [self._render_term(term) for term in terms]
 
@@ -238,11 +243,11 @@ class ParadeDB:
         if any(isinstance(term, PQ) for term in self._terms):
             raise ValueError("PQ objects must be provided as the sole ParadeDB input.")
 
-        if any(isinstance(term, (Parse, Term, Regex)) for term in self._terms):
+        if any(isinstance(term, Parse | Term | Regex) for term in self._terms):
             if len(self._terms) != 1:
                 raise ValueError("Parse/Term/Regex queries must be a single term.")
             term = self._terms[0]
-            if not isinstance(term, (Parse, Term, Regex)):
+            if not isinstance(term, Parse | Term | Regex):
                 raise TypeError("Parse/Term/Regex cannot be mixed with other terms.")
             return "@@@", (term,)
 
@@ -308,7 +313,7 @@ class ParadeDB:
     def _render_value(value: object) -> str:
         if isinstance(value, bool):
             return "true" if value else "false"
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return str(value)
         if isinstance(value, str):
             return ParadeDB._quote_term(value)
@@ -333,9 +338,9 @@ TextField.register_lookup(ParadeDBExact)
 CharField.register_lookup(ParadeDBExact)
 
 __all__ = [
+    "PQ",
     "Fuzzy",
     "MoreLikeThis",
-    "PQ",
     "ParadeDB",
     "Parse",
     "Phrase",

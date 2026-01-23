@@ -15,6 +15,12 @@ def pytest_configure() -> None:
                 "django.contrib.contenttypes",
                 "tests",
             ],
+            DATABASES={
+                "default": {
+                    "ENGINE": "django.db.backends.sqlite3",
+                    "NAME": ":memory:",
+                }
+            },
             DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
         )
     django.setup()

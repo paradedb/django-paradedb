@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from django.db import models
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
 
 
@@ -60,14 +61,20 @@ class BM25Index(models.Index):
         self.key_field = key_field
         super().__init__(name=name, fields=list(fields.keys()))
 
-    def deconstruct(self):
+    def deconstruct(self) -> tuple[str, Any, dict[str, Any]]:
         path, args, kwargs = super().deconstruct()
         kwargs["fields"] = self.fields_config
         kwargs["key_field"] = self.key_field
         kwargs["name"] = self.name
         return path, args, kwargs
 
-    def create_sql(self, model, schema_editor, _using="", **_kwargs):
+    def create_sql(
+        self,
+        model: type[models.Model],
+        schema_editor: BaseDatabaseSchemaEditor,
+        using: str = "",  # noqa: ARG002
+        **kwargs: Any,  # noqa: ARG002
+    ) -> Statement:
         table = schema_editor.quote_name(model._meta.db_table)
         index_name = schema_editor.quote_name(self.name)
 
@@ -89,11 +96,14 @@ class BM25Index(models.Index):
             key_field=_quote_term(self.key_field),
         )
 
-    def _build_index_expressions(self, model, schema_editor) -> list[str]:
+    def _build_index_expressions(
+        self, model: type[models.Model], schema_editor: BaseDatabaseSchemaEditor
+    ) -> list[str]:
         expressions: list[str] = []
         for field_name, config in self.fields_config.items():
             field = model._meta.get_field(field_name)
-            column = schema_editor.quote_name(field.column)
+            column_name: str = getattr(field, "column")  # noqa: B009
+            column: str = schema_editor.quote_name(column_name)
 
             json_keys = config.get("json_keys")
             if json_keys:
@@ -126,7 +136,7 @@ class BM25Index(models.Index):
         column: str,
         field_name: str,
         json_keys: dict[str, dict[str, Any]],
-        _schema_editor,
+        _schema_editor: BaseDatabaseSchemaEditor,
     ) -> list[str]:
         expressions: list[str] = []
         for key, config in json_keys.items():

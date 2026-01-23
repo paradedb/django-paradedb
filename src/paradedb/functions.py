@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
+from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import CharField, F, FloatField, Func
+from django.db.models.sql.compiler import SQLCompiler
 
 
 def _quote_term(value: str) -> str:
@@ -38,7 +42,12 @@ class Snippet(Func):
         self._formatting = (start_sel, stop_sel, max_num_chars)
         super().__init__(F(field))
 
-    def as_sql(self, compiler, _connection, **_extra_context):
+    def as_sql(  # type: ignore[override]
+        self,
+        compiler: SQLCompiler,
+        _connection: BaseDatabaseWrapper,
+        **_extra_context: Any,
+    ) -> tuple[str, list[Any]]:
         field_sql, params = compiler.compile(self.source_expressions[0])
         if params:
             raise ValueError("Snippet does not support parameterized fields.")

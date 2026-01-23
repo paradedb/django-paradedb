@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
+from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import BooleanField, CharField, TextField
 from django.db.models.expressions import Expression
 from django.db.models.lookups import Exact
+from django.db.models.sql.compiler import SQLCompiler
 
 PQOperator = Literal["OR", "AND"]
 
@@ -97,13 +99,22 @@ class MoreLikeThis(Expression):
         if self.product_ids is not None and not self.product_ids:
             raise ValueError("MoreLikeThis product_ids cannot be empty.")
 
-    def resolve_expression(self, *_args, **_kwargs) -> MoreLikeThis:
+    def resolve_expression(
+        self,
+        _query: Any = None,
+        _allow_joins: bool = True,
+        _reuse: set[str] | None = None,
+        _summarize: bool = False,
+        _for_save: bool = False,
+    ) -> MoreLikeThis:
         return self
 
     def get_source_expressions(self) -> list[object]:
         return []
 
-    def as_sql(self, compiler, connection):
+    def as_sql(
+        self, compiler: SQLCompiler, connection: BaseDatabaseWrapper
+    ) -> tuple[str, list[Any]]:
         pk_sql = self._pk_sql(compiler, connection)
         if self.product_ids is not None:
             expressions = [
@@ -118,10 +129,12 @@ class MoreLikeThis(Expression):
 
         return f"{pk_sql} @@@ {self._render_mlt_call(self.text)}", []
 
-    def _pk_sql(self, compiler, connection) -> str:
+    def _pk_sql(self, compiler: SQLCompiler, connection: BaseDatabaseWrapper) -> str:
         query = compiler.query
         alias = query.get_initial_alias()
-        pk_column = query.model._meta.pk.column
+        model = query.model
+        assert model is not None
+        pk_column = model._meta.pk.column
         return (
             f"{connection.ops.quote_name(alias)}.{connection.ops.quote_name(pk_column)}"
         )
@@ -216,13 +229,25 @@ class ParadeDB:
             raise ValueError("ParadeDB requires at least one search term.")
         self._terms = terms
 
-    def resolve_expression(self, *_args, **_kwargs) -> ParadeDB:
+    def resolve_expression(
+        self,
+        _query: Any = None,
+        _allow_joins: bool = True,
+        _reuse: set[str] | None = None,
+        _summarize: bool = False,
+        _for_save: bool = False,
+    ) -> ParadeDB:
         return self
 
     def get_source_expressions(self) -> list[object]:
         return []
 
-    def as_sql(self, _compiler, _connection, lhs_sql: str) -> tuple[str, list[object]]:
+    def as_sql(
+        self,
+        _compiler: SQLCompiler,
+        _connection: BaseDatabaseWrapper,
+        lhs_sql: str,
+    ) -> tuple[str, list[object]]:
         operator, terms = self._resolve_terms()
         literals = [self._render_term(term) for term in terms]
 
@@ -320,18 +345,21 @@ class ParadeDB:
         raise TypeError("Unsupported option value type.")
 
 
-class ParadeDBExact(Exact):
+class ParadeDBExact(Exact[Any]):
     """Exact lookup override to emit ParadeDB operators."""
 
     lookup_name = "exact"
 
-    def as_sql(self, compiler, connection):
+    def as_sql(
+        self, compiler: SQLCompiler, connection: BaseDatabaseWrapper
+    ) -> tuple[str, list[Any]]:
         if isinstance(self.rhs, ParadeDB):
             lhs_sql, lhs_params = self.process_lhs(compiler, connection)
             rhs_sql, rhs_params = self.rhs.as_sql(compiler, connection, lhs_sql)
             return rhs_sql, [*lhs_params, *rhs_params]
 
-        return super().as_sql(compiler, connection)
+        result = super().as_sql(compiler, connection)
+        return result[0], list(result[1])
 
 
 TextField.register_lookup(ParadeDBExact)

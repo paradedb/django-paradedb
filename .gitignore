@@ -55,4 +55,3 @@ site/
 Thumbs.db
 
 # Snapshots (syrupy)
-__snapshots__/

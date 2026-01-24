@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "ParadeDB full-text search integration for Django ORM"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 authors = [
     { name = "ParadeDB", email = "support@paradedb.com" },
 ]
@@ -30,19 +30,17 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Web Environment",
     "Framework :: Django",
-    "Framework :: Django :: 5.0",
-    "Framework :: Django :: 5.1",
+    "Framework :: Django :: 6.0",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Database",
     "Topic :: Internet :: WWW/HTTP",
 ]
 dependencies = [
-    "Django>=5.0",
+    "Django>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -54,17 +52,10 @@ dev = [
     "pytest>=8.3",
     "pytest-django>=4.9",
     "pytest-cov>=6.0",
-    "syrupy>=4.8",  # Snapshot testing for SQL assertions
 ]
-docs = [
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.27",
-]
-
 [project.urls]
 Homepage = "https://github.com/paradedb/django-paradedb"
-Documentation = "https://paradedb.github.io/django-paradedb"
+Documentation = "https://docs.paradedb.com"
 Repository = "https://github.com/paradedb/django-paradedb"
 Issues = "https://github.com/paradedb/django-paradedb/issues"
 
@@ -72,7 +63,7 @@ Issues = "https://github.com/paradedb/django-paradedb/issues"
 packages = ["src/paradedb"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py313"
 line-length = 88
 src = ["src", "tests"]
 
@@ -99,7 +90,7 @@ ignore = [
 known-first-party = ["paradedb"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = true
 plugins = ["mypy_django_plugin.main"]
 

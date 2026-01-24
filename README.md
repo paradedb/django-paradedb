@@ -39,11 +39,33 @@ class Product(models.Model):
 Product.objects.filter(description=ParadeDB('shoes'))
 ```
 
+## Feature Support
+
+Supported:
+
+- ParadeDB lookup with AND/OR operators (`&&&`, `|||`)
+- `PQ` boolean composition
+- Search expressions: `Phrase`, `Fuzzy`, `Parse`, `Term`, `Regex`
+- Annotations: `Score`, `Snippet`
+- `BM25Index` DDL generation (basic + JSON field keys)
+- `MoreLikeThis` query filter
+- Django ORM integration with `Q`, standard filters, and window functions
+
+Unsupported / pending:
+
+- Faceted search (`.facets()` and `pdb.agg(...)` integration)
+
 ## Documentation
 
-- **Package Documentation**: https://paradedb.github.io/django-paradedb
-- **ParadeDB Official Docs**: https://docs.paradedb.com
-- **ParadeDB Website**: https://paradedb.com
+- **Package Documentation**: <https://paradedb.github.io/django-paradedb>
+- **ParadeDB Official Docs**: <https://docs.paradedb.com>
+- **ParadeDB Website**: <https://paradedb.com>
+
+## Requirements
+
+- Python 3.13+
+- Django 6.0+
+- PostgreSQL with ParadeDB extension
 
 ## Development
 
@@ -60,10 +82,6 @@ pytest
 # Run linting
 ruff check .
 ruff format .
-
-# Build docs locally
-pip install -e ".[docs]"
-mkdocs serve
 ```
 
 ## Support

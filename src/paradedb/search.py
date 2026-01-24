@@ -101,11 +101,11 @@ class MoreLikeThis(Expression):
 
     def resolve_expression(
         self,
-        _query: Any = None,
-        _allow_joins: bool = True,
-        _reuse: set[str] | None = None,
-        _summarize: bool = False,
-        _for_save: bool = False,
+        query: Any = None,  # noqa: ARG002
+        allow_joins: bool = True,  # noqa: ARG002
+        reuse: set[str] | None = None,  # noqa: ARG002
+        summarize: bool = False,  # noqa: ARG002
+        for_save: bool = False,  # noqa: ARG002
     ) -> MoreLikeThis:
         return self
 
@@ -231,11 +231,11 @@ class ParadeDB:
 
     def resolve_expression(
         self,
-        _query: Any = None,
-        _allow_joins: bool = True,
-        _reuse: set[str] | None = None,
-        _summarize: bool = False,
-        _for_save: bool = False,
+        query: Any = None,  # noqa: ARG002
+        allow_joins: bool = True,  # noqa: ARG002
+        reuse: set[str] | None = None,  # noqa: ARG002
+        summarize: bool = False,  # noqa: ARG002
+        for_save: bool = False,  # noqa: ARG002
     ) -> ParadeDB:
         return self
 
@@ -345,7 +345,7 @@ class ParadeDB:
         raise TypeError("Unsupported option value type.")
 
 
-class ParadeDBExact(Exact[Any]):
+class ParadeDBExact(Exact):  # type: ignore[type-arg]
     """Exact lookup override to emit ParadeDB operators."""
 
     lookup_name = "exact"

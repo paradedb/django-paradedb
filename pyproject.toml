@@ -52,6 +52,7 @@ dev = [
     "pytest>=8.3",
     "pytest-django>=4.9",
     "pytest-cov>=6.0",
+    "psycopg[binary]>=3.1",
 ]
 [project.urls]
 Homepage = "https://github.com/paradedb/django-paradedb"
@@ -106,6 +107,9 @@ DJANGO_SETTINGS_MODULE = "tests.settings"
 addopts = [
     "--strict-markers",
     "-ra",
+]
+markers = [
+    "integration: tests that require a ParadeDB Postgres instance",
 ]
 
 [tool.coverage.run]

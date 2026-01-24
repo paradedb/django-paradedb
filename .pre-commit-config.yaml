@@ -49,6 +49,7 @@ repos:
         additional_dependencies:
           - django-stubs>=5.1
           - django>=5.0
+          - psycopg[binary]>=3.1
         args: [--config-file=pyproject.toml, src/paradedb]
         pass_filenames: false
 

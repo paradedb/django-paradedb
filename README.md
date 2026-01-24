@@ -66,6 +66,11 @@ Unsupported / pending:
 - Python 3.13+
 - Django 6.0+
 - PostgreSQL with ParadeDB extension
+- ParadeDB Docker image: ParadeDB `0.21.*` (CI/integration currently use `paradedb/paradedb:0.21.4-pg17`)
+
+## Compatibility (preview)
+
+Current target: ParadeDB `0.21.*` with Django 6.0. A fuller matrix will follow in future releases.
 
 ## Development
 

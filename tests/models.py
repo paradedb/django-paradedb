@@ -19,3 +19,18 @@ class Product(models.Model):
 
     def __str__(self) -> str:
         return self.description[:50]
+
+
+class MockItem(models.Model):
+    """ParadeDB mock data table created via `paradedb.create_bm25_test_table`."""
+
+    id = models.IntegerField(primary_key=True)
+    description = models.TextField()
+
+    class Meta:
+        app_label = "tests"
+        managed = False
+        db_table = "mock_items"
+
+    def __str__(self) -> str:
+        return f"MockItem(id={self.id})"

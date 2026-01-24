@@ -53,6 +53,9 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
             "CREATE INDEX mock_items_bm25_idx ON mock_items USING bm25 ("
             "id, "
             "description, "
+            "category, "
+            "rating, "
+            "in_stock, "
             "((metadata->>'color')::pdb.literal('alias=metadata_color')), "
             "((metadata->>'location')::pdb.literal('alias=metadata_location'))"
             ") WITH (key_field='id');"
@@ -64,7 +67,17 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
         cursor.execute("SELECT COUNT(*) FROM mock_items;")
         (row_count,) = cursor.fetchone()
 
-        _assert_columns_exist(["id", "description", "metadata"])
+        _assert_columns_exist(
+            [
+                "id",
+                "description",
+                "category",
+                "rating",
+                "in_stock",
+                "created_at",
+                "metadata",
+            ]
+        )
         assert row_count > 0, "mock_items should be seeded with rows"
         assert index_present, "mock_items_bm25_idx should exist"
 

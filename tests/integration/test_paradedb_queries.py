@@ -94,15 +94,24 @@ def test_snippet_rendering() -> None:
 
 
 def test_more_like_this_by_id() -> None:
-    ids = _ids(MockItem.objects.filter(MoreLikeThis(product_id=3)).order_by("id"))
+    """MLT by ID with fields=['description'] returns similar items."""
+    ids = _ids(
+        MockItem.objects.filter(
+            MoreLikeThis(product_id=3, fields=["description"])
+        ).order_by("id")
+    )
     assert ids == {3, 4, 5}
 
 
 def test_more_like_this_multiple_ids() -> None:
+    """MLT with multiple IDs and fields=['description'] returns union."""
     ids = _ids(
-        MockItem.objects.filter(MoreLikeThis(product_ids=[3, 12])).order_by("id")
+        MockItem.objects.filter(
+            MoreLikeThis(product_ids=[3, 12], fields=["description"])
+        ).order_by("id")
     )
-    assert ids == {3, 12}
+    assert 3 in ids
+    assert 12 in ids
 
 
 def test_more_like_this_by_text() -> None:

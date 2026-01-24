@@ -26,6 +26,10 @@ class MockItem(models.Model):
 
     id = models.IntegerField(primary_key=True)
     description = models.TextField()
+    category = models.CharField(max_length=100)
+    rating = models.IntegerField()
+    in_stock = models.BooleanField()
+    created_at = models.DateTimeField()
     metadata = models.JSONField(null=True)
 
     class Meta:

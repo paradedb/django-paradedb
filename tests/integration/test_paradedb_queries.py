@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from django.db import connection
 from tests.models import MockItem
 
 from paradedb.functions import Snippet
@@ -32,8 +33,7 @@ def test_pq_or_semantics() -> None:
     ids = _ids(
         MockItem.objects.filter(description=ParadeDB(PQ("running") | PQ("wireless")))
     )
-    assert {3, 12}.issubset(ids)
-    assert len(ids) >= 2
+    assert ids == {3, 12}
 
 
 def test_pq_and_semantics() -> None:
@@ -59,7 +59,7 @@ def test_fuzzy_distance() -> None:
     ids = _ids(
         MockItem.objects.filter(description=ParadeDB(Fuzzy("runnning", distance=1)))
     )
-    assert 3 in ids
+    assert ids == {3}
 
 
 def test_regex_query() -> None:
@@ -78,7 +78,7 @@ def test_parse_lenient() -> None:
 
 def test_term_query() -> None:
     ids = _ids(MockItem.objects.filter(description=ParadeDB(Term("shoes"))))
-    assert {3, 4, 5}.issubset(ids)
+    assert ids == {3, 4, 5}
 
 
 def test_snippet_rendering() -> None:
@@ -102,7 +102,7 @@ def test_more_like_this_multiple_ids() -> None:
     ids = _ids(
         MockItem.objects.filter(MoreLikeThis(product_ids=[3, 12])).order_by("id")
     )
-    assert {3, 12}.issubset(ids)
+    assert ids == {3, 12}
 
 
 def test_more_like_this_by_text() -> None:
@@ -111,5 +111,26 @@ def test_more_like_this_by_text() -> None:
             MoreLikeThis(text='{"description": "wireless earbuds"}')
         )
     )
-    assert 12 in ids
-    assert len(ids) >= 1
+    assert ids == {12}
+
+
+def test_metadata_color_literal_search() -> None:
+    """Search over JSON color subfield should return the silver items."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT id FROM mock_items WHERE (metadata->>'color') &&& 'Silver' ORDER BY id;"
+        )
+        rows = cursor.fetchall()
+    ids = {row[0] for row in rows}
+    assert ids == {1, 9}
+
+
+def test_metadata_location_literal_search() -> None:
+    """Search over JSON location subfield should return the Canada items."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT id FROM mock_items WHERE (metadata->>'location') &&& 'Canada' ORDER BY id;"
+        )
+        rows = cursor.fetchall()
+    ids = {row[0] for row in rows}
+    assert ids == {2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41}

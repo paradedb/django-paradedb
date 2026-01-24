@@ -50,7 +50,12 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
         )
         cursor.execute("DROP INDEX IF EXISTS mock_items_bm25_idx;")
         cursor.execute(
-            "CREATE INDEX mock_items_bm25_idx ON mock_items USING bm25 (id, description) WITH (key_field='id');"
+            "CREATE INDEX mock_items_bm25_idx ON mock_items USING bm25 ("
+            "id, "
+            "description, "
+            "((metadata->>'color')::pdb.literal('alias=metadata_color')), "
+            "((metadata->>'location')::pdb.literal('alias=metadata_location'))"
+            ") WITH (key_field='id');"
         )
         cursor.execute(
             "SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'mock_items_bm25_idx';"
@@ -59,7 +64,7 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
         cursor.execute("SELECT COUNT(*) FROM mock_items;")
         (row_count,) = cursor.fetchone()
 
-        _assert_columns_exist(["id", "description"])
+        _assert_columns_exist(["id", "description", "metadata"])
         assert row_count > 0, "mock_items should be seeded with rows"
         assert index_present, "mock_items_bm25_idx should exist"
 

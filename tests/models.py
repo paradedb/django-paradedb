@@ -26,6 +26,7 @@ class MockItem(models.Model):
 
     id = models.IntegerField(primary_key=True)
     description = models.TextField()
+    metadata = models.JSONField(null=True)
 
     class Meta:
         app_label = "tests"

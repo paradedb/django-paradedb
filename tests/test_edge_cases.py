@@ -1,0 +1,416 @@
+"""Edge case tests for ParadeDB Django integration.
+
+Tests for special characters, validation, boundary conditions, and unusual inputs.
+These are unit tests that don't require a database.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from paradedb.functions import Score, Snippet
+from paradedb.indexes import BM25Index
+from paradedb.search import (
+    PQ,
+    Fuzzy,
+    MoreLikeThis,
+    ParadeDB,
+    Parse,
+    Phrase,
+    Regex,
+    Term,
+)
+from tests.models import Product
+
+
+class TestSpecialCharacterEscaping:
+    """Test SQL injection prevention and special character handling."""
+
+    def test_single_quote_in_search_term(self) -> None:
+        """Single quotes are escaped to prevent SQL injection."""
+        queryset = Product.objects.filter(description=ParadeDB("it's"))
+        sql = str(queryset.query)
+        assert "it''s" in sql
+
+    def test_double_single_quotes(self) -> None:
+        """Multiple single quotes are all escaped."""
+        queryset = Product.objects.filter(description=ParadeDB("don''t"))
+        sql = str(queryset.query)
+        assert "don''''t" in sql
+
+    def test_backslash_in_search_term(self) -> None:
+        """Backslashes are preserved in search terms."""
+        queryset = Product.objects.filter(description=ParadeDB("path\\to\\file"))
+        sql = str(queryset.query)
+        assert "path\\to\\file" in sql
+
+    def test_unicode_characters(self) -> None:
+        """Unicode characters work in search terms."""
+        queryset = Product.objects.filter(description=ParadeDB("日本語"))
+        sql = str(queryset.query)
+        assert "日本語" in sql
+
+    def test_emoji_in_search(self) -> None:
+        """Emoji characters work in search terms."""
+        queryset = Product.objects.filter(description=ParadeDB("👟 shoes"))
+        sql = str(queryset.query)
+        assert "👟 shoes" in sql
+
+    def test_special_sql_keywords(self) -> None:
+        """SQL keywords in search terms are quoted safely."""
+        queryset = Product.objects.filter(description=ParadeDB("SELECT * FROM"))
+        sql = str(queryset.query)
+        assert "'SELECT * FROM'" in sql
+
+    def test_phrase_with_quotes(self) -> None:
+        """Phrase containing quotes is escaped."""
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase('it\'s a "test"'))
+        )
+        sql = str(queryset.query)
+        assert "it''s" in sql
+
+    def test_regex_special_chars_preserved(self) -> None:
+        """Regex special characters are preserved."""
+        queryset = Product.objects.filter(
+            description=ParadeDB(Regex("test.*[a-z]+\\d{2,3}"))
+        )
+        sql = str(queryset.query)
+        assert "test.*[a-z]+\\d{2,3}" in sql
+
+
+class TestParadeDBValidation:
+    """Test input validation for ParadeDB wrapper."""
+
+    def test_empty_terms_raises_error(self) -> None:
+        """ParadeDB with no terms raises ValueError."""
+        with pytest.raises(ValueError, match="requires at least one"):
+            ParadeDB()
+
+    def test_pq_must_be_sole_input(self) -> None:
+        """PQ mixed with other terms raises ValueError on SQL generation."""
+        pdb = ParadeDB(PQ("a") | PQ("b"), "extra")
+        queryset = Product.objects.filter(description=pdb)
+        with pytest.raises(ValueError, match="sole ParadeDB input"):
+            str(queryset.query)
+
+    def test_parse_must_be_single(self) -> None:
+        """Multiple Parse objects raise ValueError on SQL generation."""
+        pdb = ParadeDB(Parse("a"), Parse("b"))
+        queryset = Product.objects.filter(description=pdb)
+        with pytest.raises(ValueError, match="single term"):
+            str(queryset.query)
+
+    def test_term_must_be_single(self) -> None:
+        """Multiple Term objects raise ValueError on SQL generation."""
+        pdb = ParadeDB(Term("a"), Term("b"))
+        queryset = Product.objects.filter(description=pdb)
+        with pytest.raises(ValueError, match="single term"):
+            str(queryset.query)
+
+    def test_regex_must_be_single(self) -> None:
+        """Multiple Regex objects raise ValueError on SQL generation."""
+        pdb = ParadeDB(Regex("a"), Regex("b"))
+        queryset = Product.objects.filter(description=pdb)
+        with pytest.raises(ValueError, match="single term"):
+            str(queryset.query)
+
+    def test_phrase_cannot_mix_with_string(self) -> None:
+        """Phrase mixed with string raises TypeError on SQL generation."""
+        pdb = ParadeDB(Phrase("a"), "b")
+        queryset = Product.objects.filter(description=pdb)
+        with pytest.raises(TypeError, match="only accept Phrase"):
+            str(queryset.query)
+
+    def test_fuzzy_cannot_mix_with_string(self) -> None:
+        """Fuzzy mixed with string raises TypeError on SQL generation."""
+        pdb = ParadeDB(Fuzzy("a"), "b")
+        queryset = Product.objects.filter(description=pdb)
+        with pytest.raises(TypeError, match="only accept Fuzzy"):
+            str(queryset.query)
+
+
+class TestPhraseValidation:
+    """Test Phrase dataclass validation."""
+
+    def test_phrase_slop_zero_is_valid(self) -> None:
+        """Slop of 0 is valid."""
+        phrase = Phrase("test", slop=0)
+        assert phrase.slop == 0
+
+    def test_phrase_negative_slop_raises(self) -> None:
+        """Negative slop raises ValueError."""
+        with pytest.raises(ValueError, match="zero or positive"):
+            Phrase("test", slop=-1)
+
+    def test_phrase_large_slop(self) -> None:
+        """Large slop values work."""
+        phrase = Phrase("test", slop=100)
+        assert phrase.slop == 100
+
+
+class TestFuzzyValidation:
+    """Test Fuzzy dataclass validation."""
+
+    def test_fuzzy_default_distance(self) -> None:
+        """Default distance is 1."""
+        fuzzy = Fuzzy("test")
+        assert fuzzy.distance == 1
+
+    def test_fuzzy_distance_zero_is_valid(self) -> None:
+        """Distance of 0 is valid (exact match)."""
+        fuzzy = Fuzzy("test", distance=0)
+        assert fuzzy.distance == 0
+
+    def test_fuzzy_negative_distance_raises(self) -> None:
+        """Negative distance raises ValueError."""
+        with pytest.raises(ValueError, match="zero or positive"):
+            Fuzzy("test", distance=-1)
+
+    def test_fuzzy_large_distance(self) -> None:
+        """Large distance values work."""
+        fuzzy = Fuzzy("test", distance=10)
+        assert fuzzy.distance == 10
+
+
+class TestPQValidation:
+    """Test PQ object validation and operations."""
+
+    def test_pq_combine_with_non_pq_raises(self) -> None:
+        """Combining PQ with non-PQ raises TypeError."""
+        pq = PQ("test")
+        with pytest.raises(TypeError, match="PQ instances"):
+            pq | "string"  # type: ignore[operator]
+
+    def test_pq_mixed_operators_raises(self) -> None:
+        """Mixing AND and OR operators raises ValueError."""
+        pq_or = PQ("a") | PQ("b")
+        with pytest.raises(ValueError, match="Mixed PQ operators"):
+            pq_or & PQ("c")
+
+    def test_pq_single_term_no_operator(self) -> None:
+        """Single PQ has no operator."""
+        pq = PQ("test")
+        assert pq.operator is None
+        assert pq.terms == ("test",)
+
+    def test_pq_chained_or(self) -> None:
+        """Chained OR preserves all terms."""
+        pq = PQ("a") | PQ("b") | PQ("c") | PQ("d")
+        assert pq.terms == ("a", "b", "c", "d")
+        assert pq.operator == "OR"
+
+    def test_pq_chained_and(self) -> None:
+        """Chained AND preserves all terms."""
+        pq = PQ("a") & PQ("b") & PQ("c")
+        assert pq.terms == ("a", "b", "c")
+        assert pq.operator == "AND"
+
+
+class TestMoreLikeThisValidation:
+    """Test MoreLikeThis validation."""
+
+    def test_mlt_requires_one_input(self) -> None:
+        """MLT with no inputs raises ValueError."""
+        with pytest.raises(ValueError, match="exactly one input"):
+            MoreLikeThis()
+
+    def test_mlt_multiple_inputs_raises(self) -> None:
+        """MLT with multiple inputs raises ValueError."""
+        with pytest.raises(ValueError, match="exactly one input"):
+            MoreLikeThis(product_id=1, text="test")
+
+    def test_mlt_empty_product_ids_raises(self) -> None:
+        """MLT with empty product_ids raises ValueError."""
+        with pytest.raises(ValueError, match="cannot be empty"):
+            MoreLikeThis(product_ids=[])
+
+    def test_mlt_single_product_id(self) -> None:
+        """MLT with single product_id works."""
+        mlt = MoreLikeThis(product_id=1)
+        assert mlt.product_id == 1
+
+    def test_mlt_product_ids_list(self) -> None:
+        """MLT with product_ids list works."""
+        mlt = MoreLikeThis(product_ids=[1, 2, 3])
+        assert mlt.product_ids == [1, 2, 3]
+
+    def test_mlt_text_input(self) -> None:
+        """MLT with text input works."""
+        mlt = MoreLikeThis(text='{"description": "test"}')
+        assert mlt.text == '{"description": "test"}'
+
+    def test_mlt_with_all_options(self) -> None:
+        """MLT with all tuning options works."""
+        mlt = MoreLikeThis(
+            product_id=1,
+            fields=["description"],
+            min_term_freq=2,
+            max_query_terms=10,
+            min_doc_freq=1,
+            max_term_freq=100,
+            max_doc_freq=1000,
+        )
+        assert mlt.min_term_freq == 2
+        assert mlt.max_query_terms == 10
+
+
+class TestScoreEdgeCases:
+    """Test Score annotation edge cases."""
+
+    def test_score_with_custom_key_field(self) -> None:
+        """Score can use custom key field."""
+        score = Score(key_field="custom_id")
+        assert score is not None
+
+    def test_score_default_uses_pk(self) -> None:
+        """Score defaults to pk field."""
+        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
+            s=Score()
+        )
+        sql = str(queryset.query)
+        assert "pdb.score" in sql
+
+
+class TestSnippetEdgeCases:
+    """Test Snippet annotation edge cases."""
+
+    def test_snippet_partial_formatting(self) -> None:
+        """Snippet with only start_sel."""
+        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
+            s=Snippet("description", start_sel="<b>")
+        )
+        sql = str(queryset.query)
+        assert "<b>" in sql
+
+    def test_snippet_only_max_chars(self) -> None:
+        """Snippet with only max_num_chars."""
+        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
+            s=Snippet("description", max_num_chars=50)
+        )
+        sql = str(queryset.query)
+        assert "50" in sql
+
+
+class TestBM25IndexEdgeCases:
+    """Test BM25Index edge cases."""
+
+    def test_index_single_field(self) -> None:
+        """Index with single field works."""
+        index = BM25Index(
+            fields={"id": {}},
+            key_field="id",
+            name="test_idx",
+        )
+        assert index.key_field == "id"
+
+    def test_index_many_fields(self) -> None:
+        """Index with many fields works."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {},
+                "category": {},
+                "rating": {},
+                "metadata": {},
+            },
+            key_field="id",
+            name="test_idx",
+        )
+        assert len(index.fields_config) == 5
+
+    def test_index_deconstruct(self) -> None:
+        """Index deconstruct for migrations works."""
+        index = BM25Index(
+            fields={"id": {}, "description": {}},
+            key_field="id",
+            name="test_idx",
+        )
+        path, _args, kwargs = index.deconstruct()
+        assert "BM25Index" in path
+        assert kwargs["key_field"] == "id"
+        assert kwargs["name"] == "test_idx"
+
+
+class TestParseOptions:
+    """Test Parse query options."""
+
+    def test_parse_lenient_true(self) -> None:
+        """Parse with lenient=True generates correct SQL."""
+        queryset = Product.objects.filter(
+            description=ParadeDB(Parse("test", lenient=True))
+        )
+        sql = str(queryset.query)
+        assert "lenient => true" in sql
+
+    def test_parse_lenient_false(self) -> None:
+        """Parse with lenient=False generates correct SQL."""
+        queryset = Product.objects.filter(
+            description=ParadeDB(Parse("test", lenient=False))
+        )
+        sql = str(queryset.query)
+        assert "lenient => false" in sql
+
+    def test_parse_no_lenient(self) -> None:
+        """Parse without lenient omits the option."""
+        queryset = Product.objects.filter(description=ParadeDB(Parse("test")))
+        sql = str(queryset.query)
+        assert "lenient" not in sql
+
+
+class TestEmptyAndWhitespaceInputs:
+    """Test handling of empty and whitespace inputs."""
+
+    def test_empty_string_search(self) -> None:
+        """Empty string search term works (ParadeDB handles it)."""
+        queryset = Product.objects.filter(description=ParadeDB(""))
+        sql = str(queryset.query)
+        assert "&&& ''" in sql
+
+    def test_whitespace_only_search(self) -> None:
+        """Whitespace-only search term works."""
+        queryset = Product.objects.filter(description=ParadeDB("   "))
+        sql = str(queryset.query)
+        assert "'   '" in sql
+
+    def test_phrase_empty_string(self) -> None:
+        """Phrase with empty string works."""
+        queryset = Product.objects.filter(description=ParadeDB(Phrase("")))
+        sql = str(queryset.query)
+        assert "### ''" in sql
+
+    def test_fuzzy_empty_string(self) -> None:
+        """Fuzzy with empty string works."""
+        queryset = Product.objects.filter(description=ParadeDB(Fuzzy("")))
+        sql = str(queryset.query)
+        assert "''::pdb.fuzzy" in sql
+
+
+class TestLongInputs:
+    """Test handling of very long inputs."""
+
+    def test_very_long_search_term(self) -> None:
+        """Very long search term is handled."""
+        long_term = "a" * 10000
+        queryset = Product.objects.filter(description=ParadeDB(long_term))
+        sql = str(queryset.query)
+        assert long_term in sql
+
+    def test_many_or_terms(self) -> None:
+        """Many OR terms work."""
+        pq = PQ("term1")
+        for i in range(2, 101):
+            pq = pq | PQ(f"term{i}")
+        queryset = Product.objects.filter(description=ParadeDB(pq))
+        sql = str(queryset.query)
+        assert "term100" in sql
+        assert "|||" in sql
+
+    def test_many_and_terms(self) -> None:
+        """Many AND terms work."""
+        queryset = Product.objects.filter(
+            description=ParadeDB(*[f"term{i}" for i in range(100)])
+        )
+        sql = str(queryset.query)
+        assert "term99" in sql
+        assert "&&&" in sql

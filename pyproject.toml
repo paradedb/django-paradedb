@@ -52,7 +52,6 @@ dev = [
     "pytest>=8.3",
     "pytest-django>=4.9",
     "pytest-cov>=6.0",
-    "syrupy>=4.8",  # Snapshot testing for SQL assertions
 ]
 [project.urls]
 Homepage = "https://github.com/paradedb/django-paradedb"

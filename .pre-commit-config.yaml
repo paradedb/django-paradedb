@@ -50,6 +50,7 @@ repos:
           - django-stubs>=5.1
           - django>=5.0
         args: [--config-file=pyproject.toml, src/paradedb]
+        pass_filenames: false
 
   # TODO: Run pytest separately (pre-commit doesn't use venv python)
   # - repo: local

@@ -293,6 +293,23 @@ class TestBM25Index:
             == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=true,stemmer=english\'))\n)\nWITH (key_field=\'id\')'
         )
 
+    def test_index_with_tokenizer_only(self) -> None:
+        """Index with tokenizer only."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {"tokenizer": "simple"},
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple)\n)\nWITH (key_field=\'id\')'
+        )
+
     def test_json_field_index(self) -> None:
         """JSON field with json_keys configuration."""
         index = BM25Index(

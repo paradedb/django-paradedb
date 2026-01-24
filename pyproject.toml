@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "ParadeDB full-text search integration for Django ORM"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 authors = [
     { name = "ParadeDB", email = "support@paradedb.com" },
 ]
@@ -31,6 +31,7 @@ classifiers = [
     "Environment :: Web Environment",
     "Framework :: Django",
     "Framework :: Django :: 6.0",
+    "Framework :: Django :: 6.1",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -63,7 +64,7 @@ Issues = "https://github.com/paradedb/django-paradedb/issues"
 packages = ["src/paradedb"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py313"
 line-length = 88
 src = ["src", "tests"]
 
@@ -90,7 +91,7 @@ ignore = [
 known-first-party = ["paradedb"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = true
 plugins = ["mypy_django_plugin.main"]
 

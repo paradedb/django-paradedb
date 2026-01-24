@@ -101,13 +101,19 @@ class MoreLikeThis(Expression):
 
     def resolve_expression(
         self,
-        query: Any = None,  # noqa: ARG002
-        allow_joins: bool = True,  # noqa: ARG002
-        reuse: set[str] | None = None,  # noqa: ARG002
-        summarize: bool = False,  # noqa: ARG002
-        for_save: bool = False,  # noqa: ARG002
+        query: Any = None,
+        allow_joins: bool = True,
+        reuse: set[str] | None = None,
+        summarize: bool = False,
+        for_save: bool = False,
     ) -> MoreLikeThis:
-        return self
+        return super().resolve_expression(
+            query=query,
+            allow_joins=allow_joins,
+            reuse=reuse,
+            summarize=summarize,
+            for_save=for_save,
+        )
 
     def get_source_expressions(self) -> list[object]:
         return []

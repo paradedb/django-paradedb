@@ -33,6 +33,8 @@ def _build_tokenizer_config(
                 parts.append(f"{name}=true")
     elif stemmer:
         parts.append(f"stemmer={stemmer}")
+    if not parts:
+        return tokenizer
     return f"{tokenizer}({_quote_term(','.join(parts))})"
 
 

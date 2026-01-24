@@ -21,7 +21,7 @@ class Score(Func):
     output_field = FloatField()
 
     def __init__(self, key_field: str | None = None) -> None:
-        expression = F(key_field or "id")
+        expression = F(key_field or "pk")
         super().__init__(expression)
 
 

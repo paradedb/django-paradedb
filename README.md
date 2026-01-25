@@ -89,6 +89,13 @@ ruff check .
 ruff format .
 ```
 
+### Integration tests
+
+```bash
+# Start ParadeDB locally (uses Docker) and run the integration suite
+bash scripts/run_integration_tests.sh
+```
+
 ## Support
 
 If you're missing a feature or have found a bug, please open a

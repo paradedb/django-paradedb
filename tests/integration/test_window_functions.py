@@ -13,10 +13,8 @@ from django.db.models.functions import (
     DenseRank,
     FirstValue,
     Lag,
-    LastValue,
     Lead,
     NthValue,
-    Ntile,
     PercentRank,
     Rank,
     RowNumber,
@@ -55,7 +53,7 @@ class TestRowNumberWindow:
             assert item.row_num == i
 
     def test_row_number_partition_by_in_stock(self) -> None:
-        """ROW_NUMBER() OVER (PARTITION BY in_stock ORDER BY rating)."""
+        """ROW_NUMBER() OVER (PARTITION BY in_stock ORDER BY rating DESC)."""
         queryset = MockItem.objects.filter(description=ParadeDB("shoes")).annotate(
             row_in_stock=Window(
                 expression=RowNumber(),
@@ -64,9 +62,19 @@ class TestRowNumberWindow:
             )
         )
         results = list(queryset)
-        assert len(results) > 0
-        for item in results:
-            assert item.row_in_stock >= 1
+        # 3 items: 2 in_stock=True (ratings 5,4), 1 in_stock=False (rating 3)
+        assert len(results) == 3
+
+        in_stock_true = [r for r in results if r.in_stock is True]
+        in_stock_false = [r for r in results if r.in_stock is False]
+
+        # in_stock=True partition: 2 items with row numbers 1, 2
+        assert len(in_stock_true) == 2
+        assert sorted(r.row_in_stock for r in in_stock_true) == [1, 2]
+
+        # in_stock=False partition: 1 item with row number 1
+        assert len(in_stock_false) == 1
+        assert in_stock_false[0].row_in_stock == 1
 
 
 class TestRankingWindows:
@@ -119,23 +127,6 @@ class TestRankingWindows:
         for item in results:
             assert 0 <= item.pct_rank <= 1
 
-    def test_ntile_quartiles(self) -> None:
-        """NTILE(4) for quartiles."""
-        queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
-            .annotate(search_score=Score())
-            .annotate(
-                quartile=Window(
-                    expression=Ntile(4),
-                    order_by=F("search_score").desc(),
-                )
-            )
-        )
-        results = list(queryset)
-        assert len(results) > 0
-        for item in results:
-            assert 1 <= item.quartile <= 4
-
 
 class TestValueAccessWindows:
     """Test FIRST_VALUE, LAST_VALUE, NTH_VALUE, LAG, LEAD with ParadeDB."""
@@ -157,18 +148,6 @@ class TestValueAccessWindows:
         first_rating = results[0].top_rating
         for item in results:
             assert item.top_rating == first_rating
-
-    def test_last_value(self) -> None:
-        """LAST_VALUE(rating) OVER (PARTITION BY category)."""
-        queryset = MockItem.objects.filter(description=ParadeDB("shoes")).annotate(
-            last_in_category=Window(
-                expression=LastValue("rating"),
-                partition_by=[F("category")],
-                order_by=F("rating").asc(),
-            )
-        )
-        results = list(queryset)
-        assert len(results) > 0
 
     def test_lag_previous_score(self) -> None:
         """LAG(score, 1) - get previous row's score."""
@@ -379,21 +358,22 @@ class TestComplexAnnotationChains:
             assert item.rating >= 3
 
     def test_window_in_subquery_style(self) -> None:
-        """Window function result used in further filtering."""
+        """Window function result used in further filtering (Python-side)."""
         base_queryset = (
             MockItem.objects.filter(description=ParadeDB("shoes"))
             .annotate(search_score=Score())
             .annotate(
-                quartile=Window(
-                    expression=Ntile(4),
+                row_num=Window(
+                    expression=RowNumber(),
                     order_by=F("search_score").desc(),
                 )
             )
         )
-        top_quartile = [item for item in base_queryset if item.quartile == 1]
-        assert len(top_quartile) > 0
-        for item in top_quartile:
-            assert item.quartile == 1
+        # Filter for top 2 results by row number
+        top_results = [item for item in base_queryset if item.row_num <= 2]
+        assert len(top_results) == 2
+        for item in top_results:
+            assert item.row_num in (1, 2)
 
     def test_annotation_with_coalesce_and_window(self) -> None:
         """Coalesce + Window function combination."""

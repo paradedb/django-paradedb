@@ -30,13 +30,14 @@ class TestComplexQComposition:
 
     def test_triple_or_paradedb(self) -> None:
         """Q OR with three ParadeDB conditions."""
+        # shoes: 3 results (id=3,4,5), keyboard: 2 results (id=1,2), earbuds: 1 result (id=12)
         queryset = MockItem.objects.filter(
             Q(description=ParadeDB("shoes"))
             | Q(description=ParadeDB("keyboard"))
-            | Q(description=ParadeDB("headphones"))
+            | Q(description=ParadeDB("earbuds"))
         )
         ids = _ids(queryset)
-        assert len(ids) >= 3
+        assert ids == {1, 2, 3, 4, 5, 12}
 
     def test_nested_and_or(self) -> None:
         """Nested (A AND B) OR (C AND D) with ParadeDB."""

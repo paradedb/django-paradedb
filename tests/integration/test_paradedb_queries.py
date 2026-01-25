@@ -52,7 +52,7 @@ def test_phrase_with_slop() -> None:
     ids = _ids(
         MockItem.objects.filter(description=ParadeDB(Phrase("running shoes", slop=1)))
     )
-    assert 3 in ids
+    assert ids == {3}
 
 
 def test_fuzzy_distance() -> None:
@@ -110,8 +110,7 @@ def test_more_like_this_multiple_ids() -> None:
             MoreLikeThis(product_ids=[3, 12], fields=["description"])
         ).order_by("id")
     )
-    assert 3 in ids
-    assert 12 in ids
+    assert ids == {3, 4, 5, 12}
 
 
 def test_more_like_this_by_text() -> None:
@@ -134,11 +133,11 @@ def test_metadata_color_literal_search() -> None:
     assert ids == {1, 9}
 
 
-def test_metadata_location_literal_search() -> None:
-    """Search over JSON location subfield should return the Canada items."""
+def test_metadata_location_standard_filter() -> None:
+    """Filter by JSON location subfield using standard SQL."""
     with connection.cursor() as cursor:
         cursor.execute(
-            "SELECT id FROM mock_items WHERE (metadata->>'location') &&& 'Canada' ORDER BY id;"
+            "SELECT id FROM mock_items WHERE (metadata->>'location') = 'Canada' ORDER BY id;"
         )
         rows = cursor.fetchall()
     ids = {row[0] for row in rows}

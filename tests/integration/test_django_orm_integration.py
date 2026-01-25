@@ -36,8 +36,7 @@ class TestQObjectIntegration:
                 Q(description=ParadeDB("shoes")) | Q(description=ParadeDB("wireless"))
             )
         )
-        assert 3 in ids  # shoes
-        assert 12 in ids  # wireless
+        assert ids == {3, 4, 5, 12}
 
     def test_q_and_paradedb_with_standard_filter(self) -> None:
         """Q AND combining ParadeDB with standard ORM filter."""
@@ -278,10 +277,16 @@ class TestPhraseSearchIntegration:
 
     def test_phrase_with_q_combination(self) -> None:
         """Phrase search combined with Q objects."""
-        queryset = MockItem.objects.filter(
-            Q(description=ParadeDB(Phrase("running shoes"))) | Q(rating=5)
+        ids = _ids(
+            MockItem.objects.filter(
+                Q(description=ParadeDB(Phrase("running shoes"))) | Q(rating=5)
+            )
         )
-        assert queryset.exists()
+        phrase_ids = _ids(
+            MockItem.objects.filter(description=ParadeDB(Phrase("running shoes")))
+        )
+        rating_ids = _ids(MockItem.objects.filter(rating=5))
+        assert ids == phrase_ids | rating_ids
 
     def test_phrase_with_slop_and_filter(self) -> None:
         """Phrase with slop combined with standard filter."""

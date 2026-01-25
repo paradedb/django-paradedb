@@ -17,7 +17,12 @@ PQOperator = Literal["OR", "AND"]
 
 @dataclass(frozen=True)
 class Phrase:
-    """Phrase search expression."""
+    """Phrase search expression.
+
+    Note: The slop parameter controls the maximum number of intervening unmatched
+    tokens allowed between words in a phrase. Higher values increase query flexibility
+    but may impact performance. Commonly used values are 0-10.
+    """
 
     text: str
     slop: int | None = None
@@ -29,7 +34,11 @@ class Phrase:
 
 @dataclass(frozen=True)
 class Fuzzy:
-    """Fuzzy search expression."""
+    """Fuzzy search expression.
+
+    Note: Distance parameter is limited to max 2 by ParadeDB. This defines the maximum
+    number of character edits allowed (insertions, deletions, substitutions) when matching.
+    """
 
     text: str
     distance: int = 1
@@ -37,6 +46,8 @@ class Fuzzy:
     def __post_init__(self) -> None:
         if self.distance < 0:
             raise ValueError("Fuzzy distance must be zero or positive.")
+        if self.distance > 2:
+            raise ValueError("Fuzzy distance must be <= 2.")
 
 
 @dataclass(frozen=True)

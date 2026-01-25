@@ -168,9 +168,9 @@ class TestFuzzyValidation:
             Fuzzy("test", distance=-1)
 
     def test_fuzzy_large_distance(self) -> None:
-        """Large distance values work."""
-        fuzzy = Fuzzy("test", distance=10)
-        assert fuzzy.distance == 10
+        """Distance values > 2 raise ValueError."""
+        with pytest.raises(ValueError, match="<= 2"):
+            Fuzzy("test", distance=10)
 
 
 class TestPQValidation:

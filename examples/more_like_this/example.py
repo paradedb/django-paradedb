@@ -93,7 +93,7 @@ def demo_similar_to_single_product() -> None:
     print(f"  '{source.description}' [{source.category}]")
 
     # Find similar products based on description text
-    print(f"\nSimilar products (by description):")
+    print("\nSimilar products (by description):")
     similar = (
         MockItem.objects.filter(
             MoreLikeThis(product_id=source_id, fields=["description"])
@@ -241,7 +241,9 @@ def demo_combined_with_filters() -> None:
 
     for item in results:
         stock = "In Stock" if item.in_stock else "Out of Stock"
-        print(f"  {item.id}: {item.description[:40]}... (rating: {item.rating}, {stock})")
+        print(
+            f"  {item.id}: {item.description[:40]}... (rating: {item.rating}, {stock})"
+        )
 
 
 def demo_multifield_similarity() -> None:
@@ -259,12 +261,9 @@ def demo_multifield_similarity() -> None:
 
     # By description only (default)
     print("\nSimilar by DESCRIPTION only:")
-    by_desc = (
-        MockItem.objects.filter(
-            MoreLikeThis(product_id=source_id, fields=["description"])
-        )
-        .exclude(id=source_id)[:3]
-    )
+    by_desc = MockItem.objects.filter(
+        MoreLikeThis(product_id=source_id, fields=["description"])
+    ).exclude(id=source_id)[:3]
     for item in by_desc:
         print(f"  {item.id}: {item.description[:40]}... [{item.category}]")
 
@@ -272,17 +271,14 @@ def demo_multifield_similarity() -> None:
     # Note: This requires both fields to be stored in the BM25 index
     print("\nSimilar by DESCRIPTION + CATEGORY (if both indexed):")
     try:
-        by_both = (
-            MockItem.objects.filter(
-                MoreLikeThis(product_id=source_id, fields=["description", "category"])
-            )
-            .exclude(id=source_id)[:3]
-        )
+        by_both = MockItem.objects.filter(
+            MoreLikeThis(product_id=source_id, fields=["description", "category"])
+        ).exclude(id=source_id)[:3]
         for item in by_both:
             print(f"  {item.id}: {item.description[:40]}... [{item.category}]")
-    except Exception as e:
-        print(f"  (Skipped: category field may not be stored in BM25 index)")
-        print(f"  Note: Only 'description' is stored by default in mock_items")
+    except Exception:
+        print("  (Skipped: category field may not be stored in BM25 index)")
+        print("  Note: Only 'description' is stored by default in mock_items")
 
 
 if __name__ == "__main__":

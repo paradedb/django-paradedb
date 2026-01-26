@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.db.backends.base.base import BaseDatabaseWrapper
-from django.db.models import CharField, F, FloatField, Func
+from django.db.models import CharField, F, FloatField, Func, JSONField
 from django.db.models.sql.compiler import SQLCompiler
 
 
@@ -65,4 +65,27 @@ class Snippet(Func):
         return sql, []
 
 
-__all__ = ["Score", "Snippet"]
+class Agg(Func):
+    """Aggregate annotation for ParadeDB facets."""
+
+    function = "pdb.agg"
+    output_field = JSONField()
+    contains_aggregate = True
+    window_compatible = True
+
+    def __init__(self, json_spec: str) -> None:
+        self._json_spec = json_spec
+        super().__init__()
+
+    def as_sql(  # type: ignore[override]
+        self,
+        _compiler: SQLCompiler,
+        _connection: BaseDatabaseWrapper,
+        **_extra_context: Any,
+    ) -> tuple[str, list[Any]]:
+        json_literal = _quote_term(self._json_spec)
+        sql = f"{self.function}({json_literal})"
+        return sql, []
+
+
+__all__ = ["Agg", "Score", "Snippet"]

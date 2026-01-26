@@ -29,11 +29,14 @@ pip install django-paradedb
 ```python
 from django.db import models
 from paradedb.indexes import BM25Index
+from paradedb.queryset import ParadeDBManager, ParadeDBQuerySet
 from paradedb.search import ParadeDB
 
 class Product(models.Model):
     description = models.TextField()
     category = models.CharField(max_length=100)
+
+    objects = ParadeDBManager()
 
     class Meta:
         indexes = [
@@ -48,6 +51,19 @@ class Product(models.Model):
 Product.objects.filter(description=ParadeDB('shoes'))
 ```
 
+If you already have a custom manager, compose it with the ParadeDB QuerySet:
+
+```python
+class CustomManager(models.Manager):
+    ...
+
+CustomManagerWithFacets = CustomManager.from_queryset(ParadeDBQuerySet)
+
+class Product(models.Model):
+    ...
+    objects = CustomManagerWithFacets()
+```
+
 ## Feature Support
 
 Supported:
@@ -56,13 +72,12 @@ Supported:
 - `PQ` boolean composition
 - Search expressions: `Phrase`, `Fuzzy`, `Parse`, `Term`, `Regex`
 - Annotations: `Score`, `Snippet`
+- Faceted search (`.facets()` and `pdb.agg(...)` integration)
 - `BM25Index` DDL generation (basic + JSON field keys)
 - `MoreLikeThis` query filter
 - Django ORM integration with `Q`, standard filters, and window functions
 
 Unsupported / pending:
-
-- Faceted search (`.facets()` and `pdb.agg(...)` integration)
 
 ## Documentation
 

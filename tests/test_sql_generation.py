@@ -9,7 +9,7 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.models import F, Q, Window
 from django.db.models.functions import RowNumber
 
-from paradedb.functions import Score, Snippet
+from paradedb.functions import Agg, Score, Snippet
 from paradedb.indexes import BM25Index
 from paradedb.search import (
     PQ,
@@ -451,4 +451,27 @@ class TestDjangoIntegration:
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", ROW_NUMBER() OVER (PARTITION BY "tests_product"."category" ORDER BY "tests_product"."price" DESC) AS "rank_in_category" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
+        )
+
+
+class TestFacets:
+    """Test facets SQL generation helpers."""
+
+    def test_facets_window_annotation(self) -> None:
+        """Facets window annotation uses pdb.agg() OVER ()."""
+        json_spec = '{"category":{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}}'
+        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
+            facets=Window(expression=Agg(json_spec))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.agg(\'{"category":{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}}\') OVER () AS "facets" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
+        )
+
+    def test_facets_sentinel_injection(self) -> None:
+        """Sentinel adds key_field @@@ pdb.all() when no ParadeDB operator exists."""
+        queryset = Product.objects.filter(rating=5)._with_paradedb_sentinel()
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE ("tests_product"."rating" = 5 AND "tests_product"."id" @@@ pdb.all())'
         )

@@ -7,7 +7,18 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from django.db.backends.base.base import BaseDatabaseWrapper
-from django.db.models import BooleanField, CharField, TextField
+from django.db.models import (
+    AutoField,
+    BigAutoField,
+    BigIntegerField,
+    BooleanField,
+    CharField,
+    Field,
+    IntegerField,
+    SmallIntegerField,
+    TextField,
+    UUIDField,
+)
 from django.db.models.expressions import Expression
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
@@ -70,6 +81,11 @@ class Regex:
     """Regex query expression."""
 
     pattern: str
+
+
+@dataclass(frozen=True)
+class All:
+    """Match-all query expression."""
 
 
 class MoreLikeThis(Expression):
@@ -240,7 +256,7 @@ class ParadeDB:
     contains_column_references = False
 
     def __init__(
-        self, *terms: str | PQ | Phrase | Fuzzy | Parse | Term | Regex
+        self, *terms: str | PQ | Phrase | Fuzzy | Parse | Term | Regex | All
     ) -> None:
         if not terms:
             raise ValueError("ParadeDB requires at least one search term.")
@@ -276,7 +292,7 @@ class ParadeDB:
 
     def _resolve_terms(
         self,
-    ) -> tuple[str, tuple[str | Phrase | Fuzzy | Parse | Term | Regex, ...]]:
+    ) -> tuple[str, tuple[str | Phrase | Fuzzy | Parse | Term | Regex | All, ...]]:
         if len(self._terms) == 1 and isinstance(self._terms[0], PQ):
             pq = self._terms[0]
             operator = "|||" if pq.operator == "OR" else "&&&"
@@ -285,12 +301,14 @@ class ParadeDB:
         if any(isinstance(term, PQ) for term in self._terms):
             raise ValueError("PQ objects must be provided as the sole ParadeDB input.")
 
-        if any(isinstance(term, Parse | Term | Regex) for term in self._terms):
+        if any(isinstance(term, Parse | Term | Regex | All) for term in self._terms):
             if len(self._terms) != 1:
-                raise ValueError("Parse/Term/Regex queries must be a single term.")
+                raise ValueError("Parse/Term/Regex/All queries must be a single term.")
             term = self._terms[0]
-            if not isinstance(term, Parse | Term | Regex):
-                raise TypeError("Parse/Term/Regex cannot be mixed with other terms.")
+            if not isinstance(term, Parse | Term | Regex | All):
+                raise TypeError(
+                    "Parse/Term/Regex/All cannot be mixed with other terms."
+                )
             return "@@@", (term,)
 
         if any(isinstance(term, Phrase) for term in self._terms):
@@ -322,7 +340,9 @@ class ParadeDB:
         escaped = term.replace("'", "''")
         return f"'{escaped}'"
 
-    def _render_term(self, term: str | Phrase | Fuzzy | Parse | Term | Regex) -> str:
+    def _render_term(
+        self, term: str | Phrase | Fuzzy | Parse | Term | Regex | All
+    ) -> str:
         if isinstance(term, Phrase):
             literal = self._quote_term(term.text)
             if term.slop is None:
@@ -338,6 +358,8 @@ class ParadeDB:
             return f"pdb.term({self._quote_term(term.text)})"
         if isinstance(term, Regex):
             return f"pdb.regex({self._quote_term(term.pattern)})"
+        if isinstance(term, All):
+            return "pdb.all()"
         return self._quote_term(term)
 
     @staticmethod
@@ -379,8 +401,15 @@ class ParadeDBExact(Exact):  # type: ignore[type-arg]
         return result[0], list(result[1])
 
 
+Field.register_lookup(ParadeDBExact)
 TextField.register_lookup(ParadeDBExact)
 CharField.register_lookup(ParadeDBExact)
+IntegerField.register_lookup(ParadeDBExact)
+SmallIntegerField.register_lookup(ParadeDBExact)
+BigIntegerField.register_lookup(ParadeDBExact)
+AutoField.register_lookup(ParadeDBExact)
+BigAutoField.register_lookup(ParadeDBExact)
+UUIDField.register_lookup(ParadeDBExact)
 
 __all__ = [
     "PQ",

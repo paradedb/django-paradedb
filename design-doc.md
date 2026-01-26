@@ -1,14 +1,14 @@
 
 # ParadeDB's Plugin for Django ORM
 
-### Overview
+## Overview
 
 Overall Interface rests on following abstractions
 
 1. ParadeDB - custom lookup. Wraps search terms and generates ParadeDB SQL operators like &&&, |||, ###
-2. PQ  - Query object like Django's Q objects. Enables OR and complex boolean logic for ParadeDB’s operators. 
-3. Phrase, Fuzzy, Parse, Term, Regex, MoreLikeThis : Search Expression Classes. They map to pdb.functions for one on one. They are used inside ParadeDb custom lookup. 
-4. Snippet, Score : Custom Annotation functions. Can be combined with F objects for further computations on these generated columns. 
+2. PQ  - Query object like Django's Q objects. Enables OR and complex boolean logic for ParadeDB’s operators.
+3. Phrase, Fuzzy, Parse, Term, Regex, MoreLikeThis : Search Expression Classes. They map to pdb.functions for one on one. They are used inside ParadeDb custom lookup.
+4. Snippet, Score : Custom Annotation functions. Can be combined with F objects for further computations on these generated columns.
 5. BM25Index : Index creation function used in Models
 
 ## Interface Details, Examples & Generated SQL
@@ -80,7 +80,7 @@ BM25Index(
                 'tokenizer': 'simple',
                 'filters': ['lowercase', 'stemmer']
             },
-  
+
            # Definition for the JSON field, assuming the column is named 'metadata'.
            # 'json_keys' is now an attribute of the field it applies to.
            'metadata': {
@@ -137,7 +137,7 @@ Product.objects.filter(description=ParadeDB('shoes'))
 # Simple AND search (comma-separated)
 Product.objects.filter(description=ParadeDB('running', 'shoes'))
 
-# Complex logic requires PQ objects for OR conditions. This matches Django's Q object for an OR. 
+# Complex logic requires PQ objects for OR conditions. This matches Django's Q object for an OR.
 Product.objects.filter(description=ParadeDB(PQ('shoes') | PQ('sandals')))
 
 # Mix simple AND with PQ for complex logic
@@ -195,7 +195,7 @@ Generated SQL:
 
 ### Disjunction (OR)
 
-Search for products containing any of the specified terms. PQ object is used for paradedb OR, similar to Q object for default OR. 
+Search for products containing any of the specified terms. PQ object is used for paradedb OR, similar to Q object for default OR.
 
 ```python
 from paradedb.search import ParadeDB, PQ
@@ -491,13 +491,13 @@ Generated SQL:
 
 ```sql
 -- SELECT * FROM products
--- WHERE description @@@ pdb.regex('run.*');  
+-- WHERE description @@@ pdb.regex('run.*');
 ```
 
 ## More Like This
 
 > Note: MoreLikeThis is used here as a top-level filter (e.g., Product.objects.filter(MoreLikeThis(...))), which is a different pattern from other search expressions that are wrapped within a ParadeDB() lookup (.filter(field=ParadeDB(...))). This is done as a "More Like This" query often implicitly operates on multiple fields as defined in the index, rather than being applied to just a single field.
-> 
+>
 
 ```python
 from paradedb.search import MoreLikeThis
@@ -611,9 +611,9 @@ Product.objects.filter(description=ParadeDB('running', 'shoes')).annotate(
     search_score=Score()
 )[:]
 <QuerySet [
-    <Product: Sleek running shoes>,  
-    <Product: Comfortable running shoes for athletes>,  
-    <Product: Running shoes with advanced cushioning>  
+    <Product: Sleek running shoes>,
+    <Product: Comfortable running shoes for athletes>,
+    <Product: Running shoes with advanced cushioning>
 ]>
 
 ```
@@ -651,18 +651,18 @@ Generated SQL:
 ```sql
 -- SELECT *, pdb.score(id) AS search_score
 -- FROM products
--- WHERE 
+-- WHERE
 --    description @@@ pdb.parse('(running shoes)^0.6 | (category:Footwear OR category:Athletic)^0.4')
--- AND 
+-- AND
 --    pdb.score(id) > 0
--- ORDER BY 
+-- ORDER BY
 --    search_score DESC;
 
 ```
 
 ## Snippets and Highlighting
 
-Extract highlighted snippets from a field. 
+Extract highlighted snippets from a field.
 
 ```python
 from paradedb.search import Snippet, ParadeDB, PQ
@@ -840,11 +840,11 @@ The proposed API uses a `.facets()` method that can be chained after a `.filter(
 ```python
 # After searching for "shoes", get the counts for each "category"
 # and each "brand" within the search results.
-facets = Product.objects.filter(
+rows, facets = Product.objects.filter(
     description=ParadeDB('shoes')
 ).facets('category', 'brand')
 
-# The result is a dictionary containing the facet counts.
+# The method returns rows and the facet counts.
 print(facets)
 # Expected output:
 # {
@@ -877,6 +877,110 @@ The `.facets('category', 'brand')` call would be responsible for generating the 
   LIMIT 5;
 
 ```
+
+### Detailed API Proposal
+
+The goal is a Django-idiomatic API that mirrors QuerySet chaining and keeps ParadeDB-specific syntax encapsulated in `.facets(...)`.
+
+```python
+rows, facets = Product.objects.filter(
+    description=ParadeDB("shoes")
+).facets(
+    "category",
+    "brand",
+    size=10,
+    order="-count",
+    missing="(missing)",
+)
+
+# Expected shape (mirrors Elasticsearch-style aggregation output):
+# {
+#   "category": {
+#     "buckets": [{"key": "Running", "doc_count": 50}, ...]
+#   },
+#   "brand": {
+#     "buckets": [{"key": "Nike", "doc_count": 45}, ...]
+#   }
+# }
+```
+
+#### Signature (proposed)
+
+```python
+QuerySet.facets(
+    *fields: str,
+    size: int | None = 10,
+    order: str | None = "-count",
+    missing: str | None = None,
+    agg: dict[str, object] | None = None,
+    include_rows: bool = True,
+) -> tuple[list[Model], dict[str, object]] | dict[str, object]
+```
+
+Notes:
+
+- `fields`: list of model field names to facet on (text, keyword, or numeric).
+- `size`: max buckets per field; `None` emits no size clause.
+- `order`: `"-count"` or `"count"` or `"key"`/`"-key"` to align with Django’s ordering style.
+- `missing`: value for missing bucket (optional).
+- `agg`: advanced escape hatch to pass raw Elasticsearch-style JSON for power users; when provided, `fields`/`size`/`order`/`missing` are ignored.
+- `include_rows`: when `True`, return `(rows, facets)` via a window aggregate; when `False`, return facets only.
+
+#### SQL shape
+
+Faceted search uses `pdb.agg(...) OVER ()` and returns both rows and an aggregation payload:
+
+```sql
+SELECT
+  *,
+  pdb.agg('{"terms": {"field": "category", "size": 10}}') OVER () AS facets
+FROM products
+WHERE description &&& ARRAY['shoes']
+ORDER BY rating DESC
+LIMIT 20;
+```
+
+To return only aggregation results (no rows), `.facets(..., include_rows=False)` can execute a separate aggregate-only query:
+
+```sql
+SELECT pdb.agg('{"terms": {"field": "category", "size": 10}}')
+FROM products
+WHERE description &&& ARRAY['shoes'];
+```
+
+#### ORM integration points
+
+- Implement `facets()` on a custom `ParadeDBQuerySet` subclass used by the manager.
+- Use `QuerySet.query` to extract existing WHERE clauses (including `ParadeDB(...)`) and attach `pdb.agg(...)`.
+- If no ParadeDB operator is present in the query, inject `@@@ pdb.all()` on the indexed key field to force aggregate pushdown.
+- For windowed facets, annotate with a custom `Func` class:
+
+```python
+class Agg(Func):
+    function = "pdb.agg"
+    output_field = JSONField()
+
+    def __init__(self, json_spec: str) -> None:
+        super().__init__(Value(json_spec))
+```
+
+This allows `.annotate(facets=Agg(json_spec))` and `Window` with `OVER ()` when needed.
+
+#### Django-like behavior
+
+- `.facets(...)` should execute immediately and return a dict (similar to `.aggregate()`).
+- When chained after `.values()` or `.values_list()`, `facets()` ignores projection and only uses filters/order/limits for the result set.
+- Support `queryset = queryset.order_by(...)` and `[:limit]` to control which rows are returned alongside facet results.
+- Facets are computed against the full filtered set (window semantics). `LIMIT/OFFSET` affect rows, not facet buckets.
+
+#### ParadeDB operator detection ("sentinel")
+
+ParadeDB aggregate pushdown requires a ParadeDB operator in the WHERE clause. The queryset should be inspected before executing facets:
+
+- If the WHERE tree contains a ParadeDB lookup (i.e., `ParadeDBExact`), proceed as-is.
+- Otherwise, append a no-op ParadeDB predicate using the BM25 key field: `key_field @@@ pdb.all()`.
+
+This "all" query is a sentinel that forces ParadeDB to execute the aggregate without changing results.
 
 ## Using Window Functions
 
@@ -913,9 +1017,11 @@ Generated SQL:
 ```
 
 ## Pending and other concerns
+
 ### Pagination
 
 ### Other Concerns
+
 - Add BM25Index to existing tables with data?
 - Handle index recreation after schema changes?
 - Deal with Django's migration system?

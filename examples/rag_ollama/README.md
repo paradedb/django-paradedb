@@ -1,45 +1,23 @@
 # RAG with Ollama
 
-Retrieval-Augmented Generation using django-paradedb for BM25 retrieval and Ollama for local LLM generation.
-
-## How it works
-
-1. **Retrieve**: User query → BM25 search via `ParadeDB(Parse(...))` → top-k products
-2. **Generate**: Products formatted as context → Ollama LLM → answer
+Retrieval-Augmented Generation using BM25 search + local LLM.
 
 ## Prerequisites
 
-- ParadeDB running (see project root `scripts/run_paradedb.sh`)
-- [Ollama](https://ollama.ai) installed and running
-- A model pulled: `ollama pull llama3.2`
+- [Ollama](https://ollama.ai) installed: `ollama pull llama3.2`
 
 ## Run
 
 ```bash
-# From project root, start ParadeDB and set env vars
 bash scripts/run_paradedb.sh
 source scripts/paradedb_env.sh
-
-# Start Ollama and pull a model
-ollama serve &
-ollama pull llama3.2
-
-# Run the example
 python examples/rag_ollama/example.py
 
-# Or use a different model
+# Use different model
 OLLAMA_MODEL=mistral python examples/rag_ollama/example.py
 ```
 
-## What it does
-
-1. Creates `pg_search` extension and `mock_items` table (41 sample products)
-2. Uses `Parse(query, lenient=True)` for natural language queries
-3. Retrieves relevant products via BM25, formats as context, sends to Ollama
-
 ## Example Output
-
-> Note: BM25 scores may vary slightly across ParadeDB versions. LLM responses will differ.
 
 ```text
 RAG with django-paradedb + Ollama
@@ -57,8 +35,51 @@ Retrieved 3 products:
 
 Answer:
 ----------------------------------------
-Based on our catalog, we have several shoe options:
-- Sleek running shoes (5/5 rating, in stock, blue)
-- White jogging shoes (3/5 rating, out of stock)
-...
+We have three shoe options that might interest you:
+
+1. **Sleek running shoes** (5/5 stars, in stock) - Our top-rated running shoe,
+   available in blue. Perfect for serious runners.
+
+2. **Generic shoes** (4/5 stars, in stock) - A versatile everyday shoe option.
+
+3. **White jogging shoes** (3/5 stars, currently out of stock) - A lighter
+   option for casual jogging.
+
+I'd recommend the Sleek running shoes for the best performance and quality.
+
+============================================================
+Question: I need comfortable shoes for everyday use
+============================================================
+
+Retrieved 4 products:
+  • Comfortable slippers (score: 3.86)
+  • Generic shoes (score: 2.88)
+  • Sleek running shoes (score: 2.48)
+  • White jogging shoes (score: 2.48)
+
+Answer:
+----------------------------------------
+For everyday comfort, I'd suggest:
+
+**Comfortable slippers** - These are designed specifically for comfort and
+daily wear. While they're categorized as slippers, they're perfect for
+relaxed everyday use around the house.
+
+**Generic shoes** - Also a good option if you need something more versatile
+for going out. They have a 4/5 rating and are currently in stock.
+
+Both options prioritize comfort for daily activities.
+
+============================================================
+Question: Do you have any wireless audio products?
+============================================================
+
+Retrieved 1 products:
+  • Innovative wireless earbuds (score: 3.33)
+
+Answer:
+----------------------------------------
+Yes! We have **Innovative wireless earbuds** available. These are categorized
+under Electronics and offer wireless audio connectivity. They're currently in
+our catalog and would be perfect for your audio needs.
 ```

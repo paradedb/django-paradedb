@@ -41,10 +41,10 @@ if not settings.configured:
 django.setup()
 
 from django.db import models  # noqa: E402
+from pgvector.django import VectorField  # noqa: E402
 
 from paradedb.functions import Score  # noqa: E402
 from paradedb.search import ParadeDB  # noqa: E402
-from pgvector.django import VectorField  # noqa: E402
 
 
 class MockItem(models.Model):
@@ -102,9 +102,7 @@ def vector_search(query: str, top_k: int = 20) -> list[tuple[int, float]]:
     query_embedding = get_query_embedding(query)
 
     results = (
-        MockItem.objects.annotate(
-            distance=CosineDistance("embedding", query_embedding)
-        )
+        MockItem.objects.annotate(distance=CosineDistance("embedding", query_embedding))
         .order_by("distance")[:top_k]
         .values_list("id", "distance")
     )

@@ -40,7 +40,6 @@ if not settings.configured:
 django.setup()
 
 from django.db import connection, models  # noqa: E402
-
 from pgvector.django import VectorField  # noqa: E402
 
 

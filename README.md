@@ -16,7 +16,7 @@ ParadeDB full-text search integration for Django ORM.
 | Python    | 3.13+              |
 | Django    | 6.0+               |
 | ParadeDB  | 0.21.* (tested on 0.21.4) |
-| PostgreSQL| 17 (with ParadeDB extension) |
+| PostgreSQL| 17, 18 (with ParadeDB extension) |
 
 ## Installation
 

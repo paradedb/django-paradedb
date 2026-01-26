@@ -145,8 +145,6 @@ ruff format .
 bash scripts/run_integration_tests.sh
 ```
 
-> Note: CI currently pins a single ParadeDB image (`paradedb/paradedb:0.21.4-pg17`) and Django 6.0. A future improvement is to add a version matrix that covers multiple ParadeDB and Django versions.
-
 ## Support
 
 If you're missing a feature or have found a bug, please open a

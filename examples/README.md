@@ -15,3 +15,4 @@ python examples/quickstart/example.py
 
 - **[quickstart](quickstart/)** - Basic full-text search with BM25
 - **[rag_ollama](rag_ollama/)** - RAG with local LLM
+- **[hybrid_rrf](hybrid_rrf/)** - Hybrid search (BM25 + vector) with RRF fusion

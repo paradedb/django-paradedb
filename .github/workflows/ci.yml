@@ -32,6 +32,7 @@ jobs:
         run: mypy src/paradedb
 
   test:
+    name: django-paradedb test
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -39,7 +40,7 @@ jobs:
         django-version: ["6.0"]
     services:
       paradedb:
-        image: paradedb/paradedb:0.21.4-pg17
+        image: paradedb/paradedb:0.21.4-pg18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -78,13 +79,15 @@ jobs:
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_GLOBAL_UPLOAD_TOKEN }}
 
   integration:
+    name: django-paradedb integration
     runs-on: ubuntu-latest
     needs: test
     services:
       paradedb:
-        image: paradedb/paradedb:0.21.4-pg17
+        image: paradedb/paradedb:0.21.4-pg18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

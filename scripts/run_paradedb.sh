@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-IMAGE="${PARADEDB_IMAGE:-paradedb/paradedb:0.21.4-pg17}"
+IMAGE="${PARADEDB_IMAGE:-paradedb/paradedb:0.21.4-pg18}"
 CONTAINER_NAME="${PARADEDB_CONTAINER_NAME:-paradedb-integration}"
 PORT="${PARADEDB_PORT:-5432}"
 USER="${PARADEDB_USER:-postgres}"

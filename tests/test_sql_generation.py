@@ -5,6 +5,7 @@ This plugin tests SQL string generation only - no database required.
 
 from unittest.mock import Mock
 
+import pytest
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.models import F, Q, Window
 from django.db.models.functions import RowNumber
@@ -468,10 +469,22 @@ class TestFacets:
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.agg(\'{"category":{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}}\') OVER () AS "facets" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
 
-    def test_facets_sentinel_injection(self) -> None:
-        """Sentinel adds key_field @@@ pdb.all() when no ParadeDB operator exists."""
-        queryset = Product.objects.filter(rating=5)._with_paradedb_sentinel()
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE ("tests_product"."rating" = 5 AND "tests_product"."id" @@@ pdb.all())'
-        )
+    def test_facets_requires_paradedb_operator(self) -> None:
+        """facets() raises if no ParadeDB operator is present."""
+        queryset = Product.objects.filter(rating=5).order_by("price")[:5]
+        with pytest.raises(ValueError, match="ParadeDB operator"):
+            queryset.facets("category")
+
+    def test_facets_requires_order_by_and_limit(self) -> None:
+        """facets() raises if include_rows requires order_by + LIMIT."""
+        queryset = Product.objects.filter(description=ParadeDB("shoes"))
+        with pytest.raises(ValueError, match="order_by\\(\\) and a LIMIT"):
+            queryset.facets("category")
+
+    def test_facets_requires_single_field(self) -> None:
+        """facets() raises when multiple fields are provided."""
+        queryset = Product.objects.filter(description=ParadeDB("shoes")).order_by(
+            "price"
+        )[:5]
+        with pytest.raises(ValueError, match="single field"):
+            queryset.facets("category", "rating")

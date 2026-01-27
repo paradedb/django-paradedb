@@ -36,6 +36,8 @@ class MockItem(models.Model):
     created_at = models.DateTimeField()
     metadata = models.JSONField(null=True)
 
+    objects = ParadeDBManager()
+
     class Meta:
         app_label = "tests"
         managed = False

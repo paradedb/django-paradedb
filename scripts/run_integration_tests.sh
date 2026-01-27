@@ -12,7 +12,11 @@ PASSWORD="${PARADEDB_PASSWORD:-postgres}"
 DB="${PARADEDB_DB:-postgres}"
 
 export PARADEDB_INTEGRATION=1
-export PARADEDB_TEST_DSN="postgres://${USER}@localhost:${PORT}/${DB}"
+export PARADEDB_TEST_DSN="postgres://${USER}:${PASSWORD}@localhost:${PORT}/${DB}"
 export PGPASSWORD="${PASSWORD}"
 
-./.venv/bin/python -m pytest -m integration
+if [[ $# -gt 0 ]]; then
+  ./.venv/bin/python -m pytest "$@"
+else
+  ./.venv/bin/python -m pytest -m integration
+fi

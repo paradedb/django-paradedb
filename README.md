@@ -64,6 +64,30 @@ class Product(models.Model):
     objects = CustomManagerWithFacets()
 ```
 
+## Faceted search
+
+Faceted queries return both rows and an aggregate in one query. ParadeDB requires an `ORDER BY ... LIMIT` Top-N query and a ParadeDB operator in the `WHERE` clause. For text fields, use a literal tokenizer for facet fields.
+
+```python
+rows, facets = (
+    Product.objects.filter(description=ParadeDB("running shoes"))
+    .order_by("id")[:5]
+    .facets("category")
+)
+```
+
+To return only the aggregate (no rows), set `include_rows=False`:
+
+```python
+facets = Product.objects.filter(description=ParadeDB("running shoes")).facets(
+    "category",
+    include_rows=False,
+)
+
+Note: `facets()` currently supports a single field. For multiple aggregations,
+pass raw JSON via `agg=...`.
+```
+
 ## Feature Support
 
 Supported:

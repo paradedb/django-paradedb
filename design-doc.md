@@ -919,7 +919,7 @@ QuerySet.facets(
 
 Notes:
 
-- `fields`: list of model field names to facet on (text, keyword, or numeric).
+- `fields`: list of model field names to facet on (text, keyword, or numeric). Currently limited to one field unless `agg` is provided. Text facet fields must use a literal tokenizer in the BM25 index.
 - `size`: max buckets per field; `None` emits no size clause.
 - `order`: `"-count"` or `"count"` or `"key"`/`"-key"` to align with Django’s ordering style.
 - `missing`: value for missing bucket (optional).
@@ -928,14 +928,14 @@ Notes:
 
 #### SQL shape
 
-Faceted search uses `pdb.agg(...) OVER ()` and returns both rows and an aggregation payload:
+Faceted search uses `pdb.agg(...) OVER ()` and returns both rows and an aggregation payload. ParadeDB requires an `ORDER BY ... LIMIT` Top-N query and a ParadeDB operator in the WHERE clause for this to work.
 
 ```sql
 SELECT
   *,
   pdb.agg('{"terms": {"field": "category", "size": 10}}') OVER () AS facets
 FROM products
-WHERE description &&& ARRAY['shoes']
+WHERE description ||| 'shoes'
 ORDER BY rating DESC
 LIMIT 20;
 ```
@@ -952,7 +952,6 @@ WHERE description &&& ARRAY['shoes'];
 
 - Implement `facets()` on a custom `ParadeDBQuerySet` subclass used by the manager.
 - Use `QuerySet.query` to extract existing WHERE clauses (including `ParadeDB(...)`) and attach `pdb.agg(...)`.
-- If no ParadeDB operator is present in the query, inject `@@@ pdb.all()` on the indexed key field to force aggregate pushdown.
 - For windowed facets, annotate with a custom `Func` class:
 
 ```python
@@ -973,14 +972,9 @@ This allows `.annotate(facets=Agg(json_spec))` and `Window` with `OVER ()` when 
 - Support `queryset = queryset.order_by(...)` and `[:limit]` to control which rows are returned alongside facet results.
 - Facets are computed against the full filtered set (window semantics). `LIMIT/OFFSET` affect rows, not facet buckets.
 
-#### ParadeDB operator detection ("sentinel")
+#### ParadeDB operator detection
 
-ParadeDB aggregate pushdown requires a ParadeDB operator in the WHERE clause. The queryset should be inspected before executing facets:
-
-- If the WHERE tree contains a ParadeDB lookup (i.e., `ParadeDBExact`), proceed as-is.
-- Otherwise, append a no-op ParadeDB predicate using the BM25 key field: `key_field @@@ pdb.all()`.
-
-This "all" query is a sentinel that forces ParadeDB to execute the aggregate without changing results.
+ParadeDB aggregate pushdown requires a ParadeDB operator in the WHERE clause. If no ParadeDB operator is found, `facets()` should raise a helpful error and ask the caller to add a ParadeDB search filter.
 
 ## Using Window Functions
 

@@ -52,7 +52,12 @@ class Fuzzy:
 
 @dataclass(frozen=True)
 class Parse:
-    """Parse query expression."""
+    """Parse query expression.
+
+    Accepts raw Tantivy query strings. This is powerful and should only be used
+    with trusted input. Validate or constrain user-provided queries before
+    passing them here.
+    """
 
     query: str
     lenient: bool | None = None

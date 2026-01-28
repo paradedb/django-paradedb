@@ -41,7 +41,11 @@ class Product(models.Model):
     class Meta:
         indexes = [
             BM25Index(
-                fields={'id': {}, 'description': {'tokenizer': 'simple'}},
+                fields={
+                    'id': {},
+                    'description': {'tokenizer': 'simple'},
+                    'category': {'tokenizer': 'literal'},
+                },
                 key_field='id',
                 name='product_search_idx',
             ),
@@ -66,7 +70,7 @@ class Product(models.Model):
 
 ## Faceted search
 
-Faceted queries return both rows and an aggregate in one query. ParadeDB requires an `ORDER BY ... LIMIT` Top N query and a ParadeDB operator in the `WHERE` clause. For text fields, use a literal tokenizer for facet fields.
+Faceted queries return both rows and an aggregate in one query. ParadeDB requires an `ORDER BY ... LIMIT` Top N query and a ParadeDB operator in the `WHERE` clause. For text fields, use a literal tokenizer for facet fields (see the `category` index config above).
 
 ```python
 rows, facets = (

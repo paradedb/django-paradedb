@@ -45,3 +45,37 @@ class MockItem(models.Model):
 
     def __str__(self) -> str:
         return f"MockItem(id={self.id})"
+
+
+class JsonItem(models.Model):
+    """Synthetic JSON data table for ParadeDB JSON facet tests."""
+
+    id = models.IntegerField(primary_key=True)
+    metadata = models.JSONField(null=True)
+
+    objects = ParadeDBManager()
+
+    class Meta:
+        app_label = "tests"
+        managed = False
+        db_table = "json_items"
+
+    def __str__(self) -> str:
+        return f"JsonItem(id={self.id})"
+
+
+class JsonItemNoExpand(models.Model):
+    """JSON data table with expand_dots disabled for JSON fields."""
+
+    id = models.IntegerField(primary_key=True)
+    metadata = models.JSONField(null=True)
+
+    objects = ParadeDBManager()
+
+    class Meta:
+        app_label = "tests"
+        managed = False
+        db_table = "json_items_no_expand"
+
+    def __str__(self) -> str:
+        return f"JsonItemNoExpand(id={self.id})"

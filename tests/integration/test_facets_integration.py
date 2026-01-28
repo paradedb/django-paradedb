@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from django.db import utils as db_utils
 from tests.models import MockItem
 
 from paradedb.search import ParadeDB
@@ -52,3 +53,45 @@ class TestFacetsIntegration:
         assert "buckets" in facets["rating_terms"]
         assert "buckets" in facets["in_stock_terms"]
         assert len(rows) <= 3
+
+    def test_facets_json_alias_fields(self) -> None:
+        """JSON field facets must use bm25 alias names."""
+        rows, facets = (
+            MockItem.objects.filter(description=ParadeDB("shoes"))
+            .order_by("rating")[:3]
+            .facets("metadata_color", "metadata_location")
+        )
+        assert len(rows) <= 3
+        assert "metadata_color_terms" in facets
+        assert "metadata_location_terms" in facets
+        assert "buckets" in facets["metadata_color_terms"]
+        assert "buckets" in facets["metadata_location_terms"]
+
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "metadata.color",
+            "metadata->color",
+            "metadata->'color'",
+            "metadata->>'color'",
+            "metadata.color.keyword",
+        ],
+    )
+    def test_facets_rejects_json_path_syntax(self, field: str) -> None:
+        """JSON path-like field syntax is not supported by ParadeDB facets."""
+        queryset = MockItem.objects.filter(description=ParadeDB("shoes")).order_by(
+            "rating"
+        )[:3]
+        with pytest.raises(db_utils.InternalError, match="invalid field"):
+            queryset.facets(field)
+
+    def test_facets_alias_with_keyword_suffix(self) -> None:
+        """Alias + .keyword is accepted but yields empty buckets."""
+        rows, facets = (
+            MockItem.objects.filter(description=ParadeDB("shoes"))
+            .order_by("rating")[:3]
+            .facets("metadata_color.keyword")
+        )
+        assert len(rows) <= 3
+        assert "buckets" in facets
+        assert facets["buckets"] == []

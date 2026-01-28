@@ -89,3 +89,48 @@ def mock_items(paradedb_ready: None) -> None:
     """Function-scoped dependency that guarantees mock_items is available."""
     _ = paradedb_ready
     return None
+
+
+def _seed_json_table(*, table: str, index: str, json_fields: str) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(f"DROP TABLE IF EXISTS {table};")
+        cursor.execute(
+            f"CREATE TABLE {table} (id integer primary key, metadata jsonb);"
+        )
+        cursor.execute(
+            f"""
+            INSERT INTO {table} (id, metadata) VALUES
+            (1, '{{"color":"red","location":"US","size":3,"flags":{{"featured":true}},"tags":["a","b"],"metrics":{{"1":"one","2":"two"}},"deep":{{"nested":{{"value":"x"}}}},"dot.key":"dk","weird key":"space","dash-key":"d","arrnums":[1,2,2],"bools":[true,false],"mixed":[1,"1",true,null],"nullval":null,"emptystr":"","numfloat":2.5,"objarray":[{{"k":"v1"}},{{"k":"v2"}}],"nested_array":[["x","y"],["y"]],"obj":{{"inner":1}},"objarray_deep":[{{"meta":{{"code":"c1"}}}},{{"meta":{{"code":null}}}},{{}}]}}'),
+            (2, '{{"color":"blue","location":"CA","size":5,"flags":{{"featured":false}},"tags":["b","c"],"metrics":{{"1":"uno"}},"deep":{{"nested":{{"value":"y"}}}},"dot.key":"dk2","arrnums":[3],"bools":[true],"mixed":["1"],"emptystr":"","numfloat":2.5,"objarray":[{{"k":"v1"}}],"nested_array":[["y"]],"obj":{{"inner":2}},"objarray_deep":[{{"meta":{{"code":"c2"}}}}]}}'),
+            (3, '{{"color":"red","location":"US","size":3,"tags":[],"metrics":{{}},"deep":{{}},"arrnums":[],"bools":[],"mixed":[],"nullval":null,"objarray":[],"nested_array":[],"objarray_deep":[]}}');
+            """
+        )
+        cursor.execute(f"DROP INDEX IF EXISTS {index};")
+        cursor.execute(
+            f"CREATE INDEX {index} ON {table} USING bm25 (id, metadata) WITH (key_field='id', json_fields='{json_fields}');"
+        )
+        connection.commit()
+
+
+@pytest.fixture(scope="function")
+def json_items(paradedb_ready: None) -> None:
+    """Ensure json_items table is available with default JSON field settings."""
+    _ = paradedb_ready
+    _seed_json_table(
+        table="json_items",
+        index="json_items_bm25_idx",
+        json_fields='{"metadata":{"fast":true}}',
+    )
+    return None
+
+
+@pytest.fixture(scope="function")
+def json_items_no_expand(paradedb_ready: None) -> None:
+    """Ensure json_items_no_expand table uses expand_dots=false."""
+    _ = paradedb_ready
+    _seed_json_table(
+        table="json_items_no_expand",
+        index="json_items_no_expand_bm25_idx",
+        json_fields='{"metadata":{"fast":true,"expand_dots":false}}',
+    )
+    return None

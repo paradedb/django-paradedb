@@ -8,7 +8,6 @@ from typing import Any, cast
 
 from django.db import models
 from django.db.models import Window
-from django.db.models.query import ModelIterable
 from django.db.models.sql.where import WhereNode
 
 from paradedb.functions import Agg
@@ -86,12 +85,7 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         return self._facets_only_multi(agg_specs)
 
     def _normalized_queryset(self) -> ParadeDBQuerySet:
-        queryset = cast(ParadeDBQuerySet, self._chain())  # type: ignore[attr-defined]
-        if queryset._fields is not None:  # type: ignore[attr-defined]
-            queryset._fields = None  # type: ignore[attr-defined]
-            queryset._iterable_class = ModelIterable
-            queryset.query.set_values(())
-        return queryset
+        return cast(ParadeDBQuerySet, self._chain())  # type: ignore[attr-defined]
 
     def _facets_only(self, json_spec: str) -> dict[str, object]:
         queryset = self._normalized_queryset()
@@ -152,6 +146,8 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         fields = list(fields)
         if not fields:
             raise ValueError("facets() requires at least one field.")
+        if len(set(fields)) != len(fields):
+            raise ValueError("Facet field names must be unique.")
 
         terms_order = self._resolve_terms_order(order)
         specs: dict[str, str] = {}
@@ -197,6 +193,14 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
             for row in rows:
                 row.pop(alias, None)
             return facets
+        if isinstance(first, tuple):
+            if not first:
+                return {}
+            facets = first[-1] if isinstance(first[-1], dict) else {}
+            for index, row in enumerate(rows):
+                if isinstance(row, tuple) and len(row) > 0:
+                    rows[index] = row[:-1]
+            return facets
         facets = getattr(first, alias, None) or {}
         for row in rows:
             if hasattr(row, alias):
@@ -215,6 +219,14 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
                 for row in rows:
                     row.pop(alias, None)
                 return facets
+            if isinstance(first, tuple):
+                if not first:
+                    return {}
+                facets = first[-1] if isinstance(first[-1], dict) else {}
+                for index, row in enumerate(rows):
+                    if isinstance(row, tuple) and len(row) > 0:
+                        rows[index] = row[:-1]
+                return facets
             facets = getattr(first, alias, None) or {}
             for row in rows:
                 if hasattr(row, alias):
@@ -222,16 +234,28 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
             return facets
 
         result: dict[str, object] = {}
-        for alias in aliases:
-            if isinstance(first, dict):
+        if isinstance(first, dict):
+            for alias in aliases:
                 result[alias] = first.get(alias) or {}
-            else:
-                result[alias] = getattr(first, alias, None) or {}
+            for row in rows:
+                for alias in aliases:
+                    row.pop(alias, None)
+            return result
+        if isinstance(first, tuple):
+            if len(first) < len(aliases):
+                return {}
+            facet_values = first[-len(aliases) :]
+            for alias, value in zip(aliases, facet_values, strict=False):
+                result[alias] = value if isinstance(value, dict) else {}
+            for index, row in enumerate(rows):
+                if isinstance(row, tuple) and len(row) >= len(aliases):
+                    rows[index] = row[: -len(aliases)]
+            return result
+        for alias in aliases:
+            result[alias] = getattr(first, alias, None) or {}
         for row in rows:
             for alias in aliases:
-                if isinstance(row, dict):
-                    row.pop(alias, None)
-                elif hasattr(row, alias):
+                if hasattr(row, alias):
                     delattr(row, alias)
         return result
 

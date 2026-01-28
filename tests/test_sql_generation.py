@@ -531,3 +531,11 @@ class TestFacets:
         assert json.loads(specs["_paradedb_facets"]) == {
             "terms": {"field": "in_stock", "missing": False}
         }
+
+    def test_facets_requires_unique_fields(self) -> None:
+        """facets() raises when fields are duplicated."""
+        queryset = Product.objects.filter(description=ParadeDB("shoes")).order_by(
+            "price"
+        )[:5]
+        with pytest.raises(ValueError, match="unique"):
+            queryset.facets("category", "category")

@@ -62,7 +62,7 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         if include_rows:
             self._require_order_by_and_limit()
 
-        json_spec = self._build_agg_json(
+        agg_specs = self._build_agg_specs(
             fields=fields,
             size=size,
             order=order,
@@ -72,16 +72,18 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
 
         if include_rows:
             queryset = self._normalized_queryset()
-            alias = "_paradedb_facets"
-            queryset = queryset.annotate(**{alias: Window(expression=Agg(json_spec))})
+            annotations = {
+                alias: Window(expression=Agg(spec)) for alias, spec in agg_specs.items()
+            }
+            queryset = queryset.annotate(**annotations)
             rows = list(queryset)
             if not rows:
-                facets = self._facets_only(json_spec)
+                facets = self._facets_only_multi(agg_specs)
             else:
-                facets = self._extract_facets(rows, alias)
+                facets = self._extract_facets_multi(rows, list(agg_specs.keys()))
             return rows, facets
 
-        return self._facets_only(json_spec)
+        return self._facets_only_multi(agg_specs)
 
     def _normalized_queryset(self) -> ParadeDBQuerySet:
         queryset = cast(ParadeDBQuerySet, self._chain())  # type: ignore[attr-defined]
@@ -95,6 +97,15 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         queryset = self._normalized_queryset()
         result = queryset.aggregate(_paradedb_facets=Agg(json_spec))
         return result.get("_paradedb_facets") or {}
+
+    def _facets_only_multi(self, agg_specs: dict[str, str]) -> dict[str, object]:
+        queryset = self._normalized_queryset()
+        aggregations = {alias: Agg(spec) for alias, spec in agg_specs.items()}
+        result = queryset.aggregate(**aggregations)
+        if len(agg_specs) == 1:
+            alias = next(iter(agg_specs.keys()))
+            return result.get(alias) or {}
+        return {alias: result.get(alias) or {} for alias in agg_specs}
 
     def _require_paradedb_operator(self) -> None:
         if not _contains_paradedb_operator(self.query.where):
@@ -119,7 +130,7 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
                 "Slice the queryset (e.g. [:10]) before calling facets()."
             )
 
-    def _build_agg_json(
+    def _build_agg_specs(
         self,
         *,
         fields: Iterable[str],
@@ -127,33 +138,40 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         order: str | None,
         missing: str | None,
         agg: dict[str, object] | str | None,
-    ) -> str:
+    ) -> dict[str, str]:
+        """Build a dict of {alias: json_spec} for each aggregation."""
         if agg is not None:
             if isinstance(agg, str):
-                return agg
-            return json.dumps(agg, separators=(",", ":"), sort_keys=True)
+                return {"_paradedb_facets": agg}
+            return {
+                "_paradedb_facets": json.dumps(
+                    agg, separators=(",", ":"), sort_keys=True
+                )
+            }
 
         fields = list(fields)
-        if len(fields) != 1:
-            raise ValueError(
-                "facets() currently supports a single field. "
-                "Pass a raw agg JSON via agg=... for advanced cases."
-            )
+        if not fields:
+            raise ValueError("facets() requires at least one field.")
 
         terms_order = self._resolve_terms_order(order)
-        field = fields[0]
-        if not isinstance(field, str):
-            raise TypeError("Facet field names must be strings.")
-        terms: dict[str, object] = {"field": field}
-        if size is not None:
-            if size < 0:
-                raise ValueError("Facet size must be zero or positive.")
-            terms["size"] = size
-        if terms_order is not None:
-            terms["order"] = terms_order
-        if missing is not None:
-            terms["missing"] = missing
-        return json.dumps({"terms": terms}, separators=(",", ":"), sort_keys=True)
+        specs: dict[str, str] = {}
+        for field in fields:
+            if not isinstance(field, str):
+                raise TypeError("Facet field names must be strings.")
+            terms: dict[str, object] = {"field": field}
+            if size is not None:
+                if size < 0:
+                    raise ValueError("Facet size must be zero or positive.")
+                terms["size"] = size
+            if terms_order is not None:
+                terms["order"] = terms_order
+            if missing is not None:
+                terms["missing"] = missing
+            alias = f"{field}_terms" if len(fields) > 1 else "_paradedb_facets"
+            specs[alias] = json.dumps(
+                {"terms": terms}, separators=(",", ":"), sort_keys=True
+            )
+        return specs
 
     @staticmethod
     def _resolve_terms_order(order: str | None) -> dict[str, str] | None:
@@ -184,6 +202,38 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
             if hasattr(row, alias):
                 delattr(row, alias)
         return facets
+
+    @staticmethod
+    def _extract_facets_multi(rows: list[Any], aliases: list[str]) -> dict[str, object]:
+        if not rows:
+            return {}
+        first = rows[0]
+        if len(aliases) == 1:
+            alias = aliases[0]
+            if isinstance(first, dict):
+                facets = first.get(alias) or {}
+                for row in rows:
+                    row.pop(alias, None)
+                return facets
+            facets = getattr(first, alias, None) or {}
+            for row in rows:
+                if hasattr(row, alias):
+                    delattr(row, alias)
+            return facets
+
+        result: dict[str, object] = {}
+        for alias in aliases:
+            if isinstance(first, dict):
+                result[alias] = first.get(alias) or {}
+            else:
+                result[alias] = getattr(first, alias, None) or {}
+        for row in rows:
+            for alias in aliases:
+                if isinstance(row, dict):
+                    row.pop(alias, None)
+                elif hasattr(row, alias):
+                    delattr(row, alias)
+        return result
 
 
 class ParadeDBManager(models.Manager.from_queryset(ParadeDBQuerySet)):  # type: ignore[misc]

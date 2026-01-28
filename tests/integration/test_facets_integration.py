@@ -38,3 +38,17 @@ class TestFacetsIntegration:
         assert len(rows) <= 3
         for row in rows:
             assert not hasattr(row, "_paradedb_facets")
+
+    def test_facets_multiple_fields(self) -> None:
+        """Multiple field facets return aggregations for each field."""
+        rows, facets = (
+            MockItem.objects.filter(description=ParadeDB("shoes"))
+            .order_by("rating")[:3]
+            .facets("rating", "in_stock")
+        )
+        assert isinstance(facets, dict)
+        assert "rating_terms" in facets
+        assert "in_stock_terms" in facets
+        assert "buckets" in facets["rating_terms"]
+        assert "buckets" in facets["in_stock_terms"]
+        assert len(rows) <= 3

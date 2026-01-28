@@ -66,7 +66,7 @@ class Product(models.Model):
 
 ## Faceted search
 
-Faceted queries return both rows and an aggregate in one query. ParadeDB requires an `ORDER BY ... LIMIT` Top-N query and a ParadeDB operator in the `WHERE` clause. For text fields, use a literal tokenizer for facet fields.
+Faceted queries return both rows and an aggregate in one query. ParadeDB requires an `ORDER BY ... LIMIT` Top N query and a ParadeDB operator in the `WHERE` clause. For text fields, use a literal tokenizer for facet fields.
 
 ```python
 rows, facets = (
@@ -83,9 +83,17 @@ facets = Product.objects.filter(description=ParadeDB("running shoes")).facets(
     "category",
     include_rows=False,
 )
+```
 
-Note: `facets()` currently supports a single field. For multiple aggregations,
-pass raw JSON via `agg=...`.
+Multiple fields are supported:
+
+```python
+rows, facets = (
+    Product.objects.filter(description=ParadeDB("running shoes"))
+    .order_by("id")[:5]
+    .facets("category", "rating")
+)
+# facets = {"category_terms": {...}, "rating_terms": {...}}
 ```
 
 ## Feature Support

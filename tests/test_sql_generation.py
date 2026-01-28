@@ -481,10 +481,19 @@ class TestFacets:
         with pytest.raises(ValueError, match="order_by\\(\\) and a LIMIT"):
             queryset.facets("category")
 
-    def test_facets_requires_single_field(self) -> None:
-        """facets() raises when multiple fields are provided."""
+    def test_facets_multiple_fields_specs(self) -> None:
+        """facets() generates correct specs for multiple fields."""
         queryset = Product.objects.filter(description=ParadeDB("shoes")).order_by(
             "price"
         )[:5]
-        with pytest.raises(ValueError, match="single field"):
-            queryset.facets("category", "rating")
+        specs = queryset._build_agg_specs(
+            fields=["category", "rating"],
+            size=10,
+            order="-count",
+            missing=None,
+            agg=None,
+        )
+        assert "category_terms" in specs
+        assert "rating_terms" in specs
+        assert "category" in specs["category_terms"]
+        assert "rating" in specs["rating_terms"]

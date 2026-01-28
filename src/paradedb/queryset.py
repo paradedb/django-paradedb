@@ -42,7 +42,7 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         *fields: str,
         size: int | None = 10,
         order: str | None = "-count",
-        missing: str | None = None,
+        missing: object | None = None,
         agg: dict[str, object] | str | None = None,
         include_rows: bool = True,
     ) -> dict[str, object] | tuple[list[Any], dict[str, object]]:
@@ -136,7 +136,7 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         fields: Iterable[str],
         size: int | None,
         order: str | None,
-        missing: str | None,
+        missing: object | None,
         agg: dict[str, object] | str | None,
     ) -> dict[str, str]:
         """Build a dict of {alias: json_spec} for each aggregation."""

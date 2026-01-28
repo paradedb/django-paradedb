@@ -161,9 +161,22 @@ class TestAggregationWithSearch:
         assert agg_value["value"] == 1.0
 
     def test_aggregate_with_fuzzy_search(self) -> None:
-        """Aggregation with fuzzy search - note: pdb.fuzzy not available in 0.21.4."""
-        # Skip as pdb.fuzzy function is not available in pg_search 0.21.4
-        pytest.skip("pdb.fuzzy function not available in pg_search 0.21.4")
+        """Aggregation with fuzzy search."""
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT to_regtype('pdb.fuzzy')")
+            type_name = cursor.fetchone()[0]
+            if type_name is None:
+                pytest.skip("pdb.fuzzy type not available in pg_search")
+            cursor.execute(
+                'SELECT pdb.agg(\'{"value_count": {"field": "id"}}\') FROM mock_items WHERE description ||| \'runnning\'::pdb.fuzzy(1) AND id @@@ pdb.all()'
+            )
+            row = cursor.fetchone()
+
+        assert row is not None
+        agg_value = json.loads(row[0])
+        assert agg_value["value"] == 1.0
 
     def test_aggregate_with_term_search(self) -> None:
         """Aggregation with exact term search."""

@@ -2,70 +2,24 @@
 """Hybrid search example using BM25 + vector search with Reciprocal Rank Fusion."""
 
 import os
-from urllib.parse import urlparse
 
-import django
 import httpx
-from django.conf import settings
+from _common import MockItemWithEmbedding as MockItem
 from dotenv import load_dotenv
 from pgvector.django import CosineDistance
 
+from paradedb.functions import Score
+from paradedb.search import ParadeDB
+
 load_dotenv()
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres"
-)
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 
 if not OPENROUTER_API_KEY:
     raise ValueError("OPENROUTER_API_KEY not found in environment. Add it to .env file")
 
-parsed = urlparse(DATABASE_URL)
-if not settings.configured:
-    settings.configure(
-        DEBUG=True,
-        DATABASES={
-            "default": {
-                "ENGINE": "django.db.backends.postgresql",
-                "NAME": parsed.path.lstrip("/"),
-                "USER": parsed.username or "postgres",
-                "PASSWORD": parsed.password or "",
-                "HOST": parsed.hostname or "localhost",
-                "PORT": parsed.port or 5432,
-            }
-        },
-        INSTALLED_APPS=["django.contrib.contenttypes"],
-        DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
-    )
-
-django.setup()
-
-from django.db import models  # noqa: E402
-from pgvector.django import VectorField  # noqa: E402
-
-from paradedb.functions import Score  # noqa: E402
-from paradedb.search import ParadeDB  # noqa: E402
-
-
-class MockItem(models.Model):
-    """ParadeDB's mock_items table with vector embeddings."""
-
-    id = models.IntegerField(primary_key=True)
-    description = models.TextField()
-    category = models.CharField(max_length=100)
-    rating = models.IntegerField()
-    in_stock = models.BooleanField()
-    created_at = models.DateTimeField()
-    metadata = models.JSONField(null=True)
-    embedding = VectorField(dimensions=384, null=True)
-
-    class Meta:
-        app_label = "hybrid_rrf"
-        managed = False
-        db_table = "mock_items"
-
-    def __str__(self):
-        return self.description
+if MockItem is None:
+    raise ImportError("pgvector is required for this example. pip install pgvector")
 
 
 def get_query_embedding(text: str) -> list[float]:
@@ -102,7 +56,8 @@ def vector_search(query: str, top_k: int = 20) -> list[tuple[int, float]]:
     query_embedding = get_query_embedding(query)
 
     results = (
-        MockItem.objects.annotate(distance=CosineDistance("embedding", query_embedding))
+        MockItem.objects.filter(embedding__isnull=False)
+        .annotate(distance=CosineDistance("embedding", query_embedding))
         .order_by("distance")[:top_k]
         .values_list("id", "distance")
     )
@@ -138,7 +93,7 @@ def display_results(
     query: str, bm25_results: list, vector_results: list, rrf_results: list
 ) -> None:
     """Display search results side by side."""
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"Query: '{query}'")
     print("=" * 80)
 

@@ -4,77 +4,22 @@
 This example demonstrates ParadeDB's MoreLikeThis feature, which finds similar
 documents based on term frequency analysis (TF-IDF), not vector embeddings.
 
+NOTE: MoreLikeThis is used directly in .filter(), not wrapped in ParadeDB().
+This is because it's a table-level similarity query that uses the primary key
+internally, rather than a field-targeted search expression.
+
 Use cases:
 - "Related products" on product pages
 - "Similar articles" recommendations
 - Content discovery and exploration
 """
 
-import os
-from urllib.parse import urlparse
+import json
 
-import django
-from django.conf import settings
+from _common import MockItem, setup_mock_items
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgres://postgres:postgres@localhost:5432/postgres"
-)
-
-parsed = urlparse(DATABASE_URL)
-if not settings.configured:
-    settings.configure(
-        DEBUG=True,
-        DATABASES={
-            "default": {
-                "ENGINE": "django.db.backends.postgresql",
-                "NAME": parsed.path.lstrip("/"),
-                "USER": parsed.username or "postgres",
-                "PASSWORD": parsed.password or "",
-                "HOST": parsed.hostname or "localhost",
-                "PORT": parsed.port or 5432,
-            }
-        },
-        INSTALLED_APPS=["django.contrib.contenttypes"],
-        DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
-    )
-
-django.setup()
-
-from django.db import connection, models  # noqa: E402
-
-from paradedb.functions import Score  # noqa: E402
-from paradedb.search import MoreLikeThis  # noqa: E402
-
-
-class MockItem(models.Model):
-    """ParadeDB's built-in mock_items table."""
-
-    id = models.IntegerField(primary_key=True)
-    description = models.TextField()
-    category = models.CharField(max_length=100)
-    rating = models.IntegerField()
-    in_stock = models.BooleanField()
-    created_at = models.DateTimeField()
-    metadata = models.JSONField(null=True)
-
-    class Meta:
-        app_label = "morelikethis"
-        managed = False
-        db_table = "mock_items"
-
-    def __str__(self):
-        return self.description
-
-
-def setup_mock_data() -> None:
-    """Ensure mock_items table exists with BM25 index."""
-    with connection.cursor() as cursor:
-        cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search")
-        cursor.execute(
-            "CALL paradedb.create_bm25_test_table("
-            "schema_name => 'public', table_name => 'mock_items')"
-        )
-    print(f"Loaded {MockItem.objects.count()} mock items")
+from paradedb.functions import Score
+from paradedb.search import MoreLikeThis
 
 
 def demo_similar_to_single_product() -> None:
@@ -155,7 +100,7 @@ def demo_similar_by_text() -> None:
     print(f"\nUser wants: '{user_description}'")
 
     # MoreLikeThis with text requires JSON format: {"field": "text"}
-    text_json = f'{{"description": "{user_description}"}}'
+    text_json = json.dumps({"description": user_description})
 
     print("\nMatching products:")
     similar = (
@@ -287,7 +232,8 @@ if __name__ == "__main__":
     print("Find similar documents without vector embeddings")
     print("=" * 60)
 
-    setup_mock_data()
+    count = setup_mock_items()
+    print(f"Loaded {count} mock items")
 
     demo_similar_to_single_product()
     demo_similar_to_multiple_products()

@@ -1,71 +1,10 @@
 #!/usr/bin/env python
 """Quickstart example for django-paradedb full-text search."""
 
-import os
-from urllib.parse import urlparse
+from _common import MockItem, setup_mock_items
 
-import django
-from django.conf import settings
-
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgres://postgres:postgres@localhost:5432/postgres"
-)
-
-parsed = urlparse(DATABASE_URL)
-if not settings.configured:
-    settings.configure(
-        DEBUG=True,
-        DATABASES={
-            "default": {
-                "ENGINE": "django.db.backends.postgresql",
-                "NAME": parsed.path.lstrip("/"),
-                "USER": parsed.username or "postgres",
-                "PASSWORD": parsed.password or "",
-                "HOST": parsed.hostname or "localhost",
-                "PORT": parsed.port or 5432,
-            }
-        },
-        INSTALLED_APPS=["django.contrib.contenttypes"],
-        DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
-    )
-
-django.setup()
-
-from django.db import connection, models  # noqa: E402
-
-from paradedb.functions import Score, Snippet  # noqa: E402
-from paradedb.search import ParadeDB, Phrase  # noqa: E402
-
-
-class MockItem(models.Model):
-    """ParadeDB's built-in mock_items table."""
-
-    id = models.IntegerField(primary_key=True)
-    description = models.TextField()
-    category = models.CharField(max_length=100)
-    rating = models.IntegerField()
-    in_stock = models.BooleanField()
-    created_at = models.DateTimeField()
-    metadata = models.JSONField(null=True)
-
-    class Meta:
-        app_label = "quickstart"
-        managed = False
-        db_table = "mock_items"
-
-    def __str__(self):
-        return self.description
-
-
-def setup_mock_data() -> None:
-    """Ensure mock_items table exists with BM25 index."""
-    with connection.cursor() as cursor:
-        cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search")
-        cursor.execute(
-            "CALL paradedb.create_bm25_test_table("
-            "schema_name => 'public', table_name => 'mock_items')"
-        )
-    print(f"Loaded {MockItem.objects.count()} mock items")
+from paradedb.functions import Score, Snippet
+from paradedb.search import ParadeDB, Phrase
 
 
 def demo_basic_search() -> None:
@@ -135,7 +74,9 @@ if __name__ == "__main__":
     print("django-paradedb Quickstart Example")
     print("=" * 60)
 
-    setup_mock_data()
+    count = setup_mock_items()
+    print(f"Loaded {count} mock items")
+
     demo_basic_search()
     demo_scored_search()
     demo_phrase_search()

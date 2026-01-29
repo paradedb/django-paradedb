@@ -15,13 +15,13 @@ python examples/quickstart.py
 
 ## Environment Variables
 
-Examples use `DATABASE_URL`:
-
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | postgresql://postgres:postgres@localhost:5432/postgres | Database connection URL |
+| `OPENROUTER_API_KEY` | - | Required for RAG and hybrid search examples |
+| `RAG_MODEL` | anthropic/claude-3-haiku | LLM model for RAG example |
 
-The `scripts/run_paradedb.sh` script sets this automatically when sourced.
+The `scripts/run_paradedb.sh` script sets `DATABASE_URL` automatically when sourced.
 
 ## Available Examples
 
@@ -76,17 +76,17 @@ Product.objects.filter(description=ParadeDB("shoes")).annotate(
 
 ---
 
-### rag_ollama.py
+### rag.py
 
-RAG (Retrieval-Augmented Generation) using BM25 search + local LLM.
+RAG (Retrieval-Augmented Generation) using BM25 search + OpenRouter LLM.
 
-**Prerequisites:** [Ollama](https://ollama.ai) installed with `ollama pull llama3.2`
+**Prerequisites:** Add `OPENROUTER_API_KEY` to `.env` file
 
 ```bash
-python examples/rag_ollama.py
+python examples/rag.py
 
 # Use different model
-OLLAMA_MODEL=mistral python examples/rag_ollama.py
+RAG_MODEL=openai/gpt-4o-mini python examples/rag.py
 ```
 
 **API used:**

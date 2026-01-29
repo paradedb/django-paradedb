@@ -1,11 +1,8 @@
 # Core dependencies (all examples)
 django>=4.2
 
-# Hybrid search example (hybrid_rrf)
+# Hybrid search example (hybrid_rrf) and RAG example (rag)
 httpx>=0.25
-
-# RAG example (rag_ollama)
-ollama>=0.1
 pgvector>=0.2
 psycopg[binary]>=3.1
 python-dotenv>=1.0

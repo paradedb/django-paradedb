@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+# Check if script is being run directly or sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  RUNNING=1
+  set -euo pipefail
+else
+  RUNNING=0
+fi
 
 IMAGE="${PARADEDB_IMAGE:-paradedb/paradedb:0.21.4-pg18}"
 CONTAINER_NAME="${PARADEDB_CONTAINER_NAME:-paradedb-integration}"
@@ -9,7 +15,7 @@ export DATABASE_URL
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required to run ParadeDB" >&2
-  exit 1
+  if [[ "$RUNNING" == "1" ]]; then exit 1; else return 1; fi
 fi
 
 if ! docker ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}$"; then
@@ -36,10 +42,12 @@ done
 
 if ! docker exec "${CONTAINER_NAME}" pg_isready -U postgres -d postgres >/dev/null 2>&1; then
   echo "ParadeDB did not become ready in time" >&2
-  exit 1
+  if [[ "$RUNNING" == "1" ]]; then exit 1; else return 1; fi
 fi
 
 echo "ParadeDB is running in container ${CONTAINER_NAME}."
 echo "DATABASE_URL is set to: ${DATABASE_URL}"
-echo "If you want this in your current shell, run:"
-echo "  source scripts/run_paradedb.sh"
+
+if [[ "$RUNNING" == "0" ]]; then
+  echo "You can now use the examples in your current shell."
+fi

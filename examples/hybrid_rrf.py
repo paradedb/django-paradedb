@@ -1,43 +1,20 @@
 #!/usr/bin/env python
 """Hybrid search example using BM25 + vector search with Reciprocal Rank Fusion."""
 
-import os
-
-import httpx
 from _common import MockItemWithEmbedding as MockItem
-from dotenv import load_dotenv
+from hybrid_rrf_setup import QUERY_EMBEDDINGS
 from pgvector.django import CosineDistance
 
 from paradedb.functions import Score
 from paradedb.search import ParadeDB
-
-load_dotenv()
-
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-
-if not OPENROUTER_API_KEY:
-    raise ValueError("OPENROUTER_API_KEY not found in environment. Add it to .env file")
 
 if MockItem is None:
     raise ImportError("pgvector is required for this example. pip install pgvector")
 
 
 def get_query_embedding(text: str) -> list[float]:
-    """Get embedding for query text from OpenRouter."""
-    response = httpx.post(
-        "https://openrouter.ai/api/v1/embeddings",
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "sentence-transformers/paraphrase-minilm-l6-v2",
-            "input": text,
-        },
-        timeout=30.0,
-    )
-    response.raise_for_status()
-    return response.json()["data"][0]["embedding"]
+    """Get pre-computed embedding for query text."""
+    return QUERY_EMBEDDINGS[text]
 
 
 def bm25_search(query: str, top_k: int = 20) -> list[tuple[int, float]]:

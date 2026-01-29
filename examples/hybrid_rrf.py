@@ -2,7 +2,7 @@
 """Hybrid search example using BM25 + vector search with Reciprocal Rank Fusion."""
 
 from _common import MockItemWithEmbedding as MockItem
-from hybrid_rrf_setup import QUERY_EMBEDDINGS
+from hybrid_rrf_setup import QUERY_EMBEDDINGS, setup
 from pgvector.django import CosineDistance
 
 from paradedb.functions import Score
@@ -120,6 +120,9 @@ if __name__ == "__main__":
     print("=" * 80)
     print("\nCombining BM25 (keyword) + Vector (semantic) search")
     print("RRF formula: score = sum(1 / (k + rank_i)) across all rankings")
+
+    # Ensure table, index, and embeddings exist before running the demo.
+    setup()
 
     # Demo queries showing different strengths
     demo("running shoes")  # BM25 excels (exact keywords)

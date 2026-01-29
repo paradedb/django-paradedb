@@ -6,9 +6,8 @@
 # Install dependencies
 pip install -r examples/requirements.txt
 
-# Start ParadeDB
-bash scripts/run_paradedb.sh
-source scripts/paradedb_env.sh
+# Start ParadeDB and export DATABASE_URL
+source scripts/run_paradedb.sh
 
 # Run an example
 python examples/quickstart.py
@@ -26,7 +25,7 @@ Examples use standard PostgreSQL environment variables:
 | `PGPASSWORD` | (empty) | Database password |
 | `PGDATABASE` | postgres | Database name |
 
-The `scripts/paradedb_env.sh` script sets these automatically.
+The `scripts/run_paradedb.sh` script sets these automatically when sourced.
 
 ## Available Examples
 

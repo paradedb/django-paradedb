@@ -4,6 +4,8 @@ set -euo pipefail
 
 IMAGE="${PARADEDB_IMAGE:-paradedb/paradedb:0.21.4-pg18}"
 CONTAINER_NAME="${PARADEDB_CONTAINER_NAME:-paradedb-integration}"
+DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/postgres}"
+export DATABASE_URL
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required to run ParadeDB" >&2
@@ -38,5 +40,6 @@ if ! docker exec "${CONTAINER_NAME}" pg_isready -U postgres -d postgres >/dev/nu
 fi
 
 echo "ParadeDB is running in container ${CONTAINER_NAME}."
-echo "To set DATABASE_URL for examples, run:"
-echo "  source scripts/paradedb_env.sh"
+echo "DATABASE_URL is set to: ${DATABASE_URL}"
+echo "If you want this in your current shell, run:"
+echo "  source scripts/run_paradedb.sh"

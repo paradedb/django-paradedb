@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-"${SCRIPT_DIR}/run_paradedb.sh"
+source "${SCRIPT_DIR}/run_paradedb.sh"
 
 PORT="${PARADEDB_PORT:-5432}"
 USER="${PARADEDB_USER:-postgres}"

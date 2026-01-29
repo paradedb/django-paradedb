@@ -124,3 +124,20 @@ jobs:
           PARADEDB_TEST_DSN: ${{ env.PARADEDB_TEST_DSN }}
           PGPASSWORD: ${{ env.PGPASSWORD }}
         run: pytest -m integration
+
+      - name: Install example dependencies
+        run: pip install -r examples/requirements.txt
+
+      - name: Run examples
+        env:
+          PARADEDB_INTEGRATION: ${{ env.PARADEDB_INTEGRATION }}
+          PARADEDB_TEST_DSN: ${{ env.PARADEDB_TEST_DSN }}
+          PGPASSWORD: ${{ env.PGPASSWORD }}
+          DATABASE_URL: ${{ env.PARADEDB_TEST_DSN }}
+        run: |
+          for file in examples/*.py; do
+            if [[ "$file" != *"__"* ]]; then
+              echo "Running $file..."
+              python "$file"
+            fi
+          done

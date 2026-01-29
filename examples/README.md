@@ -15,17 +15,13 @@ python examples/quickstart.py
 
 ## Environment Variables
 
-Examples use standard PostgreSQL environment variables:
+Examples use `DATABASE_URL`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PGHOST` | localhost | Database host |
-| `PGPORT` | 5432 | Database port |
-| `PGUSER` | postgres | Database user |
-| `PGPASSWORD` | (empty) | Database password |
-| `PGDATABASE` | postgres | Database name |
+| `DATABASE_URL` | postgresql://postgres:postgres@localhost:5432/postgres | Database connection URL |
 
-The `scripts/run_paradedb.sh` script sets these automatically when sourced.
+The `scripts/run_paradedb.sh` script sets this automatically when sourced.
 
 ## Available Examples
 

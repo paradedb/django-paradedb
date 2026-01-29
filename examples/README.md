@@ -201,3 +201,35 @@ Product.objects.filter(
     )
 )
 ```
+
+---
+
+### faceted_search.py
+
+Faceted search for e-commerce style filters (categories, ratings, in_stock, colors).
+
+```bash
+python examples/faceted_search.py
+```
+
+**API used:**
+
+```python
+from paradedb.search import ParadeDB
+
+# Facets only (no rows)
+MockItem.objects.filter(description=ParadeDB("shoes")).facets(
+    "category",
+    "rating",
+    "in_stock",
+    include_rows=False,
+)
+
+# Facets + rows (requires order_by + limit)
+MockItem.objects.filter(description=ParadeDB("shoes")).order_by("-rating")[:5].facets(
+    "category",
+    "metadata_color",
+)
+```
+
+> **Note:** `facets(include_rows=True)` requires `order_by(...)` and a slice (LIMIT).

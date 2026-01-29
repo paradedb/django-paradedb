@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """Setup script: Load embeddings for hybrid search from CSV."""
 
-# ruff: noqa: E501
 # fmt: off
 
 import ast

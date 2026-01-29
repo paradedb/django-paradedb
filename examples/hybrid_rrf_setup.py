@@ -1,44 +1,33 @@
 #!/usr/bin/env python
-"""Setup script: Generate and store embeddings for hybrid search."""
+"""Setup script: Load embeddings for hybrid search from CSV."""
 
-import os
+import ast
+import csv
+from pathlib import Path
 
-import httpx
 from _common import MockItemWithEmbedding as MockItem
 from _common import setup_mock_items
-from dotenv import load_dotenv
-
-load_dotenv()
-
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-
-if not OPENROUTER_API_KEY:
-    raise ValueError("OPENROUTER_API_KEY not found in environment. Add it to .env file")
 
 if MockItem is None:
     raise ImportError("pgvector is required for this example. pip install pgvector")
 
 
-def get_embedding(text: str) -> list[float]:
-    """Get embedding from OpenRouter."""
-    response = httpx.post(
-        "https://openrouter.ai/api/v1/embeddings",
-        headers={
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "model": "sentence-transformers/paraphrase-minilm-l6-v2",
-            "input": text,
-        },
-        timeout=30.0,
-    )
-    response.raise_for_status()
-    return response.json()["data"][0]["embedding"]
+def load_embeddings_from_csv(csv_path: Path) -> dict[int, list[float]]:
+    """Load embeddings from CSV file."""
+    embeddings = {}
+    with csv_path.open() as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            id = int(row["id"])
+            # Parse the vector string back to list
+            embedding_str = row["embedding"]
+            embedding = ast.literal_eval(embedding_str)
+            embeddings[id] = embedding
+    return embeddings
 
 
 def setup() -> None:
-    """Generate embeddings and add vector column."""
+    """Load embeddings from CSV into database."""
     from django.db import connection
 
     setup_mock_items()
@@ -62,28 +51,39 @@ def setup() -> None:
             """
         )
 
-    # Generate embeddings for all items
-    items = MockItem.objects.filter(embedding__isnull=True)
-    total = items.count()
-
-    if total == 0:
-        print("✓ All items already have embeddings")
+    # Check if embeddings already loaded
+    items_with_embeddings = MockItem.objects.filter(embedding__isnull=False).count()
+    if items_with_embeddings > 0:
+        print(f"✓ {items_with_embeddings} items already have embeddings")
         return
 
-    print(f"Generating embeddings for {total} items...")
+    # Load embeddings from CSV
+    csv_path = Path(__file__).parent / "mock_items_embeddings.csv"
+    if not csv_path.exists():
+        print(f"✗ CSV file not found: {csv_path}")
+        return
 
-    for i, item in enumerate(items, 1):
-        print(f"  [{i}/{total}] {item.description[:50]}...")
-        embedding = get_embedding(item.description)
-        item.embedding = embedding
-        item.save()
+    print(f"Loading embeddings from {csv_path}...")
+    embeddings = load_embeddings_from_csv(csv_path)
+    total = len(embeddings)
+    print(f"Found {total} embeddings in CSV")
 
-    print(f"✓ Generated {total} embeddings")
+    # Update items with embeddings
+    for i, (item_id, embedding) in enumerate(embeddings.items(), 1):
+        try:
+            item = MockItem.objects.get(id=item_id)
+            item.embedding = embedding
+            item.save()
+            print(f"  [{i}/{total}] {item.description[:50]}...")
+        except MockItem.DoesNotExist:
+            print(f"  [{i}/{total}] Skipping ID {item_id} - not found")
+
+    print(f"✓ Loaded {total} embeddings")
 
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("Hybrid Search Setup - Generating Embeddings")
+    print("Hybrid Search Setup - Loading Embeddings from CSV")
     print("=" * 60)
     setup()
-    print("\nSetup complete! Run: python examples/hybrid_rrf/example.py")
+    print("\nSetup complete! Run: python examples/hybrid_rrf.py")

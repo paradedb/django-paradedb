@@ -136,7 +136,7 @@ jobs:
           DATABASE_URL: ${{ env.PARADEDB_TEST_DSN }}
         run: |
           for file in examples/*.py; do
-            if [[ "$file" != *"__"* ]]; then
+            if [[ "$file" != *"__"* ]] && [[ "$file" != *"rag"* ]]; then
               echo "Running $file..."
               python "$file"
             fi

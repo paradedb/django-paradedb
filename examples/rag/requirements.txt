@@ -1,3 +1,0 @@
-# Additional requirements for RAG example
-httpx>=0.25
-python-dotenv>=1.0

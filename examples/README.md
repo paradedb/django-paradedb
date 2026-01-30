@@ -76,6 +76,28 @@ Product.objects.filter(description=ParadeDB("shoes")).annotate(
 
 ---
 
+### autocomplete.py
+
+Simple typo-tolerant autocomplete using fuzzy matching.
+
+```bash
+python examples/autocomplete_setup.py
+python examples/autocomplete.py
+```
+
+**API used:**
+
+```python
+from paradedb.search import ParadeDB, Fuzzy
+from paradedb.functions import Score
+
+Product.objects.filter(description=ParadeDB(Fuzzy("sheos", distance=1)))
+    .annotate(score=Score())
+    .order_by("-score")[:5]
+```
+
+---
+
 ### rag.py
 
 RAG (Retrieval-Augmented Generation) using BM25 search + OpenRouter LLM.

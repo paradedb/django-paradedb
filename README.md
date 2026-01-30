@@ -238,9 +238,6 @@ Product.objects.filter(MoreLikeThis(product_id=42))
 # Similar to multiple documents
 Product.objects.filter(MoreLikeThis(product_ids=[1, 2, 3]))
 
-# Similar to arbitrary text
-Product.objects.filter(MoreLikeThis(text='comfortable running shoes'))
-
 # With tuning parameters
 Product.objects.filter(
     MoreLikeThis(

@@ -74,7 +74,7 @@ Check out some examples:
 
 ## BM25 Index
 
-Define a BM25 index on your model fields
+Define a BM25 index on your model fields. For more advanced indexing options like JSON indexing or indexing expressions, see the [ParadeDB Indexing Documentation](https://docs.paradedb.com/documentation/indexing/create-index).
 
 ```python
 from paradedb.indexes import BM25Index
@@ -94,22 +94,9 @@ class Meta:
     ]
 ```
 
-Supported tokenizer options:
+For a full list of supported tokenizers and their configurations, please refer to the [ParadeDB Tokenizer Documentation](https://docs.paradedb.com/documentation/tokenizers/overview).
 
-| Tokenizer   | Description                                           |
-|-------------|-------------------------------------------------------|
-| `default`   | Standard tokenizer with lowercase normalization       |
-| `keyword`   | No tokenization (exact match, ideal for facets)       |
-| `raw`       | No tokenization, no normalization                     |
-| `regex`     | Tokenize using a regex pattern                        |
-| `whitespace`| Split on whitespace only                              |
-| `ngram`     | Character n-gram tokenizer                            |
-| `chinese_compatible` | Chinese text tokenizer                       |
-| `korean`    | Korean text tokenizer (Lindera)                       |
-| `japanese`  | Japanese text tokenizer (Lindera)                     |
-| `icu`       | ICU-based tokenizer for Unicode text                  |
-
-Additional field options:
+Additional field options (see [Token Filters](https://docs.paradedb.com/documentation/token-filters/overview) for all available options):
 
 ```python
 'body': {
@@ -133,6 +120,8 @@ Index specific keys within a JSONField
 ```
 
 ## Query Types
+
+For a full list of supported query types and advanced options, please refer to the [ParadeDB Query Builder Documentation](https://docs.paradedb.com/documentation/query-builder/overview).
 
 ### Basic Search
 
@@ -253,7 +242,7 @@ Product.objects.filter(
 
 ### BM25 Score
 
-Get the relevance score for each result
+Get the relevance score for each result. For more information on how scores are calculated, see [BM25 Scoring](https://docs.paradedb.com/documentation/sorting/score).
 
 ```python
 from paradedb.functions import Score
@@ -267,7 +256,7 @@ Product.objects.filter(
 
 ### Snippet
 
-Get highlighted text snippets
+Get highlighted text snippets. For more details on snippet configuration, see [Highlighting](https://docs.paradedb.com/documentation/full-text/highlight).
 
 ```python
 from paradedb.functions import Snippet
@@ -288,6 +277,8 @@ Snippet options:
 | `max_num_chars`| Maximum snippet length         |
 
 ## Faceted Search
+
+For a full list of supported aggregations and advanced options, please refer to the [ParadeDB Aggregations Documentation](https://docs.paradedb.com/documentation/aggregates/overview).
 
 Get aggregated counts alongside results
 

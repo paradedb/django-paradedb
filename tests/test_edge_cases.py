@@ -212,18 +212,28 @@ class TestMoreLikeThisValidation:
 
     def test_mlt_requires_one_input(self) -> None:
         """MLT with no inputs raises ValueError."""
-        with pytest.raises(ValueError, match="exactly one input"):
+        with pytest.raises(ValueError, match="exactly one of"):
             MoreLikeThis()
 
     def test_mlt_multiple_inputs_raises(self) -> None:
         """MLT with multiple inputs raises ValueError."""
-        with pytest.raises(ValueError, match="exactly one input"):
-            MoreLikeThis(product_id=1, text="test")
+        with pytest.raises(ValueError, match="exactly one of"):
+            MoreLikeThis(product_id=1, text="test", fields=["description"])
 
     def test_mlt_empty_product_ids_raises(self) -> None:
         """MLT with empty product_ids raises ValueError."""
         with pytest.raises(ValueError, match="cannot be empty"):
             MoreLikeThis(product_ids=[])
+
+    def test_mlt_empty_document_raises(self) -> None:
+        """MLT with empty document raises ValueError."""
+        with pytest.raises(ValueError, match="document cannot be empty"):
+            MoreLikeThis(document={})
+
+    def test_mlt_text_without_fields_raises(self) -> None:
+        """MLT with text but no fields raises ValueError."""
+        with pytest.raises(ValueError, match="text requires fields"):
+            MoreLikeThis(text="running shoes")
 
     def test_mlt_single_product_id(self) -> None:
         """MLT with single product_id works."""
@@ -235,10 +245,16 @@ class TestMoreLikeThisValidation:
         mlt = MoreLikeThis(product_ids=[1, 2, 3])
         assert mlt.product_ids == [1, 2, 3]
 
-    def test_mlt_text_input(self) -> None:
-        """MLT with text input works."""
-        mlt = MoreLikeThis(text='{"description": "test"}')
-        assert mlt.text == '{"description": "test"}'
+    def test_mlt_text_with_fields(self) -> None:
+        """MLT with text and fields works."""
+        mlt = MoreLikeThis(text="running shoes", fields=["description"])
+        assert mlt.text == "running shoes"
+        assert mlt.fields == ["description"]
+
+    def test_mlt_document_input(self) -> None:
+        """MLT with document dict works."""
+        mlt = MoreLikeThis(document={"description": "test", "category": "Footwear"})
+        assert mlt.document == {"description": "test", "category": "Footwear"}
 
     def test_mlt_with_all_options(self) -> None:
         """MLT with all tuning options works."""

@@ -113,10 +113,22 @@ def test_more_like_this_multiple_ids() -> None:
     assert ids == {3, 4, 5, 12}
 
 
-def test_more_like_this_by_text() -> None:
+def test_more_like_this_by_text_with_fields() -> None:
+    """MLT with text + fields auto-converts to JSON document."""
     ids = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(text='{"description": "wireless earbuds"}')
+            MoreLikeThis(text="comfortable running shoes", fields=["description"])
+        )
+    )
+    # Should find documents similar to the text in the description field
+    assert 3 in ids  # "Sleek running shoes"
+
+
+def test_more_like_this_by_document() -> None:
+    """MLT with document dict generates correct JSON."""
+    ids = _ids(
+        MockItem.objects.filter(
+            MoreLikeThis(document={"description": "wireless earbuds"})
         )
     )
     assert ids == {12}

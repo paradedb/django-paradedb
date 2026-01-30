@@ -390,16 +390,29 @@ class TestMoreLikeThis:
         )
 
     def test_mlt_by_text(self) -> None:
-        """MLT by arbitrary text."""
+        """MLT by text with fields generates JSON document."""
         queryset = Product.objects.filter(
             MoreLikeThis(
                 text="comfortable running shoes",
                 fields=["description", "category"],
             )
         )
+        # text + fields generates a JSON document with the text applied to each field
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(\'comfortable running shoes\', ARRAY[\'description\', \'category\'])'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(\'{"description":"comfortable running shoes","category":"comfortable running shoes"}\')'
+        )
+
+    def test_mlt_by_document(self) -> None:
+        """MLT by document dict generates JSON."""
+        queryset = Product.objects.filter(
+            MoreLikeThis(
+                document={"description": "running shoes", "category": "Footwear"},
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(\'{"description":"running shoes","category":"Footwear"}\')'
         )
 
 

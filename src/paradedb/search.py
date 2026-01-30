@@ -89,7 +89,26 @@ class All:
 
 
 class MoreLikeThis(Expression):
-    """More Like This query filter."""
+    """More Like This query filter.
+
+    Find documents similar to a reference document or text.
+
+    Args:
+        product_id: Find documents similar to this document ID.
+        product_ids: Find documents similar to any of these document IDs (OR).
+        document: A dict mapping field names to text values for similarity matching.
+            Example: {'description': 'comfortable running shoes'}
+        text: Plain text for similarity matching. Requires `fields` parameter.
+            The text will be matched against all specified fields.
+        fields: Field names to consider for matching.
+            - With product_id/product_ids: limits which fields are compared.
+            - With text: required; specifies which fields the text applies to.
+        min_term_freq: Exclude terms appearing fewer than N times in input.
+        max_query_terms: Max number of terms to consider (default: 25).
+        min_doc_freq: Exclude terms appearing in fewer than N documents.
+        max_term_freq: Exclude terms appearing more than N times in input.
+        max_doc_freq: Exclude terms appearing in more than N documents.
+    """
 
     conditional = True
     output_field = BooleanField()
@@ -99,6 +118,7 @@ class MoreLikeThis(Expression):
         *,
         product_id: int | None = None,
         product_ids: Iterable[int] | None = None,
+        document: dict[str, str] | None = None,
         text: str | None = None,
         fields: Iterable[str] | None = None,
         min_term_freq: int | None = None,
@@ -110,6 +130,7 @@ class MoreLikeThis(Expression):
         super().__init__()
         self.product_id = product_id
         self.product_ids = list(product_ids) if product_ids is not None else None
+        self.document = document
         self.text = text
         self.fields = list(fields) if fields is not None else None
         self.min_term_freq = min_term_freq
@@ -120,11 +141,26 @@ class MoreLikeThis(Expression):
         self._validate()
 
     def _validate(self) -> None:
-        inputs = [self.product_id is not None, self.product_ids is not None, self.text]
-        if sum(bool(value) for value in inputs) != 1:
-            raise ValueError("MoreLikeThis requires exactly one input source.")
+        inputs = [
+            self.product_id is not None,
+            self.product_ids is not None,
+            self.document is not None,
+            self.text is not None,
+        ]
+        if sum(inputs) != 1:
+            raise ValueError(
+                "MoreLikeThis requires exactly one of: "
+                "product_id, product_ids, document, or text."
+            )
         if self.product_ids is not None and not self.product_ids:
             raise ValueError("MoreLikeThis product_ids cannot be empty.")
+        if self.document is not None and not self.document:
+            raise ValueError("MoreLikeThis document cannot be empty.")
+        if self.text is not None and not self.fields:
+            raise ValueError(
+                "MoreLikeThis with text requires fields parameter. "
+                "Example: MoreLikeThis(text='running shoes', fields=['description'])"
+            )
 
     def resolve_expression(
         self,
@@ -149,18 +185,28 @@ class MoreLikeThis(Expression):
         self, compiler: SQLCompiler, connection: BaseDatabaseWrapper
     ) -> tuple[str, list[Any]]:
         pk_sql = self._pk_sql(compiler, connection)
+
         if self.product_ids is not None:
             expressions = [
-                f"{pk_sql} @@@ {self._render_mlt_call(value)}"
+                f"{pk_sql} @@@ {self._render_mlt_call_for_id(value)}"
                 for value in self.product_ids
             ]
             joined = " OR ".join(expressions)
             return f"({joined})", []
 
         if self.product_id is not None:
-            return f"{pk_sql} @@@ {self._render_mlt_call(self.product_id)}", []
+            return f"{pk_sql} @@@ {self._render_mlt_call_for_id(self.product_id)}", []
 
-        return f"{pk_sql} @@@ {self._render_mlt_call(self.text)}", []
+        if self.document is not None:
+            return (
+                f"{pk_sql} @@@ {self._render_mlt_call_for_document(self.document)}",
+                [],
+            )
+
+        # text with fields - build document from text applied to all fields
+        assert self.text is not None and self.fields is not None
+        doc = dict.fromkeys(self.fields, self.text)
+        return f"{pk_sql} @@@ {self._render_mlt_call_for_document(doc)}", []
 
     def _pk_sql(self, compiler: SQLCompiler, connection: BaseDatabaseWrapper) -> str:
         query = compiler.query
@@ -172,27 +218,35 @@ class MoreLikeThis(Expression):
             f"{connection.ops.quote_name(alias)}.{connection.ops.quote_name(pk_column)}"
         )
 
-    def _render_mlt_call(self, value: int | str | None) -> str:
-        args: list[str] = []
-        if isinstance(value, str):
-            args.append(self._quote_term(value))
-        else:
-            args.append(str(value))
+    def _render_mlt_call_for_id(self, value: int) -> str:
+        """Render pdb.more_like_this() for a document ID."""
+        args: list[str] = [str(value)]
 
         if self.fields:
             fields_sql = ", ".join(self._quote_term(field) for field in self.fields)
             args.append(f"ARRAY[{fields_sql}]")
 
-        options = self._render_options(
-            {
-                "min_term_frequency": self.min_term_freq,
-                "max_query_terms": self.max_query_terms,
-                "min_doc_frequency": self.min_doc_freq,
-                "max_term_frequency": self.max_term_freq,
-                "max_doc_frequency": self.max_doc_freq,
-            }
-        )
+        options = self._render_options(self._get_options())
         return f"pdb.more_like_this({', '.join(args)}{options})"
+
+    def _render_mlt_call_for_document(self, doc: dict[str, str]) -> str:
+        """Render pdb.more_like_this() for a JSON document."""
+        import json
+
+        json_str = json.dumps(doc, separators=(",", ":"))
+        args: list[str] = [self._quote_term(json_str)]
+
+        options = self._render_options(self._get_options())
+        return f"pdb.more_like_this({', '.join(args)}{options})"
+
+    def _get_options(self) -> dict[str, object | None]:
+        return {
+            "min_term_frequency": self.min_term_freq,
+            "max_query_terms": self.max_query_terms,
+            "min_doc_frequency": self.min_doc_freq,
+            "max_term_frequency": self.max_term_freq,
+            "max_doc_frequency": self.max_doc_freq,
+        }
 
     @staticmethod
     def _quote_term(value: str) -> str:

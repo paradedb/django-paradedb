@@ -83,7 +83,8 @@ def setup_autocomplete_table() -> int:
         count = cursor.fetchone()[0]
         print(f"  ✓ Inserted {count} products")
 
-        # Create BM25 index with ngram tokenizer for autocomplete
+        # Create BM25 index with ngram tokenizer for autocomplete.
+        # "3,8" means index 3- to 8-character ngrams; 1-2 char queries won't match.
         print("\nCreating autocomplete-optimized BM25 index...")
         cursor.execute(
             """
@@ -106,11 +107,11 @@ def setup_autocomplete_table() -> int:
 
 
 if __name__ == "__main__":
-    import os
     import sys
+    from pathlib import Path
 
     # Setup Django
-    sys.path.insert(0, os.path.dirname(__file__))
+    sys.path.insert(0, str(Path(__file__).parent))
     from _common import configure_django
 
     configure_django()

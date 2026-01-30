@@ -1,24 +1,21 @@
 #!/usr/bin/env python
-"""Autocomplete (as-you-type) search example.
+"""Autocomplete (as-you-type) search example."""
 
-Simple, typo-tolerant autocomplete using fuzzy matching.
-
-Run `python examples/autocomplete_setup.py` first to create the table.
-"""
+from autocomplete_setup import setup_autocomplete_table
 
 from paradedb.functions import Score
-from paradedb.search import Fuzzy, ParadeDB
+from paradedb.search import ParadeDB, Parse
 
 
 # Define model inline for the autocomplete_items table
 def get_autocomplete_model():
     """Get AutocompleteItem model (defined inline)."""
-    import os
     import sys
+    from pathlib import Path
 
-    examples_dir = os.path.dirname(__file__)
-    if examples_dir not in sys.path:
-        sys.path.insert(0, examples_dir)
+    examples_dir = Path(__file__).parent
+    if str(examples_dir) not in sys.path:
+        sys.path.insert(0, str(examples_dir))
     from _common import configure_django
 
     configure_django()
@@ -51,25 +48,32 @@ def get_autocomplete_model():
 AutocompleteItem = get_autocomplete_model()
 
 
-def demo_fuzzy_autocomplete() -> None:
-    """Typo-tolerant search with fuzzy matching."""
+def demo_autocomplete() -> None:
+    """As-you-type autocomplete."""
     print("\n" + "=" * 60)
-    print("Fuzzy Search (Typo Tolerance)")
+    print("Autocomplete")
     print("=" * 60)
 
-    typo_queries = [
-        ("sheos", "shoes"),  # Common typo
-        ("wireles", "wireless"),  # Missing 's'
-        ("runing", "running"),  # Missing 'n'
+    queries = [
+        "run",
+        "runn",
+        "running",
+        "wire",
+        "wirel",
+        "wireles",
+        "wireless",
+        "blue",
+        "blueto",
+        "bluetooth",
     ]
 
-    for typo, correct in typo_queries:
-        print(f"\nUser types: '{typo}' (meant: '{correct}') →")
+    for query in queries:
+        print(f"\nUser types: '{query}' →")
 
-        # Use fuzzy matching with edit distance
+        # Autocomplete query
         results = (
             AutocompleteItem.objects.filter(
-                description=ParadeDB(Fuzzy(typo, distance=1))
+                description=ParadeDB(Parse(f"description_ngram:{query}"))
             )
             .annotate(score=Score())
             .order_by("-score")[:5]
@@ -85,11 +89,12 @@ def demo_fuzzy_autocomplete() -> None:
 if __name__ == "__main__":
     print("=" * 60)
     print("django-paradedb Autocomplete Example")
-    print("Fast as-you-type search with fuzzy matching")
+    print("Fast as-you-type search")
     print("=" * 60)
 
-    count = AutocompleteItem.objects.count()
+    # Ensure table and index exist before running the demo.
+    count = setup_autocomplete_table()
     print(f"Loaded {count} products from autocomplete_items table\n")
 
-    demo_fuzzy_autocomplete()
+    demo_autocomplete()
     print("\nDone.")

@@ -78,7 +78,7 @@ Product.objects.filter(description=ParadeDB("shoes")).annotate(
 
 ### autocomplete.py
 
-Simple typo-tolerant autocomplete using fuzzy matching.
+As-you-type autocomplete.
 
 ```bash
 python examples/autocomplete_setup.py
@@ -88,10 +88,10 @@ python examples/autocomplete.py
 **API used:**
 
 ```python
-from paradedb.search import ParadeDB, Fuzzy
+from paradedb.search import ParadeDB, Parse
 from paradedb.functions import Score
 
-Product.objects.filter(description=ParadeDB(Fuzzy("sheos", distance=1)))
+Product.objects.filter(description=ParadeDB(Parse("description_ngram:wirel")))
     .annotate(score=Score())
     .order_by("-score")[:5]
 ```

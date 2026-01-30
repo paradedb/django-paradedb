@@ -126,6 +126,9 @@ class MoreLikeThis(Expression):
         min_doc_freq: int | None = None,
         max_term_freq: int | None = None,
         max_doc_freq: int | None = None,
+        min_word_length: int | None = None,
+        max_word_length: int | None = None,
+        stopwords: Iterable[str] | None = None,
     ) -> None:
         super().__init__()
         self.product_id = product_id
@@ -138,6 +141,9 @@ class MoreLikeThis(Expression):
         self.min_doc_freq = min_doc_freq
         self.max_term_freq = max_term_freq
         self.max_doc_freq = max_doc_freq
+        self.min_word_length = min_word_length
+        self.max_word_length = max_word_length
+        self.stopwords = list(stopwords) if stopwords is not None else None
         self._validate()
 
     def _validate(self) -> None:
@@ -246,6 +252,9 @@ class MoreLikeThis(Expression):
             "min_doc_frequency": self.min_doc_freq,
             "max_term_frequency": self.max_term_freq,
             "max_doc_frequency": self.max_doc_freq,
+            "min_word_length": self.min_word_length,
+            "max_word_length": self.max_word_length,
+            "stopwords": self.stopwords,
         }
 
     @staticmethod
@@ -259,7 +268,12 @@ class MoreLikeThis(Expression):
         for key, value in options.items():
             if value is None:
                 continue
-            rendered.append(f"{key} => {value}")
+            # Handle stopwords array
+            if key == "stopwords" and isinstance(value, list):
+                quoted = "'" + "','".join(w.replace("'", "''") for w in value) + "'"
+                rendered.append(f"{key} => ARRAY[{quoted}]")
+            else:
+                rendered.append(f"{key} => {value}")
         if not rendered:
             return ""
         return ", " + ", ".join(rendered)

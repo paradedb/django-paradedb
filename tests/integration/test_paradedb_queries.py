@@ -134,6 +134,127 @@ def test_more_like_this_by_document() -> None:
     assert ids == {12}
 
 
+def test_more_like_this_with_stopwords() -> None:
+    """MLT with stopwords excludes terms from matching - verified by comparing results."""
+    # Get baseline results without stopwords
+    baseline_ids = _ids(
+        MockItem.objects.filter(
+            MoreLikeThis(
+                product_id=3,  # "Sleek running shoes"
+                fields=["description"],
+            )
+        )
+    )
+
+    # Get results with "shoes" as stopword
+    with_stopword_ids = _ids(
+        MockItem.objects.filter(
+            MoreLikeThis(
+                product_id=3,
+                fields=["description"],
+                stopwords=["shoes"],
+            )
+        )
+    )
+
+    # Source item always included in both
+    assert 3 in baseline_ids
+    assert 3 in with_stopword_ids
+
+    # With "shoes" as stopword, results should be different
+    # (fewer matches since "shoes" term is excluded from matching)
+    assert (
+        with_stopword_ids != baseline_ids
+    ), "Stopwords should change the results - excluding 'shoes' should remove shoe-related matches"
+
+    # Typically, stopwords should reduce the number of matches
+    # (unless all matches are from other terms like "running")
+    assert len(with_stopword_ids) <= len(
+        baseline_ids
+    ), "Stopwords should not increase match count"
+
+
+def test_more_like_this_with_word_length() -> None:
+    """MLT with min/max word length filters terms - verified by comparing results."""
+    # Get baseline without word length filter
+    baseline_ids = _ids(
+        MockItem.objects.filter(
+            MoreLikeThis(
+                product_id=3,  # "Sleek running shoes"
+                fields=["description"],
+            )
+        )
+    )
+
+    # Get results with min_word_length=6 (filters out "shoes" which is 5 chars)
+    with_min_length_ids = _ids(
+        MockItem.objects.filter(
+            MoreLikeThis(
+                product_id=3,
+                fields=["description"],
+                min_word_length=6,
+            )
+        )
+    )
+
+    # Source item always included
+    assert 3 in baseline_ids
+    assert 3 in with_min_length_ids
+
+    # Results should differ when short words are filtered
+    assert (
+        with_min_length_ids != baseline_ids
+    ), "min_word_length=6 should filter out 'shoes' (5 chars) and change results"
+
+
+def test_more_like_this_stopwords_reversible() -> None:
+    """Verify stopwords effect is consistent and reversible."""
+    # First query with stopwords
+    ids_with = _ids(
+        MockItem.objects.filter(
+            MoreLikeThis(
+                product_id=3,
+                fields=["description"],
+                stopwords=["shoes"],  # The main matching term
+            )
+        )
+    )
+
+    # Second query without stopwords (baseline)
+    ids_without = _ids(
+        MockItem.objects.filter(
+            MoreLikeThis(
+                product_id=3,
+                fields=["description"],
+            )
+        )
+    )
+
+    # Third query with same stopwords again - should be consistent
+    ids_with_again = _ids(
+        MockItem.objects.filter(
+            MoreLikeThis(
+                product_id=3,
+                fields=["description"],
+                stopwords=["shoes"],
+            )
+        )
+    )
+
+    # Stopwords should produce consistent results (deterministic)
+    assert ids_with == ids_with_again, "Same stopwords should produce same results"
+
+    # With "shoes" as stopword, we should have fewer or equal matches
+    # (excluding the main matching term reduces similarity matches)
+    assert len(ids_with) <= len(
+        ids_without
+    ), "Stopwords should not increase match count"
+
+    # Source item always included regardless of stopwords
+    assert 3 in ids_with
+    assert 3 in ids_without
+
+
 def test_metadata_color_literal_search() -> None:
     """Search over JSON color subfield should return the silver items."""
     with connection.cursor() as cursor:

@@ -266,9 +266,35 @@ class TestMoreLikeThisValidation:
             min_doc_freq=1,
             max_term_freq=100,
             max_doc_freq=1000,
+            min_word_length=3,
+            max_word_length=15,
+            stopwords=["the", "a"],
         )
         assert mlt.min_term_freq == 2
         assert mlt.max_query_terms == 10
+        assert mlt.min_word_length == 3
+        assert mlt.max_word_length == 15
+        assert mlt.stopwords == ["the", "a"]
+
+    def test_mlt_stopwords_empty_list(self) -> None:
+        """MLT with empty stopwords list works."""
+        mlt = MoreLikeThis(product_id=1, stopwords=[])
+        assert mlt.stopwords == []
+
+    def test_mlt_stopwords_tuple(self) -> None:
+        """MLT with stopwords as tuple converts to list."""
+        mlt = MoreLikeThis(product_id=1, stopwords=("the", "a", "an"))
+        assert mlt.stopwords == ["the", "a", "an"]
+
+    def test_mlt_word_length_validation(self) -> None:
+        """MLT word length parameters accept integers."""
+        mlt = MoreLikeThis(
+            product_id=1,
+            min_word_length=2,
+            max_word_length=20,
+        )
+        assert isinstance(mlt.min_word_length, int)
+        assert isinstance(mlt.max_word_length, int)
 
 
 class TestScoreEdgeCases:

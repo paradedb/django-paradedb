@@ -415,6 +415,67 @@ class TestMoreLikeThis:
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(\'{"description":"running shoes","category":"Footwear"}\')'
         )
 
+    def test_mlt_with_word_length(self) -> None:
+        """MLT with min/max word length parameters."""
+        queryset = Product.objects.filter(
+            MoreLikeThis(product_id=5, min_word_length=3, max_word_length=15)
+        )
+        sql = str(queryset.query)
+        assert "min_word_length => 3" in sql
+        assert "max_word_length => 15" in sql
+        assert "pdb.more_like_this(5," in sql
+
+    def test_mlt_with_stopwords(self) -> None:
+        """MLT with stopwords array parameter."""
+        queryset = Product.objects.filter(
+            MoreLikeThis(product_id=5, stopwords=["the", "a", "an"])
+        )
+        sql = str(queryset.query)
+        assert "stopwords => ARRAY['the','a','an']" in sql
+
+    def test_mlt_with_all_options(self) -> None:
+        """MLT with all available options including new ones."""
+        queryset = Product.objects.filter(
+            MoreLikeThis(
+                product_id=5,
+                fields=["description"],
+                min_term_freq=2,
+                max_query_terms=10,
+                min_doc_freq=1,
+                max_term_freq=100,
+                max_doc_freq=1000,
+                min_word_length=3,
+                max_word_length=20,
+                stopwords=["the", "and", "or"],
+            )
+        )
+        sql = str(queryset.query)
+        assert "min_term_frequency => 2" in sql
+        assert "max_query_terms => 10" in sql
+        assert "min_doc_frequency => 1" in sql
+        assert "max_term_frequency => 100" in sql
+        assert "max_doc_frequency => 1000" in sql
+        assert "min_word_length => 3" in sql
+        assert "max_word_length => 20" in sql
+        assert "stopwords => ARRAY['the','and','or']" in sql
+        assert "ARRAY['description']" in sql
+
+    def test_mlt_text_with_new_options(self) -> None:
+        """MLT with text input and new word length/stopwords options."""
+        queryset = Product.objects.filter(
+            MoreLikeThis(
+                text="comfortable running shoes",
+                fields=["description"],
+                min_word_length=4,
+                max_word_length=12,
+                stopwords=["comfortable"],
+            )
+        )
+        sql = str(queryset.query)
+        assert "min_word_length => 4" in sql
+        assert "max_word_length => 12" in sql
+        assert "stopwords => ARRAY['comfortable']" in sql
+
 
 class TestDjangoIntegration:
     """Test Django ORM integration."""

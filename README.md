@@ -96,8 +96,6 @@ class Meta:
 
 For a full list of supported tokenizers and their configurations, please refer to the [ParadeDB Tokenizer Documentation](https://docs.paradedb.com/documentation/tokenizers/overview).
 
-Additional field options (see [Token Filters](https://docs.paradedb.com/documentation/token-filters/overview) for all available options):
-
 ```python
 'body': {
     'tokenizer': 'default',

@@ -5,6 +5,15 @@ This script creates an autocomplete_items table with product data
 from mock_items, optimized for autocomplete with ngram indexes.
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common import configure_django
+
+configure_django()
+
 
 def setup_autocomplete_table() -> int:
     """Create autocomplete_items table with data from mock_items and ngram index."""
@@ -74,15 +83,6 @@ def setup_autocomplete_table() -> int:
 
 
 if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-
-    # Setup Django
-    sys.path.insert(0, str(Path(__file__).parent))
-    from _common import configure_django
-
-    configure_django()
-
     print("=" * 60)
     print("Autocomplete Setup - Creating Dedicated Table")
     print("=" * 60)
@@ -90,4 +90,4 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print(f"✓ Setup complete! Created autocomplete_items with {count} products")
     print("=" * 60)
-    print("\nRun: python examples/autocomplete.py")
+    print("\nRun: python examples/autocomplete/autocomplete.py")

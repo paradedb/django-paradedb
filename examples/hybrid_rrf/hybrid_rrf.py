@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 """Hybrid search example using BM25 + vector search with Reciprocal Rank Fusion."""
 
-from _common import MockItemWithEmbedding as MockItem
-from hybrid_rrf_setup import QUERY_EMBEDDINGS, setup
+import sys
+from pathlib import Path
+
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common import MockItemWithEmbedding as MockItem
 from pgvector.django import CosineDistance
 
 from paradedb.functions import Score
@@ -14,6 +18,10 @@ if MockItem is None:
 
 def get_query_embedding(text: str) -> list[float]:
     """Get pre-computed embedding for query text."""
+    # Import setup module to get QUERY_EMBEDDINGS
+    sys.path.insert(0, str(Path(__file__).parent))
+    from setup import QUERY_EMBEDDINGS
+
     return QUERY_EMBEDDINGS[text]
 
 
@@ -120,6 +128,10 @@ if __name__ == "__main__":
     print("=" * 80)
     print("\nCombining BM25 (keyword) + Vector (semantic) search")
     print("RRF formula: score = sum(1 / (k + rank_i)) across all rankings")
+
+    # Import setup here to avoid circular import issues
+    sys.path.insert(0, str(Path(__file__).parent))
+    from setup import setup
 
     # Ensure table, index, and embeddings exist before running the demo.
     setup()

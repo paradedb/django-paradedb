@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 """Quickstart example for django-paradedb full-text search."""
 
-from _common import MockItem, setup_mock_items
+import sys
+from pathlib import Path
+
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common import MockItem, setup_mock_items
 
 from paradedb.functions import Score, Snippet
 from paradedb.search import ParadeDB, Phrase

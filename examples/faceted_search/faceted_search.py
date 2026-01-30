@@ -5,7 +5,12 @@ This example demonstrates how to fetch faceted counts alongside a search
 query using the ParadeDBQuerySet.facets() helper (Top-N rows + buckets).
 """
 
-from _common import MockItem, setup_mock_items
+import sys
+from pathlib import Path
+
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common import MockItem, setup_mock_items
 
 from paradedb.search import ParadeDB
 

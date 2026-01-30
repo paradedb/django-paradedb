@@ -2,10 +2,15 @@
 """RAG example using django-paradedb for retrieval and OpenRouter for generation."""
 
 import os
+import sys
+from pathlib import Path
 
 import httpx
-from _common import MockItem, setup_mock_items
 from dotenv import load_dotenv
+
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common import MockItem, setup_mock_items
 
 from paradedb.functions import Score
 from paradedb.search import ParadeDB, Parse

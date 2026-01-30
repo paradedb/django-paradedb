@@ -15,8 +15,12 @@ Use cases:
 """
 
 import json
+import sys
+from pathlib import Path
 
-from _common import MockItem, setup_mock_items
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common import MockItem, setup_mock_items
 
 from paradedb.functions import Score
 from paradedb.search import MoreLikeThis

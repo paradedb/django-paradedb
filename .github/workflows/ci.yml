@@ -135,9 +135,19 @@ jobs:
           PGPASSWORD: ${{ env.PGPASSWORD }}
           DATABASE_URL: ${{ env.PARADEDB_TEST_DSN }}
         run: |
-          for file in examples/*.py; do
-            if [[ "$file" != *"__"* ]] && [[ "$file" != *"rag"* ]]; then
-              echo "Running $file..."
-              python "$file"
-            fi
-          done
+          # quickstart
+          python examples/quickstart/quickstart.py
+
+          # autocomplete (setup + run)
+          python examples/autocomplete/setup.py
+          python examples/autocomplete/autocomplete.py
+
+          # more_like_this
+          python examples/more_like_this/more_like_this.py
+
+          # faceted_search
+          python examples/faceted_search/faceted_search.py
+
+          # hybrid_rrf (setup + run)
+          python examples/hybrid_rrf/setup.py
+          python examples/hybrid_rrf/hybrid_rrf.py

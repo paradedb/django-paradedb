@@ -1,7 +1,7 @@
-# Core dependencies (all examples)
+# Core dependencies for all examples
 django>=4.2
 
-# Hybrid search example (hybrid_rrf) and RAG example (rag)
+# For hybrid search and RAG examples
 httpx>=0.25
 pgvector>=0.2
 psycopg[binary]>=3.1

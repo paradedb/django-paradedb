@@ -1,51 +1,40 @@
 #!/usr/bin/env python
 """Autocomplete (as-you-type) search example."""
 
-from autocomplete_setup import setup_autocomplete_table
+import sys
+from pathlib import Path
+
+from django.db import models
 
 from paradedb.functions import Score
+from paradedb.queryset import ParadeDBManager
 from paradedb.search import ParadeDB, Parse
+
+# Add parent directory to path to import common module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from common import configure_django
+
+configure_django()
 
 
 # Define model inline for the autocomplete_items table
-def get_autocomplete_model():
-    """Get AutocompleteItem model (defined inline)."""
-    import sys
-    from pathlib import Path
+class AutocompleteItem(models.Model):
+    id = models.IntegerField(primary_key=True)
+    description = models.TextField()
+    category = models.CharField(max_length=100)
+    rating = models.IntegerField()
+    in_stock = models.BooleanField()
+    created_at = models.DateTimeField()
 
-    examples_dir = Path(__file__).parent
-    if str(examples_dir) not in sys.path:
-        sys.path.insert(0, str(examples_dir))
-    from _common import configure_django
+    objects = ParadeDBManager()
 
-    configure_django()
+    class Meta:
+        app_label = "examples"
+        managed = False
+        db_table = "autocomplete_items"
 
-    from django.db import models
-
-    from paradedb.queryset import ParadeDBManager
-
-    class AutocompleteItem(models.Model):
-        id = models.IntegerField(primary_key=True)
-        description = models.TextField()
-        category = models.CharField(max_length=100)
-        rating = models.IntegerField()
-        in_stock = models.BooleanField()
-        created_at = models.DateTimeField()
-
-        objects = ParadeDBManager()
-
-        class Meta:
-            app_label = "examples"
-            managed = False
-            db_table = "autocomplete_items"
-
-        def __str__(self) -> str:
-            return self.description
-
-    return AutocompleteItem
-
-
-AutocompleteItem = get_autocomplete_model()
+    def __str__(self) -> str:
+        return self.description
 
 
 def demo_autocomplete() -> None:
@@ -91,6 +80,10 @@ if __name__ == "__main__":
     print("django-paradedb Autocomplete Example")
     print("Fast as-you-type search")
     print("=" * 60)
+
+    # Import setup here to avoid circular import issues
+    sys.path.insert(0, str(Path(__file__).parent))
+    from setup import setup_autocomplete_table
 
     # Ensure table and index exist before running the demo.
     count = setup_autocomplete_table()

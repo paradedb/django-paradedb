@@ -1,16 +1,18 @@
 # Examples
 
+This folder contains self-contained examples demonstrating various ParadeDB features.
+
 ## Quick Start
 
 ```bash
 # Install dependencies
-pip install -r examples/requirements.txt
+pip install -r requirements.txt
 
 # Start ParadeDB and export DATABASE_URL
 source scripts/run_paradedb.sh
 
 # Run an example
-python examples/quickstart.py
+python examples/quickstart/quickstart.py
 ```
 
 ## Environment Variables
@@ -18,40 +20,28 @@ python examples/quickstart.py
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | postgresql://postgres:postgres@localhost:5432/postgres | Database connection URL |
-| `OPENROUTER_API_KEY` | - | Required for RAG and hybrid search examples |
+| `OPENROUTER_API_KEY` | - | Required for RAG example |
 | `RAG_MODEL` | anthropic/claude-3-haiku | LLM model for RAG example |
 
 The `scripts/run_paradedb.sh` script sets `DATABASE_URL` automatically when sourced.
 
-## Available Examples
+---
 
-### quickstart.py
+## quickstart.py
 
 Basic full-text search with BM25: keyword search, scoring, phrase search, snippets, and ORM filters.
 
 ```bash
-python examples/quickstart.py
+python examples/quickstart/quickstart.py
 ```
 
-**Example output:**
+**Features demonstrated:**
 
-```text
---- Basic Search: 'shoes' ---
-  • Sleek running shoes...
-  • Generic shoes...
-
---- Scored Search: 'running' ---
-  • Sleek running shoes... (score: 5.82)
-
---- Phrase Search: 'running shoes' ---
-  • Sleek running shoes... (score: 8.41)
-
---- Snippet Highlighting: 'shoes' ---
-  • Sleek running <b>shoes</b>
-
---- Filtered Search: 'shoes' + in_stock + rating >= 4 ---
-  • Sleek running shoes... (rating: 5)
-```
+- **Basic search**: Simple keyword matching
+- **Scored search**: BM25 relevance scoring
+- **Phrase search**: Exact phrase matching with `Phrase()`
+- **Snippet highlighting**: Highlight matched terms with `Snippet()`
+- **Filtered search**: Combine ParadeDB search with Django ORM filters
 
 **API used:**
 
@@ -76,14 +66,21 @@ Product.objects.filter(description=ParadeDB("shoes")).annotate(
 
 ---
 
-### autocomplete.py
+## autocomplete/
 
-As-you-type autocomplete.
+As-you-type autocomplete using ngram tokenizers for substring matching.
 
 ```bash
-python examples/autocomplete_setup.py
-python examples/autocomplete.py
+cd examples/autocomplete
+python setup.py          # Creates autocomplete_items table with ngram index
+python autocomplete.py   # Run the demo
 ```
+
+**How it works:**
+
+- **ngram(3,8)**: Indexes 3- to 8-character substrings
+- Queries of 1-2 characters won't match (intentional - prevents too many results)
+- Queries of 3+ characters match against indexed ngrams
 
 **API used:**
 
@@ -98,18 +95,53 @@ Product.objects.filter(description=ParadeDB(Parse("description_ngram:wirel")))
 
 ---
 
-### rag.py
+## hybrid_rrf/
+
+Hybrid search combining BM25 (keyword) + vector (semantic) with Reciprocal Rank Fusion.
+
+**Prerequisites:** `pip install pgvector`
+
+```bash
+cd examples/hybrid_rrf
+python setup.py         # Loads pre-computed embeddings from CSV
+python hybrid_rrf.py    # Run the demo
+```
+
+**How it works:**
+
+1. **BM25 Search**: Keyword-based search for exact matches
+2. **Vector Search**: Semantic similarity using pre-computed embeddings
+3. **RRF Fusion**: Combines both result sets using Reciprocal Rank Fusion
+
+**RRF Formula:** `score = sum(1 / (k + rank_i))` where k=60 and rank_i is the item's rank in each list.
+
+**Files:**
+
+- `setup.py` - Loads pre-computed embeddings from CSV
+- `hybrid_rrf.py` - Runs the hybrid search demo
+- `mock_items_embeddings.csv` - Pre-computed embeddings (384-dim, all-MiniLM-L6-v2)
+
+---
+
+## rag.py
 
 RAG (Retrieval-Augmented Generation) using BM25 search + OpenRouter LLM.
 
-**Prerequisites:** Add `OPENROUTER_API_KEY` to `.env` file
+**Prerequisites:** Add `OPENROUTER_API_KEY` to your `.env` file
 
 ```bash
-python examples/rag.py
+cd examples/rag
+# Add OPENROUTER_API_KEY to .env first
+python rag.py
 
 # Use different model
-RAG_MODEL=openai/gpt-4o-mini python examples/rag.py
+RAG_MODEL=openai/gpt-4o-mini python rag.py
 ```
+
+**How it works:**
+
+1. **Retrieve**: Uses BM25 search to find relevant products
+2. **Generate**: Sends retrieved products as context to an LLM via OpenRouter
 
 **API used:**
 
@@ -127,45 +159,12 @@ Product.objects.filter(description=ParadeDB(Parse(query, lenient=True)))
 
 ---
 
-### hybrid_rrf.py
-
-Hybrid search combining BM25 (keyword) + vector (semantic) with Reciprocal Rank Fusion.
-
-**Prerequisites:** Run setup first to generate embeddings.
-
-```bash
-# Add OPENROUTER_API_KEY to .env
-python examples/hybrid_rrf_setup.py
-python examples/hybrid_rrf.py
-```
-
-**Example output:**
-
-```text
-Query: 'running shoes'
-
-BM25 Results (keyword):
-  1. Sleek running shoes                               (score: 5.96)
-
-Vector Results (semantic):
-  1. Sleek running shoes                               (dist: 0.076)
-  2. White jogging shoes                               (dist: 0.109)
-
-Hybrid RRF Results (combined):
-  1. Sleek running shoes                               (RRF: 0.0328)
-  2. White jogging shoes                               (RRF: 0.0161)
-```
-
-**RRF Formula:** `score = sum(1 / (k + rank_i))` where k=60 and rank_i is the item's rank in each list.
-
----
-
-### more_like_this.py
+## more_like_this.py
 
 Find similar documents based on term frequency analysis (TF-IDF) - no vector embeddings required.
 
 ```bash
-python examples/more_like_this.py
+python examples/more_like_this/more_like_this.py
 ```
 
 **Use cases:**
@@ -221,13 +220,19 @@ Product.objects.filter(
 
 ---
 
-### faceted_search.py
+## faceted_search.py
 
 Faceted search for e-commerce style filters (categories, ratings, in_stock, colors).
 
 ```bash
-python examples/faceted_search.py
+python examples/faceted_search/faceted_search.py
 ```
+
+**Features demonstrated:**
+
+- **Facet buckets**: Count of results per category, rating, etc.
+- **Top-N rows**: Get actual search results alongside facets
+- **Window aggregation**: Efficient single-query approach
 
 **API used:**
 
@@ -250,3 +255,16 @@ MockItem.objects.filter(description=ParadeDB("shoes")).order_by("-rating")[:5].f
 ```
 
 > **Note:** `facets(include_rows=True)` requires `order_by(...)` and a slice (LIMIT).
+
+---
+
+## Common Module
+
+The `common.py` file at the examples root provides shared utilities:
+
+- `configure_django()` - Django settings setup for standalone scripts
+- `setup_mock_items()` - Creates the mock_items table with BM25 index
+- `MockItem` - Django model for the mock_items table
+- `MockItemWithEmbedding` - Model with vector field (for hybrid search)
+
+Each example imports this module via `sys.path` manipulation to stay self-contained.

@@ -14,8 +14,6 @@ Use cases:
 - Content discovery and exploration
 """
 
-import json
-
 from _common import MockItem, setup_mock_items
 
 from paradedb.functions import Score
@@ -99,12 +97,12 @@ def demo_similar_by_text() -> None:
     user_description = "comfortable wireless audio for running"
     print(f"\nUser wants: '{user_description}'")
 
-    # MoreLikeThis with text requires JSON format: {"field": "text"}
-    text_json = json.dumps({"description": user_description})
-
+    # MoreLikeThis with text requires fields parameter
     print("\nMatching products:")
     similar = (
-        MockItem.objects.filter(MoreLikeThis(text=text_json))
+        MockItem.objects.filter(
+            MoreLikeThis(text=user_description, fields=["description"])
+        )
         .annotate(score=Score())
         .order_by("-score")[:5]
     )

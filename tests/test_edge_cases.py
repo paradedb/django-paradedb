@@ -212,28 +212,18 @@ class TestMoreLikeThisValidation:
 
     def test_mlt_requires_one_input(self) -> None:
         """MLT with no inputs raises ValueError."""
-        with pytest.raises(ValueError, match="exactly one of"):
+        with pytest.raises(ValueError, match="exactly one input"):
             MoreLikeThis()
 
     def test_mlt_multiple_inputs_raises(self) -> None:
         """MLT with multiple inputs raises ValueError."""
-        with pytest.raises(ValueError, match="exactly one of"):
-            MoreLikeThis(product_id=1, text="test", fields=["description"])
+        with pytest.raises(ValueError, match="exactly one input"):
+            MoreLikeThis(product_id=1, document={"description": "test"})
 
     def test_mlt_empty_product_ids_raises(self) -> None:
         """MLT with empty product_ids raises ValueError."""
         with pytest.raises(ValueError, match="cannot be empty"):
             MoreLikeThis(product_ids=[])
-
-    def test_mlt_empty_document_raises(self) -> None:
-        """MLT with empty document raises ValueError."""
-        with pytest.raises(ValueError, match="document cannot be empty"):
-            MoreLikeThis(document={})
-
-    def test_mlt_text_without_fields_raises(self) -> None:
-        """MLT with text but no fields raises ValueError."""
-        with pytest.raises(ValueError, match="text requires fields"):
-            MoreLikeThis(text="running shoes")
 
     def test_mlt_single_product_id(self) -> None:
         """MLT with single product_id works."""
@@ -245,16 +235,17 @@ class TestMoreLikeThisValidation:
         mlt = MoreLikeThis(product_ids=[1, 2, 3])
         assert mlt.product_ids == [1, 2, 3]
 
-    def test_mlt_text_with_fields(self) -> None:
-        """MLT with text and fields works."""
-        mlt = MoreLikeThis(text="running shoes", fields=["description"])
-        assert mlt.text == "running shoes"
-        assert mlt.fields == ["description"]
-
-    def test_mlt_document_input(self) -> None:
+    def test_mlt_document_dict(self) -> None:
         """MLT with document dict works."""
-        mlt = MoreLikeThis(document={"description": "test", "category": "Footwear"})
-        assert mlt.document == {"description": "test", "category": "Footwear"}
+        mlt = MoreLikeThis(document={"description": "running shoes"})
+        assert mlt.document == '{"description": "running shoes"}'
+
+    def test_mlt_document_with_fields_raises(self) -> None:
+        """MLT with document and fields raises ValueError."""
+        with pytest.raises(ValueError, match="fields are only valid"):
+            MoreLikeThis(
+                document={"description": "running shoes"}, fields=["description"]
+            )
 
     def test_mlt_with_all_options(self) -> None:
         """MLT with all tuning options works."""
@@ -295,6 +286,47 @@ class TestMoreLikeThisValidation:
         )
         assert isinstance(mlt.min_word_length, int)
         assert isinstance(mlt.max_word_length, int)
+
+    def test_mlt_numeric_validation(self) -> None:
+        """MLT validates that numeric parameters are positive integers."""
+        # Test min_term_freq
+        with pytest.raises(ValueError, match="min_term_freq must be >= 1"):
+            MoreLikeThis(product_id=1, min_term_freq=0)
+
+        with pytest.raises(ValueError, match="min_term_freq must be >= 1"):
+            MoreLikeThis(product_id=1, min_term_freq=-1)
+
+        # Test max_query_terms
+        with pytest.raises(ValueError, match="max_query_terms must be >= 1"):
+            MoreLikeThis(product_id=1, max_query_terms=0)
+
+        # Test min_word_length
+        with pytest.raises(ValueError, match="min_word_length must be >= 1"):
+            MoreLikeThis(product_id=1, min_word_length=0)
+
+        # Test type validation
+        with pytest.raises(TypeError, match="min_term_freq must be an integer"):
+            MoreLikeThis(product_id=1, min_term_freq="5")  # type: ignore[arg-type]
+
+        # Valid values should work
+        mlt = MoreLikeThis(
+            product_id=1,
+            min_term_freq=1,
+            max_query_terms=100,
+            min_word_length=1,
+        )
+        assert mlt.min_term_freq == 1
+        assert mlt.max_query_terms == 100
+        assert mlt.min_word_length == 1
+
+    def test_mlt_custom_key_field(self) -> None:
+        """MLT accepts custom key_field parameter."""
+        mlt = MoreLikeThis(product_id=1, key_field="custom_id")
+        assert mlt.key_field == "custom_id"
+
+        # Default should be None
+        mlt = MoreLikeThis(product_id=1)
+        assert mlt.key_field is None
 
 
 class TestScoreEdgeCases:

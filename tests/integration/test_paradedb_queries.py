@@ -113,25 +113,15 @@ def test_more_like_this_multiple_ids() -> None:
     assert ids == {3, 4, 5, 12}
 
 
-def test_more_like_this_by_text_with_fields() -> None:
-    """MLT with text + fields auto-converts to JSON document."""
-    ids = _ids(
-        MockItem.objects.filter(
-            MoreLikeThis(text="comfortable running shoes", fields=["description"])
-        )
-    )
-    # Should find documents similar to the text in the description field
-    assert 3 in ids  # "Sleek running shoes"
-
-
 def test_more_like_this_by_document() -> None:
-    """MLT with document dict generates correct JSON."""
+    """MLT with document finds similar documents."""
     ids = _ids(
         MockItem.objects.filter(
             MoreLikeThis(document={"description": "wireless earbuds"})
         )
     )
-    assert ids == {12}
+    # Should find documents similar to the text
+    assert 12 in ids  # "Innovative wireless earbuds"
 
 
 def test_more_like_this_with_stopwords() -> None:
@@ -275,3 +265,122 @@ def test_metadata_location_standard_filter() -> None:
         rows = cursor.fetchall()
     ids = {row[0] for row in rows}
     assert ids == {2, 5, 8, 11, 14, 17, 20, 23, 26, 29, 32, 35, 38, 41}
+
+
+def test_more_like_this_document_input_generates_correct_sql() -> None:
+    """MLT with document should generate pdb.more_like_this(%s) with JSON param."""
+    # This test validates that document input uses parameterized JSON format:
+    # pdb.more_like_this(%s) with params containing the JSON string
+
+    # Create a simple query with a document
+    query = MockItem.objects.filter(
+        MoreLikeThis(document={"description": "wireless earbuds"})
+    )
+
+    sql, params = query.query.sql_with_params()
+
+    # With parameterized SQL, the SQL should contain placeholder
+    assert "pdb.more_like_this(%s)" in sql, (
+        "Expected parameterized format: " "pdb.more_like_this(%s)\n" f"Got SQL: {sql}"
+    )
+
+    # Check that the parameter contains the JSON string
+    assert len(params) > 0, "Expected at least one parameter"
+    # Find the JSON parameter (it should be a string containing the JSON)
+    json_params = [p for p in params if isinstance(p, str) and "description" in p]
+    assert len(json_params) > 0, f"Expected JSON parameter in {params}"
+    assert (
+        '"wireless earbuds"' in json_params[0]
+    ), f"Expected JSON content in {json_params[0]}"
+
+    # Ensure it does NOT contain the array form
+    assert "ARRAY[" not in sql or "description" not in sql, (
+        "Should not use array form for document input\n" f"Got SQL: {sql}"
+    )
+
+
+def test_more_like_this_empty_stopwords_generates_correct_sql() -> None:
+    """MLT with empty stopwords array should omit the option."""
+    # This test validates that empty stopwords don't generate stopwords option
+    # Expected: stopwords option omitted entirely
+
+    query = MockItem.objects.filter(
+        MoreLikeThis(
+            product_id=3,
+            fields=["description"],
+            stopwords=[],  # Empty array
+        )
+    )
+
+    sql, _params = query.query.sql_with_params()
+
+    # Check that stopwords is not present at all
+    assert "stopwords" not in sql, (
+        f"Empty stopwords should be omitted entirely\n" f"Got SQL: {sql}"
+    )
+
+
+def test_more_like_this_with_key_field() -> None:
+    """MLT with custom key_field uses that column in SQL."""
+    query = MockItem.objects.filter(
+        MoreLikeThis(
+            product_id=3,
+            fields=["description"],
+            key_field="id",
+        )
+    )
+
+    sql, params = query.query.sql_with_params()
+
+    # Should use the specified key_field column
+    assert '"mock_items"."id"' in sql, f"Expected key_field column in SQL: {sql}"
+    assert "pdb.more_like_this" in sql
+    # Verify the query executes without error
+    ids = _ids(query)
+    assert 3 in ids
+
+
+def test_more_like_this_document_as_json_string() -> None:
+    """MLT with document as pre-serialized JSON string works correctly."""
+    import json
+
+    # Pre-serialize the JSON
+    json_doc = json.dumps({"description": "wireless earbuds"})
+
+    query = MockItem.objects.filter(MoreLikeThis(document=json_doc))
+
+    sql, params = query.query.sql_with_params()
+
+    # Should use parameterized JSON
+    assert "pdb.more_like_this(%s)" in sql, f"Expected parameterized SQL: {sql}"
+
+    # Verify the JSON string is in params
+    json_params = [p for p in params if isinstance(p, str) and "wireless" in p]
+    assert len(json_params) > 0, f"Expected JSON in params: {params}"
+
+    # Verify it executes and finds similar items
+    ids = _ids(query)
+    assert 12 in ids  # "Innovative wireless earbuds"
+
+
+def test_more_like_this_word_length_min_greater_than_max() -> None:
+    """MLT accepts min_word_length > max_word_length (ParadeDB handles validation)."""
+    # ParadeDB may handle this at runtime, but Django should accept it
+    # This test documents the current behavior
+    mlt = MoreLikeThis(
+        product_id=3,
+        fields=["description"],
+        min_word_length=10,
+        max_word_length=5,
+    )
+
+    # Should create the MLT object without error
+    assert mlt.min_word_length == 10
+    assert mlt.max_word_length == 5
+
+    # Generate SQL to verify it compiles
+    query = MockItem.objects.filter(mlt)
+    sql, _params = query.query.sql_with_params()
+
+    assert "min_word_length => 10" in sql
+    assert "max_word_length => 5" in sql

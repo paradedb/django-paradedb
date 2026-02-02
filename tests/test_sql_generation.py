@@ -389,30 +389,20 @@ class TestMoreLikeThis:
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(5, min_term_frequency => 2, max_query_terms => 10, min_doc_frequency => 1)'
         )
 
-    def test_mlt_by_text(self) -> None:
-        """MLT by text with fields generates JSON document."""
-        queryset = Product.objects.filter(
-            MoreLikeThis(
-                text="comfortable running shoes",
-                fields=["description", "category"],
-            )
-        )
-        # text + fields generates a JSON document with the text applied to each field
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(\'{"description":"comfortable running shoes","category":"comfortable running shoes"}\')'
-        )
-
     def test_mlt_by_document(self) -> None:
-        """MLT by document dict generates JSON."""
+        """MLT by document uses JSON input."""
         queryset = Product.objects.filter(
             MoreLikeThis(
-                document={"description": "running shoes", "category": "Footwear"},
+                document={
+                    "description": "comfortable running shoes",
+                    "category": "footwear",
+                },
             )
         )
+        # With parameterized SQL, Django's string representation doesn't show quotes
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(\'{"description":"running shoes","category":"Footwear"}\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this({"description": "comfortable running shoes", "category": "footwear"})'
         )
 
     def test_mlt_with_word_length(self) -> None:
@@ -431,7 +421,8 @@ class TestMoreLikeThis:
             MoreLikeThis(product_id=5, stopwords=["the", "a", "an"])
         )
         sql = str(queryset.query)
-        assert "stopwords => ARRAY['the','a','an']" in sql
+        # With parameterized SQL, stopwords appear without quotes in string representation
+        assert "stopwords => ARRAY[the, a, an]" in sql
 
     def test_mlt_with_all_options(self) -> None:
         """MLT with all available options including new ones."""
@@ -457,15 +448,16 @@ class TestMoreLikeThis:
         assert "max_doc_frequency => 1000" in sql
         assert "min_word_length => 3" in sql
         assert "max_word_length => 20" in sql
-        assert "stopwords => ARRAY['the','and','or']" in sql
-        assert "ARRAY['description']" in sql
+        # With parameterized SQL, stopwords appear without quotes in string representation
+        assert "stopwords => ARRAY[the, and, or]" in sql
+        # Fields also appear without quotes
+        assert "ARRAY[description]" in sql
 
-    def test_mlt_text_with_new_options(self) -> None:
-        """MLT with text input and new word length/stopwords options."""
+    def test_mlt_document_with_new_options(self) -> None:
+        """MLT with document input and new word length/stopwords options."""
         queryset = Product.objects.filter(
             MoreLikeThis(
-                text="comfortable running shoes",
-                fields=["description"],
+                document={"description": "comfortable running shoes"},
                 min_word_length=4,
                 max_word_length=12,
                 stopwords=["comfortable"],
@@ -474,7 +466,43 @@ class TestMoreLikeThis:
         sql = str(queryset.query)
         assert "min_word_length => 4" in sql
         assert "max_word_length => 12" in sql
-        assert "stopwords => ARRAY['comfortable']" in sql
+        # With parameterized SQL, stopwords appear without quotes in string representation
+        assert "stopwords => ARRAY[comfortable]" in sql
+
+    def test_mlt_document_should_use_json_format(self) -> None:
+        """Document input should generate JSON format."""
+        queryset = Product.objects.filter(
+            MoreLikeThis(document={"description": "wireless earbuds"})
+        )
+        sql = str(queryset.query)
+
+        # With parameterized SQL, JSON appears without quotes in string representation
+        assert 'pdb.more_like_this({"description": "wireless earbuds"})' in sql, (
+            "Expected JSON format: "
+            'pdb.more_like_this({"description": "wireless earbuds"})\n'
+            f"Got SQL: {sql}"
+        )
+
+        # Should NOT contain array form
+        # With parameterized SQL, would appear as ARRAY[description] not ARRAY['description']
+        assert "ARRAY[description]" not in sql, (
+            "Should not use array form for document input\n" f"Got SQL: {sql}"
+        )
+
+    def test_mlt_empty_stopwords_should_not_generate_empty_string(self) -> None:
+        """Empty stopwords should be omitted."""
+        queryset = Product.objects.filter(
+            MoreLikeThis(
+                product_id=5,
+                stopwords=[],  # Empty list
+            )
+        )
+        sql = str(queryset.query)
+
+        # Should NOT have stopwords at all (parameterized or not)
+        assert "stopwords" not in sql, (
+            f"Empty stopwords should be omitted entirely\n" f"Got SQL: {sql}"
+        )
 
 
 class TestDjangoIntegration:
@@ -613,3 +641,38 @@ class TestFacets:
         )[:5]
         with pytest.raises(ValueError, match="unique"):
             queryset.facets("category", "category")
+
+    def test_mlt_document_should_use_json_format(self) -> None:
+        """Document input should generate JSON format."""
+        queryset = Product.objects.filter(
+            MoreLikeThis(document={"description": "wireless earbuds"})
+        )
+        sql = str(queryset.query)
+
+        # With parameterized SQL, JSON appears without quotes in string representation
+        assert 'pdb.more_like_this({"description": "wireless earbuds"})' in sql, (
+            "Expected JSON format: "
+            'pdb.more_like_this({"description": "wireless earbuds"})\n'
+            f"Got SQL: {sql}"
+        )
+
+        # Should NOT contain array form
+        # With parameterized SQL, would appear as ARRAY[description] not ARRAY['description']
+        assert "ARRAY[description]" not in sql, (
+            "Should not use array form for document input\n" f"Got SQL: {sql}"
+        )
+
+    def test_mlt_empty_stopwords_should_not_generate_empty_string(self) -> None:
+        """Empty stopwords should be omitted."""
+        queryset = Product.objects.filter(
+            MoreLikeThis(
+                product_id=5,
+                stopwords=[],  # Empty list
+            )
+        )
+        sql = str(queryset.query)
+
+        # Should NOT have stopwords at all (parameterized or not)
+        assert "stopwords" not in sql, (
+            f"Empty stopwords should be omitted entirely\n" f"Got SQL: {sql}"
+        )

@@ -64,12 +64,12 @@ Product.objects.filter(description=ParadeDB('shoes'))
 
 Check out some examples:
 
-- [Quick Start](examples/quickstart.py)
-- [Faceted Search](examples/faceted_search.py)
-- [Autocomplete](examples/autocomplete.py)
-- [More Like This](examples/more_like_this.py)
-- [Hybrid Search (RRF)](examples/hybrid_rrf.py)
-- [RAG](examples/rag.py)
+- [Quick Start](examples/quickstart/quickstart.py)
+- [Faceted Search](examples/faceted_search/faceted_search.py)
+- [Autocomplete](examples/autocomplete/autocomplete.py)
+- [More Like This](examples/more_like_this/more_like_this.py)
+- [Hybrid Search (RRF)](examples/hybrid_rrf/hybrid_rrf.py)
+- [RAG](examples/rag/rag.py)
 
 ## BM25 Index
 
@@ -223,6 +223,11 @@ Product.objects.filter(MoreLikeThis(product_id=42))
 
 # Similar to multiple documents
 Product.objects.filter(MoreLikeThis(product_ids=[1, 2, 3]))
+
+# Similar to a custom document
+Product.objects.filter(
+    MoreLikeThis(document={"description": "comfortable running shoes"})
+)
 
 # With tuning parameters
 Product.objects.filter(

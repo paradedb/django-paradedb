@@ -330,7 +330,7 @@ def test_more_like_this_with_key_field() -> None:
         )
     )
 
-    sql, params = query.query.sql_with_params()
+    sql, _ = query.query.sql_with_params()
 
     # Should use the specified key_field column
     assert '"mock_items"."id"' in sql, f"Expected key_field column in SQL: {sql}"

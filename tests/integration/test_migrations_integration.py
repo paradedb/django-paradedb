@@ -43,16 +43,19 @@ def _fetch_index_definition(table_name: str, index_name: str) -> str | None:
     return row[0] if row else None
 
 
-def _verify_index_usage(table_name: str, index_name: str) -> bool:
+def _verify_index_usage(table_name: str, index_name: str) -> bool:  # noqa: ARG001
     """
     Verify BM25 index is actually used by PostgreSQL query planner.
 
-    Returns True if ParadeDBScan is found in the execution plan, indicating
-    the BM25 index is being utilized for query execution.
+    Returns True if a ParadeDB Custom Scan is found in the execution plan,
+    indicating the BM25 index is being utilized for query execution.
+
+    Args:
+        table_name: Name of the table to check
+        index_name: Name of the BM25 index (kept for API consistency)
     """
     quoted_table = connection.ops.quote_name(table_name)
     with connection.cursor() as cursor:
-        # Simple query that should trigger BM25 index usage via ParadeDB operators
         cursor.execute(
             f"""
             EXPLAIN (ANALYZE, BUFFERS)
@@ -64,17 +67,15 @@ def _verify_index_usage(table_name: str, index_name: str) -> bool:
         )
         plan_rows = cursor.fetchall()
 
-    # Join all plan rows into a single string for analysis
     plan_text = "\n".join(row[0] for row in plan_rows)
 
-    # Check for indicators that BM25 index is being used
-    # ParadeDB uses "Custom Scan" with "ParadeDB" or "ParadeDBScan" in the plan
-    has_paradedb_scan = "ParadeDB" in plan_text or "Custom Scan" in plan_text
-    has_index_reference = index_name in plan_text
-    no_seq_scan = "Seq Scan" not in plan_text
-
-    # Either explicit index reference OR (ParadeDB scan without sequential scan)
-    return has_paradedb_scan and (has_index_reference or no_seq_scan)
+    # ParadeDB Custom Scan node names (from pg_search/src/postgres/customscan/)
+    paradedb_scans = (
+        "ParadeDB Scan",  # BaseScan - standard BM25 queries
+        "ParadeDB Aggregate Scan",  # AggregateScan - GROUP BY/aggregates
+        "ParadeDB Join Scan",  # JoinScan - join queries with LIMIT
+    )
+    return any(scan in plan_text for scan in paradedb_scans)
 
 
 @pytest.mark.django_db(transaction=True)

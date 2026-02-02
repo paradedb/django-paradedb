@@ -1,19 +1,34 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      paradedb_version:
+        description: "ParadeDB version to test (e.g., 0.21.4)"
+        required: false
+        default: ""
+  repository_dispatch:
+    types: [paradedb-release]
+
+env:
+  PARADEDB_VERSION: "0.21.4"
+  PARADEDB_PG_VERSION: "pg18"
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: postgres
 
 jobs:
   lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
@@ -32,7 +47,7 @@ jobs:
         run: mypy src/paradedb
 
   test:
-    name: django-paradedb test
+    name: Test
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -40,7 +55,7 @@ jobs:
         django-version: ["6.0"]
     services:
       paradedb:
-        image: paradedb/paradedb:0.21.4-pg18
+        image: paradedb/paradedb:${{ inputs.paradedb_version || github.event.client_payload.version || '0.21.4' }}-pg18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -54,10 +69,11 @@ jobs:
           --health-retries 12
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -67,27 +83,19 @@ jobs:
           pip install "Django~=${{ matrix.django-version }}.0"
           pip install -e ".[dev]"
 
-      # Tests SQL generation only - no database required
       - name: Run tests
         env:
           PARADEDB_TEST_DSN: postgresql://postgres@localhost:5432/postgres
-          PGPASSWORD: postgres
-        run: pytest --cov=paradedb --cov-report=xml
-
-      - name: Upload coverage
-        uses: codecov/codecov-action@v5
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_GLOBAL_UPLOAD_TOKEN }}
+          PGPASSWORD: ${{ env.POSTGRES_PASSWORD }}
+        run: pytest
 
   integration:
-    name: django-paradedb integration
+    name: Integration
     runs-on: ubuntu-latest
     needs: test
     services:
       paradedb:
-        image: paradedb/paradedb:0.21.4-pg18
+        image: paradedb/paradedb:${{ inputs.paradedb_version || github.event.client_payload.version || '0.21.4' }}-pg18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -106,10 +114,11 @@ jobs:
       PGPASSWORD: postgres
 
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v6
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
@@ -119,35 +128,29 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run integration tests
+        run: pytest -m integration --cov=paradedb --cov-report=xml
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          flags: django-paradedb
+          fail_ci_if_error: false
+          verbose: true
         env:
-          PARADEDB_INTEGRATION: ${{ env.PARADEDB_INTEGRATION }}
-          PARADEDB_TEST_DSN: ${{ env.PARADEDB_TEST_DSN }}
-          PGPASSWORD: ${{ env.PGPASSWORD }}
-        run: pytest -m integration
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Install example dependencies
         run: pip install -r examples/requirements.txt
 
       - name: Run examples
         env:
-          PARADEDB_INTEGRATION: ${{ env.PARADEDB_INTEGRATION }}
-          PARADEDB_TEST_DSN: ${{ env.PARADEDB_TEST_DSN }}
-          PGPASSWORD: ${{ env.PGPASSWORD }}
           DATABASE_URL: ${{ env.PARADEDB_TEST_DSN }}
         run: |
-          # quickstart
           python examples/quickstart/quickstart.py
-
-          # autocomplete (setup + run)
           python examples/autocomplete/setup.py
           python examples/autocomplete/autocomplete.py
-
-          # more_like_this
           python examples/more_like_this/more_like_this.py
-
-          # faceted_search
           python examples/faceted_search/faceted_search.py
-
-          # hybrid_rrf (setup + run)
           python examples/hybrid_rrf/setup.py
           python examples/hybrid_rrf/hybrid_rrf.py

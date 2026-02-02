@@ -26,7 +26,7 @@ def get_query_embedding(text: str) -> list[float]:
 
 
 def bm25_search(query: str, top_k: int = 20) -> list[tuple[int, float]]:
-    """BM25 full-text search - returns (id, score) pairs."""
+    """BM25 search - returns (id, score) pairs."""
     results = (
         MockItem.objects.filter(description=ParadeDB(query))
         .annotate(score=Score())

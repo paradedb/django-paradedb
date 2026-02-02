@@ -6,15 +6,15 @@
 [![Slack URL](https://img.shields.io/badge/Join%20Slack-purple?logo=slack&link=https%3A%2F%2Fjoin.slack.com%2Ft%2Fparadedbcommunity%2Fshared_invite%2Fzt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)
 [![X URL](https://img.shields.io/twitter/url?url=https%3A%2F%2Ftwitter.com%2Fparadedb&label=Follow%20%40paradedb)](https://x.com/paradedb)
 
-[ParadeDB](https://paradedb.com) full-text search integration for Django ORM.
+[ParadeDB](https://paradedb.com) integration for Django ORM.
 
 ## Requirements & Compatibility
 
-| Component  | Version                      |
-|------------|------------------------------|
-| Python     | 3.13+                        |
-| Django     | 6.0+                         |
-| ParadeDB   | 0.21.* (tested on 0.21.4)    |
+| Component  | Version                          |
+|------------|----------------------------------|
+| Python     | 3.13+                            |
+| Django     | 6.0+                             |
+| ParadeDB   | 0.21.* (tested on 0.21.4)        |
 | PostgreSQL | 17, 18 (with ParadeDB extension) |
 
 ## Installation
@@ -411,6 +411,16 @@ ruff format .
 # Start ParadeDB locally (uses Docker) and run the integration suite
 bash scripts/run_integration_tests.sh
 ```
+
+## Contributing
+
+We welcome contributions! To contribute:
+
+1. Find an issue to work on (or create one if it doesn't exist)
+2. Comment `/take` on the issue to self-assign it
+3. Fork the repo, make your changes, and submit a pull request
+
+For detailed guidelines, see our [Contributing Guide](CONTRIBUTING.md).
 
 ## Support
 

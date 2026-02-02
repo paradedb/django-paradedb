@@ -34,6 +34,7 @@ class Phrase:
     Note: The slop parameter controls the maximum number of intervening unmatched
     tokens allowed between words in a phrase. Higher values increase query flexibility
     but may impact performance. Commonly used values are 0-10.
+    See: https://docs.paradedb.com/documentation/full-text/phrase
     """
 
     text: str
@@ -50,6 +51,7 @@ class Fuzzy:
 
     Note: Distance parameter is limited to max 2 by ParadeDB. This defines the maximum
     number of character edits allowed (insertions, deletions, substitutions) when matching.
+    See: https://docs.paradedb.com/documentation/full-text/fuzzy
     """
 
     text: str
@@ -109,6 +111,8 @@ class MoreLikeThis(Expression):
         min_word_length: Minimum word length (must be >= 1)
         max_word_length: Maximum word length (must be >= 1)
         stopwords: List of stopwords to exclude
+
+    See: https://docs.paradedb.com/documentation/query-builder/specialized/more-like-this
     """
 
     conditional = True

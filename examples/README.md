@@ -1,266 +1,167 @@
-# Examples
+# ParadeDB for Django: Examples & Cookbook
 
-This folder contains self-contained examples demonstrating various ParadeDB features.
+Welcome to the **ParadeDB for Django** examples! This directory contains a collection of self-contained scripts designed to teach you how to integrate powerful search and analytics features into your Django application using ParadeDB.
 
-## Quick Start
+Think of this as a **cookbook**: whether you need simple keyword search, an e-commerce filtering system, or a cutting-edge RAG (Retrieval-Augmented Generation) pipeline, you'll find a recipe here.
+
+## 🚀 Getting Started
+
+Before running any example, you need to set up your environment.
+
+### 1. Install Dependencies
+
+All examples share a common set of dependencies.
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Create and activate a virtual environment (optional but recommended)
+python -m venv .venv
+source .venv/bin/activate
 
-# Start ParadeDB and export DATABASE_URL
+# Install the package and example requirements
+pip install -r examples/requirements.txt
+```
+
+### 2. Start ParadeDB
+
+You need a running ParadeDB instance. We provide a helper script to start one via Docker and set the necessary environment variables.
+
+```bash
+# Sourcing this script starts ParadeDB and exports DATABASE_URL
 source scripts/run_paradedb.sh
-
-# Run an example
-python examples/quickstart/quickstart.py
 ```
 
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | postgresql://postgres:postgres@localhost:5432/postgres | Database connection URL |
-| `OPENROUTER_API_KEY` | - | Required for RAG example |
-| `RAG_MODEL` | anthropic/claude-3-haiku | LLM model for RAG example |
-
-The `scripts/run_paradedb.sh` script sets `DATABASE_URL` automatically when sourced.
+**Note:** If you already have a Postgres instance with ParadeDB installed, you can simply set the `DATABASE_URL` environment variable manually:
+`export DATABASE_URL=postgresql://user:password@localhost:5432/dbname`
 
 ---
 
-## quickstart.py
+## 📚 The Examples
 
-Basic full-text search with BM25: keyword search, scoring, phrase search, snippets, and ORM filters.
+We've organized the examples into three categories:
+
+1. **Essentials**: Core search features used in almost every app.
+2. **Smart Features**: UX enhancements like autocomplete and recommendations.
+3. **AI & Vectors**: Advanced semantic search and generative AI flows.
+
+### 🔹 Essentials
+
+#### 1. Quickstart (`quickstart/quickstart.py`)
+
+*The "Hello World" of ParadeDB.*
+
+This script demonstrates the fundamental building blocks of search. You will learn how to:
+
+- **Index data**: Define a `BM25Index` on your model.
+- **Search**: Perform basic keyword queries.
+- **Score**: Sort results by relevance (BM25 score).
+- **Highlight**: Generate snippets (e.g., `<b>run</b>ning`) to show users why a result matched.
+
+**Run it:**
 
 ```bash
 python examples/quickstart/quickstart.py
 ```
 
-**Features demonstrated:**
+#### 2. Faceted Search (`faceted_search/faceted_search.py`)
 
-- **Basic search**: Simple keyword matching
-- **Scored search**: BM25 relevance scoring
-- **Phrase search**: Exact phrase matching with `Phrase()`
-- **Snippet highlighting**: Highlight matched terms with `Snippet()`
-- **Filtered search**: Combine ParadeDB search with Django ORM filters
+*Building an E-commerce Sidebar.*
 
-**API used:**
+Facets are the "filters" you see on shopping sites (e.g., "Brand (5)", "Color (3)"). This example shows how to compute these counts efficiently in a single query.
 
-```python
-from paradedb.search import ParadeDB, Phrase
-from paradedb.functions import Score, Snippet
+**Key Concepts:**
 
-# Keyword search
-Product.objects.filter(description=ParadeDB("shoes"))
+- **Aggregations**: Counting documents by category, rating, etc.
+- **Hybrid Results**: Getting search results *and* facet counts together.
 
-# Phrase search (exact sequence)
-Product.objects.filter(description=ParadeDB(Phrase("running shoes")))
-
-# With BM25 scoring
-Product.objects.filter(description=ParadeDB("shoes")).annotate(score=Score())
-
-# With snippet highlighting
-Product.objects.filter(description=ParadeDB("shoes")).annotate(
-    snippet=Snippet("description", start_sel="<b>", stop_sel="</b>")
-)
-```
-
----
-
-## autocomplete/
-
-As-you-type autocomplete using ngram tokenizers for substring matching.
-
-```bash
-cd examples/autocomplete
-python setup.py          # Creates autocomplete_items table with ngram index
-python autocomplete.py   # Run the demo
-```
-
-**How it works:**
-
-- **ngram(3,8)**: Indexes 3- to 8-character substrings
-- Queries of 1-2 characters won't match (intentional - prevents too many results)
-- Queries of 3+ characters match against indexed ngrams
-
-**API used:**
-
-```python
-from paradedb.search import ParadeDB, Parse
-from paradedb.functions import Score
-
-Product.objects.filter(description=ParadeDB(Parse("description_ngram:wirel")))
-    .annotate(score=Score())
-    .order_by("-score")[:5]
-```
-
----
-
-## hybrid_rrf/
-
-Hybrid search combining BM25 (keyword) + vector (semantic) with Reciprocal Rank Fusion.
-
-**Prerequisites:** `pip install pgvector`
-
-```bash
-cd examples/hybrid_rrf
-python setup.py         # Loads pre-computed embeddings from CSV
-python hybrid_rrf.py    # Run the demo
-```
-
-**How it works:**
-
-1. **BM25 Search**: Keyword-based search for exact matches
-2. **Vector Search**: Semantic similarity using pre-computed embeddings
-3. **RRF Fusion**: Combines both result sets using Reciprocal Rank Fusion
-
-**RRF Formula:** `score = sum(1 / (k + rank_i))` where k=60 and rank_i is the item's rank in each list.
-
-**Files:**
-
-- `setup.py` - Loads pre-computed embeddings from CSV
-- `hybrid_rrf.py` - Runs the hybrid search demo
-- `mock_items_embeddings.csv` - Pre-computed embeddings (384-dim, all-MiniLM-L6-v2)
-
----
-
-## rag.py
-
-RAG (Retrieval-Augmented Generation) using BM25 search + OpenRouter LLM.
-
-**Prerequisites:** Add `OPENROUTER_API_KEY` to your `.env` file
-
-```bash
-cd examples/rag
-# Add OPENROUTER_API_KEY to .env first
-python rag.py
-
-# Use different model
-RAG_MODEL=openai/gpt-4o-mini python rag.py
-```
-
-**How it works:**
-
-1. **Retrieve**: Uses BM25 search to find relevant products
-2. **Generate**: Sends retrieved products as context to an LLM via OpenRouter
-
-**API used:**
-
-```python
-from paradedb.search import ParadeDB, Parse
-
-# Parse allows natural language queries with lenient parsing
-Product.objects.filter(description=ParadeDB(Parse(query, lenient=True)))
-```
-
-| Parameter | Description |
-|-----------|-------------|
-| `query` | Natural language search query |
-| `lenient` | If True, ignores syntax errors in the query |
-
----
-
-## more_like_this.py
-
-Find similar documents based on term frequency analysis (TF-IDF) - no vector embeddings required.
-
-```bash
-python examples/more_like_this/more_like_this.py
-```
-
-**Use cases:**
-
-- "Related products" on product pages
-- "Similar articles" recommendations
-- "Customers who viewed this also viewed..."
-
-**API used:**
-
-```python
-from paradedb.search import MoreLikeThis
-
-# Similar to a single product
-Product.objects.filter(
-    MoreLikeThis(product_id=5, fields=["description"])
-)
-
-# Similar to multiple products (browsing history)
-Product.objects.filter(
-    MoreLikeThis(product_ids=[5, 12, 23], fields=["description"])
-)
-
-# Similar to a custom document (user describes what they want)
-Product.objects.filter(
-    MoreLikeThis(document={"description": "comfortable running shoes"})
-)
-```
-
-**Tuning Parameters:**
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `min_term_freq` | Minimum times term must appear in source | 1 |
-| `max_query_terms` | Maximum terms to use in query | 25 |
-| `min_doc_freq` | Minimum docs term must appear in | 1 |
-| `max_doc_freq` | Maximum docs term can appear in | unlimited |
-
-```python
-Product.objects.filter(
-    MoreLikeThis(
-        product_id=5,
-        fields=["description"],
-        min_doc_freq=2,      # Ignore rare terms
-        max_query_terms=10,  # Use only top 10 terms
-    )
-)
-```
-
----
-
-## faceted_search.py
-
-Faceted search for e-commerce style filters (categories, ratings, in_stock, colors).
+**Run it:**
 
 ```bash
 python examples/faceted_search/faceted_search.py
 ```
 
-**Features demonstrated:**
+---
 
-- **Facet buckets**: Count of results per category, rating, etc.
-- **Top-N rows**: Get actual search results alongside facets
-- **Window aggregation**: Efficient single-query approach
+### 🔹 Smart Features
 
-**API used:**
+#### 3. Autocomplete (`autocomplete/`)
 
-```python
-from paradedb.search import ParadeDB
+*Instant "As-You-Type" Suggestions.*
 
-# Facets only (no rows)
-MockItem.objects.filter(description=ParadeDB("shoes")).facets(
-    "category",
-    "rating",
-    "in_stock",
-    include_rows=False,
-)
+Standard search requires hitting "Enter". Autocomplete gives immediate feedback. This example uses **N-gram tokenization** to match substrings (e.g., "wir" matches "wireless").
 
-# Facets + rows (requires order_by + limit)
-MockItem.objects.filter(description=ParadeDB("shoes")).order_by("-rating")[:5].facets(
-    "category",
-    "metadata_color",
-)
+**How it works:**
+
+1. We create a specialized index that breaks text into small chunks (n-grams).
+2. Queries match these chunks, allowing for partial matches even in the middle of words.
+
+**Run it:**
+
+```bash
+cd examples/autocomplete
+python setup.py          # Step 1: Create table with ngram index
+python autocomplete.py   # Step 2: Run the search demo
 ```
 
-> **Note:** `facets(include_rows=True)` requires `order_by(...)` and a slice (LIMIT).
+#### 4. More Like This (`more_like_this/more_like_this.py`)
+
+*Recommendations & "Related Content".*
+
+Want to show "Related Articles" or "Customers also bought"? This feature analyzes the text of a document to find others with similar keywords, using TF-IDF logic—no complex vector embeddings required.
+
+**Run it:**
+
+```bash
+python examples/more_like_this/more_like_this.py
+```
 
 ---
 
-## Common Module
+### 🔹 AI & Vectors
 
-The `common.py` file at the examples root provides shared utilities:
+#### 5. Hybrid Search with RRF (`hybrid_rrf/`)
 
-- `configure_django()` - Django settings setup for standalone scripts
-- `setup_mock_items()` - Creates the mock_items table with BM25 index
-- `MockItem` - Django model for the mock_items table
-- `MockItemWithEmbedding` - Model with vector field (for hybrid search)
+*The Best of Both Worlds: Keywords + Semantics.*
 
-Each example imports this module via `sys.path` manipulation to stay self-contained.
+Keyword search (BM25) is great for exact matches ("Part #123"). Vector search is great for meaning ("warm clothing" matches "coat"). **Hybrid Search** combines them using **Reciprocal Rank Fusion (RRF)** for superior results.
+
+**Prerequisites:**
+
+- `pgvector` must be installed (included in the ParadeDB Docker image).
+
+**Run it:**
+
+```bash
+cd examples/hybrid_rrf
+python setup.py         # Loads pre-computed embeddings into the DB
+python hybrid_rrf.py    # Performs the hybrid search
+```
+
+#### 6. RAG: Retrieval-Augmented Generation (`rag/`)
+
+*Chat with your Data.*
+
+This example builds a mini QA system. It searches your data for relevant context and feeds it to an LLM (Large Language Model) to answer questions based *only* on your data.
+
+**Prerequisites:**
+
+- An API Key from [OpenRouter](https://openrouter.ai/) (provides access to GPT-4, Claude, etc.).
+- Set `export OPENROUTER_API_KEY=sk-...` in your terminal.
+
+**Run it:**
+
+```bash
+cd examples/rag
+python rag.py
+```
+
+---
+
+## 🛠 Under the Hood: `common.py`
+
+You might notice that many examples import from `common`. This is a helper module located at `examples/common.py`. It handles the boring stuff so the examples remain focused:
+
+- **`configure_django()`**: Sets up a minimal in-memory Django configuration.
+- **`MockItem`**: A simple Django model used across examples to simulate products.
+- **`setup_mock_items()`**: Populates the database with dummy data.
+
+Feel free to read `common.py` if you're curious how to set up standalone Django scripts!

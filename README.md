@@ -390,27 +390,49 @@ Product.objects.filter(
 
 ## Development
 
+### Setup
+
 ```bash
 # Install dev dependencies
 pip install -e ".[dev]"
 
 # Setup pre-commit hooks
 pre-commit install
+```
 
-# Run tests
+### Testing
+
+**Unit tests** verify individual components and logic without requiring a database connection.
+
+**Integration tests** validate the full workflow against a real ParadeDB instance to ensure everything works end-to-end.
+
+```bash
+# Run unit tests only
 pytest
 
+# Run integration tests (requires Docker)
+# This script automatically starts ParadeDB in Docker and runs the integration suite
+bash scripts/run_integration_tests.sh
+
+# Or manually start ParadeDB and run integration tests
+bash scripts/run_paradedb.sh  # Starts ParadeDB container
+export PARADEDB_INTEGRATION=1
+export PARADEDB_TEST_DSN="postgresql://postgres:postgres@localhost:5432/postgres"
+pytest -m integration
+```
+
+### Linting & Type Checking
+
+```bash
 # Run linting
 ruff check .
 ruff format .
+
+# Run type checking
+mypy src/paradedb
 ```
 
-### Integration tests
-
-```bash
-# Start ParadeDB locally (uses Docker) and run the integration suite
-bash scripts/run_integration_tests.sh
-```
+For more details on contributing, development workflow, and PR conventions, see our [Contributing Guide](CONTRIBUTING.md).
 
 ## Contributing
 

@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/paradedb/django-paradedb/actions/workflows/ci.yml/badge.svg)](https://github.com/paradedb/django-paradedb/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/django-paradedb)](https://pypi.org/project/django-paradedb/)
-[![Python](https://img.shields.io/pypi/pyversions/django-paradedb)](https://pypi.org/project/django-paradedb/)
 [![License](https://img.shields.io/github/license/paradedb/django-paradedb?color=blue)](https://github.com/paradedb/django-paradedb?tab=MIT-1-ov-file#readme)
 [![Slack URL](https://img.shields.io/badge/Join%20Slack-purple?logo=slack&link=https%3A%2F%2Fjoin.slack.com%2Ft%2Fparadedbcommunity%2Fshared_invite%2Fzt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)
 [![X URL](https://img.shields.io/twitter/url?url=https%3A%2F%2Ftwitter.com%2Fparadedb&label=Follow%20%40paradedb)](https://x.com/paradedb)
@@ -65,12 +64,12 @@ Product.objects.filter(description=ParadeDB('shoes'))
 
 Check out some examples:
 
-- [Quick Start](examples/quickstart.py)
-- [Faceted Search](examples/faceted_search.py)
-- [Autocomplete](examples/autocomplete.py)
-- [More Like This](examples/more_like_this.py)
-- [Hybrid Search (RRF)](examples/hybrid_rrf.py)
-- [RAG](examples/rag.py)
+- [Quick Start](examples/quickstart/quickstart.py)
+- [Faceted Search](examples/faceted_search/faceted_search.py)
+- [Autocomplete](examples/autocomplete/autocomplete.py)
+- [More Like This](examples/more_like_this/more_like_this.py)
+- [Hybrid Search (RRF)](examples/hybrid_rrf/hybrid_rrf.py)
+- [RAG](examples/rag/rag.py)
 
 ## BM25 Index
 
@@ -224,6 +223,11 @@ Product.objects.filter(MoreLikeThis(product_id=42))
 
 # Similar to multiple documents
 Product.objects.filter(MoreLikeThis(product_ids=[1, 2, 3]))
+
+# Similar to a custom document
+Product.objects.filter(
+    MoreLikeThis(document={"description": "comfortable running shoes"})
+)
 
 # With tuning parameters
 Product.objects.filter(

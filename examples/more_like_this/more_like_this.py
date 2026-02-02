@@ -2,11 +2,7 @@
 """MoreLikeThis example: find similar documents without vectors.
 
 This example demonstrates ParadeDB's MoreLikeThis feature, which finds similar
-documents based on term frequency analysis (TF-IDF), not vector embeddings.
-
-NOTE: MoreLikeThis is used directly in .filter(), not wrapped in ParadeDB().
-This is because it's a table-level similarity query that uses the primary key
-internally, rather than a field-targeted search expression.
+documents based BM25 provided by ParadeDB, not vector embeddings.
 
 Use cases:
 - "Related products" on product pages
@@ -14,12 +10,12 @@ Use cases:
 - Content discovery and exploration
 """
 
-import json
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import common module
+# Add parent directory to path for importing common utilities
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from common import MockItem, setup_mock_items
 
 from paradedb.functions import Score
@@ -89,8 +85,8 @@ def demo_similar_to_multiple_products() -> None:
         print(f"  {item.id}: {item.description[:50]}... [{item.category}]")
 
 
-def demo_similar_by_text() -> None:
-    """Find products similar to a text description.
+def demo_similar_by_document() -> None:
+    """Find products similar to a custom document.
 
     Use case: User describes what they want, find matching products.
     This is different from regular search - it uses MLT's term analysis.
@@ -103,12 +99,11 @@ def demo_similar_by_text() -> None:
     user_description = "comfortable wireless audio for running"
     print(f"\nUser wants: '{user_description}'")
 
-    # MoreLikeThis with text requires JSON format: {"field": "text"}
-    text_json = json.dumps({"description": user_description})
-
     print("\nMatching products:")
     similar = (
-        MockItem.objects.filter(MoreLikeThis(text=text_json))
+        MockItem.objects.filter(
+            MoreLikeThis(document={"description": user_description})
+        )
         .annotate(score=Score())
         .order_by("-score")[:5]
     )
@@ -241,7 +236,7 @@ if __name__ == "__main__":
 
     demo_similar_to_single_product()
     demo_similar_to_multiple_products()
-    demo_similar_by_text()
+    demo_similar_by_document()
     demo_tuning_parameters()
     demo_combined_with_filters()
     demo_multifield_similarity()

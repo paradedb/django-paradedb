@@ -188,14 +188,11 @@ Product.objects.filter(
     MoreLikeThis(product_ids=[5, 12, 23], fields=["description"])
 )
 
-# Similar to text (user describes what they want)
+# Similar to a custom document (user describes what they want)
 Product.objects.filter(
-    MoreLikeThis(text='{"description": "comfortable running shoes"}')
+    MoreLikeThis(document={"description": "comfortable running shoes"})
 )
 ```
-
-> **Note:** `MoreLikeThis` is used directly in `.filter()`, not wrapped in `ParadeDB()`.
-> This is because it's a table-level similarity query, not a field-targeted search.
 
 **Tuning Parameters:**
 
@@ -207,7 +204,6 @@ Product.objects.filter(
 | `max_doc_freq` | Maximum docs term can appear in | unlimited |
 
 ```python
-# Tuned for precision
 Product.objects.filter(
     MoreLikeThis(
         product_id=5,

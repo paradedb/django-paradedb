@@ -280,9 +280,9 @@ def test_more_like_this_document_input_generates_correct_sql() -> None:
     sql, params = query.query.sql_with_params()
 
     # With parameterized SQL, the SQL should contain placeholder
-    assert "pdb.more_like_this(%s)" in sql, (
-        "Expected parameterized format: " "pdb.more_like_this(%s)\n" f"Got SQL: {sql}"
-    )
+    assert (
+        "pdb.more_like_this(%s)" in sql
+    ), f"Expected parameterized format: pdb.more_like_this(%s)\nGot SQL: {sql}"
 
     # Check that the parameter contains the JSON string
     assert len(params) > 0, "Expected at least one parameter"
@@ -294,9 +294,9 @@ def test_more_like_this_document_input_generates_correct_sql() -> None:
     ), f"Expected JSON content in {json_params[0]}"
 
     # Ensure it does NOT contain the array form
-    assert "ARRAY[" not in sql or "description" not in sql, (
-        "Should not use array form for document input\n" f"Got SQL: {sql}"
-    )
+    assert (
+        "ARRAY[" not in sql or "description" not in sql
+    ), f"Should not use array form for document input\nGot SQL: {sql}"
 
 
 def test_more_like_this_empty_stopwords_generates_correct_sql() -> None:
@@ -315,9 +315,9 @@ def test_more_like_this_empty_stopwords_generates_correct_sql() -> None:
     sql, _params = query.query.sql_with_params()
 
     # Check that stopwords is not present at all
-    assert "stopwords" not in sql, (
-        f"Empty stopwords should be omitted entirely\n" f"Got SQL: {sql}"
-    )
+    assert (
+        "stopwords" not in sql
+    ), f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"
 
 
 def test_more_like_this_with_key_field() -> None:

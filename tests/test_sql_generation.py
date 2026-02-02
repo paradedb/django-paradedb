@@ -485,9 +485,9 @@ class TestMoreLikeThis:
 
         # Should NOT contain array form
         # With parameterized SQL, would appear as ARRAY[description] not ARRAY['description']
-        assert "ARRAY[description]" not in sql, (
-            "Should not use array form for document input\n" f"Got SQL: {sql}"
-        )
+        assert (
+            "ARRAY[description]" not in sql
+        ), f"Should not use array form for document input\nGot SQL: {sql}"
 
     def test_mlt_empty_stopwords_should_not_generate_empty_string(self) -> None:
         """Empty stopwords should be omitted."""
@@ -500,9 +500,9 @@ class TestMoreLikeThis:
         sql = str(queryset.query)
 
         # Should NOT have stopwords at all (parameterized or not)
-        assert "stopwords" not in sql, (
-            f"Empty stopwords should be omitted entirely\n" f"Got SQL: {sql}"
-        )
+        assert (
+            "stopwords" not in sql
+        ), f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"
 
 
 class TestDjangoIntegration:
@@ -658,9 +658,9 @@ class TestFacets:
 
         # Should NOT contain array form
         # With parameterized SQL, would appear as ARRAY[description] not ARRAY['description']
-        assert "ARRAY[description]" not in sql, (
-            "Should not use array form for document input\n" f"Got SQL: {sql}"
-        )
+        assert (
+            "ARRAY[description]" not in sql
+        ), f"Should not use array form for document input\nGot SQL: {sql}"
 
     def test_mlt_empty_stopwords_should_not_generate_empty_string(self) -> None:
         """Empty stopwords should be omitted."""
@@ -673,6 +673,6 @@ class TestFacets:
         sql = str(queryset.query)
 
         # Should NOT have stopwords at all (parameterized or not)
-        assert "stopwords" not in sql, (
-            f"Empty stopwords should be omitted entirely\n" f"Got SQL: {sql}"
-        )
+        assert (
+            "stopwords" not in sql
+        ), f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"

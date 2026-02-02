@@ -1,4 +1,4 @@
-"""Integration tests for ParadeDB faceted queries."""
+"""Integration tests for ParadeDB faceted search."""
 
 from __future__ import annotations
 

@@ -9,8 +9,6 @@ on:
         description: "ParadeDB version to test (e.g., 0.21.4)"
         required: false
         default: ""
-  repository_dispatch:
-    types: [paradedb-release]
 
 env:
   POSTGRES_USER: postgres
@@ -53,7 +51,7 @@ jobs:
         django-version: ["6.0"]
     services:
       paradedb:
-        image: paradedb/paradedb:${{ inputs.paradedb_version || github.event.client_payload.version || '0.21.4' }}-pg18
+        image: paradedb/paradedb:${{ inputs.paradedb_version || '0.21.4' }}-pg18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -93,7 +91,7 @@ jobs:
     needs: test
     services:
       paradedb:
-        image: paradedb/paradedb:${{ inputs.paradedb_version || github.event.client_payload.version || '0.21.4' }}-pg18
+        image: paradedb/paradedb:${{ inputs.paradedb_version || '0.21.4' }}-pg18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

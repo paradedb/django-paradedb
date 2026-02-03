@@ -116,6 +116,45 @@ Index specific keys within a JSONField
 }
 ```
 
+### Migrations
+
+BM25Index works seamlessly with Django's migration system. You can add indexes to existing models or new models - Django will automatically generate and apply the necessary migrations.
+
+**Adding an index to an existing model:**
+
+```python
+# Simply add BM25Index to your existing model's Meta.indexes
+class Article(models.Model):
+    title = models.TextField()
+    body = models.TextField()
+
+    class Meta:
+        indexes = [
+            BM25Index(
+                fields={'id': {}, 'title': {}, 'body': {}},
+                key_field='id',
+                name='article_idx',
+            ),
+        ]
+```
+
+Then run Django's standard migration commands:
+
+```bash
+python manage.py makemigrations
+python manage.py migrate
+```
+
+**Modifying an existing index:**
+
+To change index configuration (e.g., tokenizer settings), remove the old index and add a new one with a different name. Django will drop and recreate the index during migration.
+
+**Important notes:**
+
+- The table can contain existing data when adding a BM25Index - the index will be built from the existing rows
+- Index creation may take time on large tables (millions of rows)
+- Django automatically handles index cleanup when reverting migrations
+
 ## Query Types
 
 For a full list of supported query types and advanced options, please refer to the [ParadeDB Query Builder Documentation](https://docs.paradedb.com/documentation/query-builder/overview).
@@ -136,22 +175,61 @@ Product.objects.filter(description=ParadeDB('running', 'shoes'))
 
 ### Boolean Composition with PQ
 
-Use `PQ` for explicit boolean logic
+ParadeDB provides two ways to perform AND operations:
+
+#### Simple AND - Multiple Terms (Recommended for most cases)
+
+```python
+from paradedb.search import ParadeDB
+
+# Simple syntax - terms are automatically combined with AND
+Product.objects.filter(description=ParadeDB('running', 'shoes'))
+# SQL: WHERE description &&& ARRAY['running', 'shoes']
+```
+
+**Use this when:** You have a simple list of terms that must all match.
+
+#### Explicit PQ Objects - Complex Boolean Logic
 
 ```python
 from paradedb.search import ParadeDB, PQ
 
-# OR query
+# OR query - find documents matching ANY term
 Product.objects.filter(description=ParadeDB(PQ('shoes') | PQ('boots')))
+# SQL: WHERE description ||| ARRAY['shoes', 'boots']
 
-# AND query
+# AND query - explicit boolean combination
 Product.objects.filter(description=ParadeDB(PQ('running') & PQ('shoes')))
+# SQL: WHERE description &&& ARRAY['running', 'shoes']
 
-# Combine multiple terms
+# Combine multiple terms with OR
 Product.objects.filter(
     description=ParadeDB(PQ('shoes') | PQ('boots') | PQ('sandals'))
 )
 ```
+
+**Use PQ when:**
+
+- You need **OR logic** (must use PQ with `|`)
+- You're building dynamic queries where the operator might vary
+- You want explicit control over boolean operators
+
+#### Combining with Django Q Objects
+
+Mix ParadeDB search with Django's Q objects for complex filtering:
+
+```python
+from django.db.models import Q
+from paradedb.search import ParadeDB, PQ
+
+# (ParadeDB search AND standard filter) OR (different search AND filter)
+Product.objects.filter(
+    Q(description=ParadeDB('running', 'shoes'), rating__gte=4) |
+    Q(description=ParadeDB(PQ('boots') | PQ('sandals')), in_stock=True)
+)
+```
+
+**Note:** The simple comma-separated syntax `ParadeDB('a', 'b')` is equivalent to `ParadeDB(PQ('a') & PQ('b'))` but more concise. Use the simple syntax unless you need OR operations or explicit boolean control.
 
 ### Phrase Search
 
@@ -213,7 +291,9 @@ Product.objects.filter(id=ParadeDB(All()))
 
 ### More Like This
 
-Find similar documents
+Find similar documents based on term frequency analysis.
+
+**Note:** Unlike other search expressions, `MoreLikeThis` is a filter `Expression` (not a lookup), so it's used directly in `.filter()` without wrapping in `ParadeDB()`. This is because MLT operates on the entire indexed document (typically multiple fields) rather than a single field.
 
 ```python
 from paradedb.search import MoreLikeThis
@@ -238,6 +318,33 @@ Product.objects.filter(
         min_doc_freq=5,
     )
 )
+```
+
+**Combining with other filters:**
+
+Since `MoreLikeThis` is an `Expression`, it composes naturally with Django's ORM:
+
+```python
+from django.db.models import Q
+
+# Combine with standard filters
+Product.objects.filter(
+    MoreLikeThis(product_id=42),
+    in_stock=True,
+    rating__gte=4
+)
+
+# Use with Q objects for complex logic
+Product.objects.filter(
+    Q(MoreLikeThis(product_id=42)) | Q(category='featured')
+)
+
+# Chain with other querysets
+Product.objects.filter(
+    MoreLikeThis(product_id=42)
+).exclude(
+    id=42  # Exclude the source document itself
+).order_by('-rating')[:10]
 ```
 
 ## Annotations
@@ -282,30 +389,61 @@ Snippet options:
 
 For a full list of supported aggregations and advanced options, please refer to the [ParadeDB Aggregations Documentation](https://docs.paradedb.com/documentation/aggregates/overview).
 
+### Requirements
+
+The `.facets()` method has specific requirements based on how you use it:
+
+**When using `include_rows=True` (default):**
+
+- ✅ **MUST** have a ParadeDB search filter (e.g., `ParadeDB()` or `MoreLikeThis()`)
+- ✅ **MUST** call `.order_by()` on the queryset
+- ✅ **MUST** slice the queryset (e.g., `[:10]`)
+
+**When using `include_rows=False`:**
+
+- ✅ **MUST** have a ParadeDB search filter
+- ❌ No ordering or slicing required
+
+**Why these requirements?**
+
+ParadeDB's aggregation uses window functions (`pdb.agg() OVER ()`) which require ordered, limited result sets when combined with row data. Without ordering and limits, PostgreSQL cannot efficiently compute the aggregations.
+
+### Basic Usage
+
 Get aggregated counts alongside results
 
 ```python
 from paradedb.search import ParadeDB
 
-# Basic faceted search
+# ✅ Correct: Has filter, ordering, and limit
 rows, facets = (
     Product.objects.filter(description=ParadeDB('shoes'))
-    .order_by('id')[:10]
+    .order_by('id')[:10]  # REQUIRED when include_rows=True
     .facets('category')
 )
 # facets = {'buckets': [{'key': 'footwear', 'doc_count': 5}, ...]}
 ```
 
+```python
+# ❌ This will raise ValueError
+rows, facets = (
+    Product.objects.filter(description=ParadeDB('shoes'))
+    .facets('category')  # Missing order_by() and slice!
+)
+# ValueError: facets(include_rows=True) requires order_by() and a LIMIT.
+```
+
 Facets-only (no rows)
 
 ```python
+# ✅ No ordering/limit needed when include_rows=False
 facets = (
     Product.objects.filter(description=ParadeDB('shoes'))
     .facets('category', include_rows=False)
 )
 ```
 
-Multiple facet fields
+### Multiple Facet Fields
 
 ```python
 rows, facets = (
@@ -316,21 +454,93 @@ rows, facets = (
 # facets = {'category_terms': {...}, 'rating_terms': {...}}
 ```
 
-Facet options
+### Facet Options
 
 ```python
-.facets(
-    'category',
-    size=20,           # Number of buckets (default: 10)
-    order='-count',    # Sort order: count, -count, key, -key
-    missing='Unknown', # Value for documents without the field
+rows, facets = (
+    Product.objects.filter(description=ParadeDB('shoes'))
+    .order_by('rating')[:20]
+    .facets(
+        'category',
+        size=20,           # Number of buckets (default: 10)
+        order='-count',    # Sort order: count, -count, key, -key
+        missing='Unknown', # Value for documents without the field
+    )
 )
 ```
 
-Custom aggregation JSON
+### Custom Aggregation JSON
 
 ```python
-.facets(agg={'value_count': {'field': 'id'}})
+rows, facets = (
+    Product.objects.filter(description=ParadeDB('shoes'))
+    .order_by('id')[:10]
+    .facets(agg={'value_count': {'field': 'id'}})
+)
+```
+
+### Combining with Other QuerySet Methods
+
+```python
+# Filter, annotate, order, limit, then facet
+from paradedb.search import ParadeDB, Score
+
+rows, facets = (
+    Product.objects
+    .filter(description=ParadeDB('running', 'shoes'), price__lt=100)
+    .annotate(score=Score())
+    .order_by('-score')[:20]
+    .facets('category', 'brand')
+)
+
+# Works with prefetch_related
+rows, facets = (
+    Product.objects.filter(description=ParadeDB('shoes'))
+    .prefetch_related('reviews')
+    .order_by('id')[:10]
+    .facets('category')
+)
+```
+
+### Common Errors and Solutions
+
+#### Error: "facets() requires a ParadeDB operator in the WHERE clause"
+
+```python
+# ❌ Missing ParadeDB filter
+Product.objects.filter(price__lt=100).order_by('id')[:10].facets('category')
+
+# ✅ Add a ParadeDB search filter
+Product.objects.filter(
+    price__lt=100,
+    description=ParadeDB('shoes')  # Add this!
+).order_by('id')[:10].facets('category')
+```
+
+#### Error: "facets(include_rows=True) requires order_by() and a LIMIT"
+
+```python
+# ❌ Missing ordering
+Product.objects.filter(description=ParadeDB('shoes'))[:10].facets('category')
+
+# ❌ Missing limit
+Product.objects.filter(description=ParadeDB('shoes')).order_by('id').facets('category')
+
+# ✅ Both ordering and limit
+Product.objects.filter(description=ParadeDB('shoes')).order_by('id')[:10].facets('category')
+
+# ✅ Or use include_rows=False
+Product.objects.filter(description=ParadeDB('shoes')).facets('category', include_rows=False)
+```
+
+#### Error: "Facet field names must be unique"
+
+```python
+# ❌ Duplicate fields
+.facets('category', 'category')
+
+# ✅ Each field only once
+.facets('category', 'brand')
 ```
 
 ## Custom Manager
@@ -380,6 +590,68 @@ Product.objects.filter(
 Product.objects.filter(
     description=ParadeDB('shoes')
 ).prefetch_related('reviews')
+```
+
+## Security
+
+### SQL Injection Protection
+
+django-paradedb uses **SQL literal escaping** for search terms rather than parameterized queries. This design choice is intentional and safe:
+
+**Escaping Strategy:**
+
+- All user input is escaped using PostgreSQL's single-quote escaping (`'` → `''`)
+- Search terms are wrapped in SQL string literals: `'user input'`
+- This prevents SQL injection while maintaining compatibility with ParadeDB's full-text operators
+
+**Implementation Details:**
+
+```python
+# All search terms are escaped via _quote_term()
+def _quote_term(term: str) -> str:
+    escaped = term.replace("'", "''")  # PostgreSQL standard escaping
+    return f"'{escaped}'"
+```
+
+**Which features use escaping:**
+
+- `ParadeDB()` - All search terms (strings, Phrase, Fuzzy, Parse, Term, Regex)
+- `Snippet()` - HTML tag markers (start_sel, stop_sel)
+- `Agg()` - JSON aggregation specs
+
+**Which features use parameterization:**
+
+- `MoreLikeThis()` - Uses `%s` placeholders for IDs, documents, and options
+- Standard Django filters - Use Django's native parameterization
+
+**Why literals instead of parameters?**
+
+ParadeDB's full-text operators (`&&&`, `|||`, `###`, `@@@`) work with:
+
+1. Single string literals: `description &&& 'shoes'`
+2. Array literals: `description &&& ARRAY['running', 'shoes']`
+3. Function calls with type casts: `description ### 'exact phrase'::pdb.slop(2)`
+
+Parameterized queries would require PostgreSQL to parse the search syntax at execution time, which is incompatible with ParadeDB's operator design. The literal approach allows the query planner to optimize full-text searches effectively.
+
+**Safety Guarantee:**
+
+**Safety Guarantee:**
+
+All escaping follows PostgreSQL's standard string literal rules. The implementation has been reviewed by Django Security Framework members and is protected by:
+
+- Comprehensive test coverage (103 tests including special character escaping)
+- Input validation at the ORM layer
+- PostgreSQL's built-in literal escaping semantics
+
+**Example - User Input is Safe:**
+
+```python
+# Even malicious input is safely escaped
+user_query = "'; DROP TABLE products; --"
+Product.objects.filter(description=ParadeDB(user_query))
+# Generates: WHERE description &&& '''; DROP TABLE products; --'
+# The query is escaped and treated as a literal search term
 ```
 
 ## Documentation

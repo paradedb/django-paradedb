@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import (
@@ -377,11 +377,64 @@ class PQ:
 
 
 class ParadeDB:
-    """Wrapper for ParadeDB search terms."""
+    """Wrapper for ParadeDB search terms.
+
+    Usage:
+        # Simple AND search (multiple strings allowed)
+        ParadeDB('running', 'shoes')
+
+        # Boolean logic (PQ must be SOLE argument)
+        ParadeDB(PQ('shoes') | PQ('boots'))  # ✅ Valid
+        ParadeDB(PQ('a'), 'b')               # ❌ Error - PQ must be alone
+
+        # Query expressions (SINGLE expression only)
+        ParadeDB(Parse('query'))             # ✅ Valid
+        ParadeDB(Parse('a'), Parse('b'))     # ❌ Error - only one allowed
+
+        # Phrase search (multiple phrases allowed, no mixing with strings)
+        ParadeDB(Phrase('exact match'))
+        ParadeDB(Phrase('a'), Phrase('b'))   # ✅ Valid
+        ParadeDB(Phrase('a'), 'b')           # ❌ Error - no mixing
+
+        # Fuzzy search (multiple fuzzy allowed, no mixing with strings)
+        ParadeDB(Fuzzy('typo'))
+        ParadeDB(Fuzzy('a'), Fuzzy('b'))     # ✅ Valid
+        ParadeDB(Fuzzy('a'), 'b')            # ❌ Error - no mixing
+
+    Raises:
+        ValueError: If PQ is mixed with other terms, or Parse/Term/Regex/All
+            is not provided as a single term
+        TypeError: If Phrase/Fuzzy terms are mixed with strings
+    """
 
     contains_aggregate = False
     contains_over_clause = False
     contains_column_references = False
+
+    @overload
+    def __init__(self, __term1: str, *terms: str) -> None:
+        """Simple AND search with multiple string terms."""
+        ...
+
+    @overload
+    def __init__(self, __pq: PQ) -> None:
+        """Boolean logic with PQ object (must be sole argument)."""
+        ...
+
+    @overload
+    def __init__(self, __expr: Parse | Term | Regex | All) -> None:
+        """Query expression (must be sole argument)."""
+        ...
+
+    @overload
+    def __init__(self, __phrase1: Phrase, *phrases: Phrase) -> None:
+        """Phrase search with one or more Phrase objects."""
+        ...
+
+    @overload
+    def __init__(self, __fuzzy1: Fuzzy, *fuzzy: Fuzzy) -> None:
+        """Fuzzy search with one or more Fuzzy objects."""
+        ...
 
     def __init__(
         self, *terms: str | PQ | Phrase | Fuzzy | Parse | Term | Regex | All

@@ -434,16 +434,6 @@ mypy src/paradedb
 
 For more details on contributing, development workflow, and PR conventions, see our [Contributing Guide](CONTRIBUTING.md).
 
-## Contributing
-
-We welcome contributions! To contribute:
-
-1. Find an issue to work on (or create one if it doesn't exist)
-2. Comment `/take` on the issue to self-assign it
-3. Fork the repo, make your changes, and submit a pull request
-
-For detailed guidelines, see our [Contributing Guide](CONTRIBUTING.md).
-
 ## Support
 
 If you're missing a feature or have found a bug, please open a

@@ -1,0 +1,134 @@
+name: Publish to PyPI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g., 0.1.0). Must match an existing git tag."
+        required: true
+        type: string
+
+jobs:
+  verify-and-publish:
+    name: Verify Tag and Publish to PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for trusted publishing (optional)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all tags
+
+      - name: Verify tag exists
+        run: |
+          VERSION="${{ inputs.version }}"
+          # Check if the tag exists
+          if ! git rev-parse "v${VERSION}" >/dev/null 2>&1 && ! git rev-parse "${VERSION}" >/dev/null 2>&1; then
+            echo "❌ Error: Tag 'v${VERSION}' or '${VERSION}' does not exist"
+            echo "Available tags:"
+            git tag -l | tail -10
+            exit 1
+          fi
+
+          # Use the tag that exists (with or without 'v' prefix)
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            TAG="v${VERSION}"
+          else
+            TAG="${VERSION}"
+          fi
+
+          echo "✅ Tag '${TAG}' exists"
+          echo "TAG=${TAG}" >> $GITHUB_ENV
+          echo "TAG_COMMIT=$(git rev-parse ${TAG})" >> $GITHUB_ENV
+
+          # Checkout the specific tag
+          git checkout "${TAG}"
+          echo "✅ Checked out tag '${TAG}'"
+
+      - name: Verify code matches tag exactly
+        run: |
+          # Get current HEAD commit (should be the tag we just checked out)
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          TAG_COMMIT="${{ env.TAG_COMMIT }}"
+
+          echo "Current commit: ${CURRENT_COMMIT}"
+          echo "Tag commit: ${TAG_COMMIT}"
+
+          # Verify we're at the exact tag commit
+          if [ "${CURRENT_COMMIT}" != "${TAG_COMMIT}" ]; then
+            echo "❌ Error: Current commit does not match tag commit"
+            echo "This should not happen - please report this issue"
+            exit 1
+          fi
+
+          # Verify working tree is clean (no modifications)
+          if ! git diff-index --quiet HEAD --; then
+            echo "❌ Error: Working tree has modifications"
+            echo "Modified files:"
+            git diff-index --name-only HEAD --
+            exit 1
+          fi
+
+          echo "✅ Code matches tag '${{ env.TAG }}' exactly (commit: ${TAG_COMMIT:0:8})"
+
+      - name: Verify version in pyproject.toml
+        run: |
+          VERSION="${{ inputs.version }}"
+          PYPROJECT_VERSION=$(grep -E '^version = ' pyproject.toml | cut -d'"' -f2)
+
+          if [ "${PYPROJECT_VERSION}" != "${VERSION}" ]; then
+            echo "⚠️  Warning: Version in pyproject.toml (${PYPROJECT_VERSION}) does not match requested version (${VERSION})"
+            echo "This might indicate the tag was created before updating pyproject.toml"
+            exit 1
+          fi
+
+          echo "✅ Version in pyproject.toml matches: ${VERSION}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build twine
+
+      - name: Build package
+        run: |
+          python -m build
+          echo "✅ Package built successfully"
+
+          # Show what was built
+          ls -lh dist/
+
+      - name: Check package with twine
+        run: |
+          twine check dist/*
+          echo "✅ Package passed twine checks"
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          twine upload dist/*
+          echo "✅ Successfully published django-paradedb ${{ inputs.version }} to PyPI"
+
+      - name: Create release summary
+        run: |
+          echo "## 🚀 Published to PyPI" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Package**: django-paradedb" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: ${{ env.TAG }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ env.TAG_COMMIT }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **PyPI URL**: https://pypi.org/project/django-paradedb/${{ inputs.version }}/" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Install with:" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "pip install django-paradedb==${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

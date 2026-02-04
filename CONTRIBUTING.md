@@ -10,7 +10,7 @@ Before submitting a pull request, please review this document, which outlines wh
 
 All external contributions should be associated with a GitHub issue. If there is no open issue for the bug or feature that you'd like to work on, please open one first. When selecting an issue to work on, we recommend focusing on issues labeled `good first issue`.
 
-Ideal issues for external contributors include well-scoped, individual features (e.g. adding support for a new query type or Django ORM integration) as those are less likely to conflict with our general development process. We welcome small documentation contributions that accompany a feature, correct wrong information or fix typos, but will not accept "general improvement" documentation PRs.
+Ideal issues for external contributors include well-scoped, individual features as those are less likely to conflict with our general development process. We welcome small documentation contributions that accompany a feature, correct wrong information or fix typos, but will not accept "general improvement" documentation PRs.
 
 ### Claiming GitHub Issues
 
@@ -23,7 +23,7 @@ This repository has a workflow to assign issues to new contributors automaticall
 
 2. To claim an unassigned issue, comment `/take` on the issue. This will automatically assign the issue to you.
 
-If you find yourself unable to make progress, don't hesitate to seek help in the issue comments or the [ParadeDB Community Slack](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw). If you no longer wish to work on the issue(s) you self-assigned, please use the `unassign me` link at the top of the issue(s) page to release it.
+If you find yourself unable to make progress, don't hesitate to seek help in the issue comments or the [ParadeDB Community Slack](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw). If you no longer wish to work on the issue(s) you self-assigned, please remove yourself from the Assignees list in the sidebar to release it.
 
 ### Development Workflow
 

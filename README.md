@@ -636,8 +636,6 @@ Parameterized queries would require PostgreSQL to parse the search syntax at exe
 
 **Safety Guarantee:**
 
-**Safety Guarantee:**
-
 All escaping follows PostgreSQL's standard string literal rules. The implementation has been reviewed by Django Security Framework members and is protected by:
 
 - Comprehensive test coverage (103 tests including special character escaping)

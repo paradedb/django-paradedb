@@ -1,0 +1,118 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (semver, e.g., 0.1.0). Must match pyproject.toml."
+        type: string
+        required: true
+      beta:
+        description: "Mark as prerelease"
+        type: boolean
+        default: false
+      confirmation:
+        description: "I confirm version was incremented, tests pass, and CHANGELOG was updated."
+        type: boolean
+        required: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Validate confirmation
+        if: ${{ github.event.inputs.confirmation != 'true' }}
+        run: |
+          echo "❌ Please confirm the pre-release checklist"
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate version
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+
+          # Check release doesn't exist
+          if gh release view "v${VERSION}" > /dev/null 2>&1; then
+            echo "❌ Release v${VERSION} already exists"
+            exit 1
+          fi
+
+          # Validate beta suffix
+          if [[ "${{ github.event.inputs.beta }}" == "true" && "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Beta releases must have prerelease suffix (e.g., 0.1.0-beta.1)"
+            exit 1
+          fi
+
+          # Check pyproject.toml version
+          PYPROJECT_VERSION=$(grep -E '^version = ' pyproject.toml | cut -d'"' -f2)
+          if [[ "${VERSION}" != "${PYPROJECT_VERSION}" ]]; then
+            echo "❌ pyproject.toml version (${PYPROJECT_VERSION}) doesn't match ${VERSION}"
+            exit 1
+          fi
+
+          echo "✅ Version validation passed"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Build package
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+          echo "✅ Package built and validated"
+
+      - name: Determine if latest
+        id: latest
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          npm install semver
+          LATEST=$(gh release list --jq '.[] | select(.isLatest == true) | .name' --json=name,isLatest | sed 's/^v//' || echo "0.0.0")
+          if npx semver -r ">${LATEST:-0.0.0}" "$VERSION"; then
+            echo "is_latest=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_latest=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.ref_name }}
+          prerelease: ${{ github.event.inputs.beta }}
+          make_latest: ${{ steps.latest.outputs.is_latest }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          twine upload dist/*
+          echo "✅ Published django-paradedb ${VERSION} to PyPI"
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Released v${VERSION}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **PyPI**: https://pypi.org/project/django-paradedb/${VERSION}/" >> $GITHUB_STEP_SUMMARY
+          echo "- **Install**: \`pip install django-paradedb==${VERSION}\`" >> $GITHUB_STEP_SUMMARY

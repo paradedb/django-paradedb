@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "django-paradedb"
 version = "0.1.0"
-description = "ParadeDB full-text search integration for Django ORM"
+description = "ParadeDB integration for Django"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.13"
@@ -21,7 +21,6 @@ keywords = [
     "bm25",
     "text search",
     "full text search",
-    "full-text search",
     "hybrid search",
     "faceted search",
     "facets",

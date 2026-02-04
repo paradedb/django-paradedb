@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Quickstart example for django-paradedb full-text search."""
+"""Quickstart example for django-paradedb."""
 
 import sys
 from pathlib import Path

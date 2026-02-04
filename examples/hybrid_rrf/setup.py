@@ -13,9 +13,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import MockItemWithEmbedding as MockItem
 from common import setup_mock_items
 
-if MockItem is None:
-    raise ImportError("pgvector is required for this example. pip install pgvector")
-
 # Pre-computed query embeddings for the hybrid_rff.py demo queries
 # Generated using sentence-transformers/paraphrase-minilm-l6-v2
 QUERY_EMBEDDINGS: dict[str, list[float]] = {

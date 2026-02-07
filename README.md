@@ -12,10 +12,10 @@
 ## Requirements & Compatibility
 
 | Component  | Version                          |
-|------------|----------------------------------|
+| ---------- | -------------------------------- |
 | Python     | 3.13+                            |
 | Django     | 6.0+                             |
-| ParadeDB   | 0.21.* (tested on 0.21.4)        |
+| ParadeDB   | 0.21.\* (tested on 0.21.4)       |
 | PostgreSQL | 17, 18 (with ParadeDB extension) |
 
 ## Installation
@@ -380,11 +380,11 @@ Product.objects.filter(
 
 Snippet options:
 
-| Option         | Description                    |
-|----------------|--------------------------------|
-| `start_sel`    | Opening highlight tag          |
-| `stop_sel`     | Closing highlight tag          |
-| `max_num_chars`| Maximum snippet length         |
+| Option          | Description            |
+| --------------- | ---------------------- |
+| `start_sel`     | Opening highlight tag  |
+| `stop_sel`      | Closing highlight tag  |
+| `max_num_chars` | Maximum snippet length |
 
 ## Faceted Search
 

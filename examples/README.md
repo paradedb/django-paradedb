@@ -47,7 +47,7 @@ We've organized the examples into three categories:
 
 #### 1. Quickstart (`quickstart/quickstart.py`)
 
-*The "Hello World" of ParadeDB.*
+_The "Hello World" of ParadeDB._
 
 This script demonstrates the fundamental building blocks of search. You will learn how to:
 
@@ -64,14 +64,14 @@ python examples/quickstart/quickstart.py
 
 #### 2. Faceted Search (`faceted_search/faceted_search.py`)
 
-*Building an E-commerce Sidebar.*
+_Building an E-commerce Sidebar._
 
 Facets are the "filters" you see on shopping sites (e.g., "Brand (5)", "Color (3)"). This example shows how to compute these counts efficiently in a single query.
 
 **Key Concepts:**
 
 - **Aggregations**: Counting documents by category, rating, etc.
-- **Hybrid Results**: Getting search results *and* facet counts together.
+- **Hybrid Results**: Getting search results _and_ facet counts together.
 
 **Run it:**
 
@@ -85,7 +85,7 @@ python examples/faceted_search/faceted_search.py
 
 #### 3. Autocomplete (`autocomplete/`)
 
-*Instant "As-You-Type" Suggestions.*
+_Instant "As-You-Type" Suggestions._
 
 Standard search requires hitting "Enter". Autocomplete gives immediate feedback. This example uses **N-gram tokenization** to match substrings (e.g., "wir" matches "wireless").
 
@@ -104,7 +104,7 @@ python autocomplete.py   # Step 2: Run the search demo
 
 #### 4. More Like This (`more_like_this/more_like_this.py`)
 
-*Recommendations & "Related Content".*
+_Recommendations & "Related Content"._
 
 Want to show "Related Articles" or "Customers also bought"? This feature analyzes the text of a document to find others with similar keywords, using TF-IDF logic—no complex vector embeddings required.
 
@@ -120,7 +120,7 @@ python examples/more_like_this/more_like_this.py
 
 #### 5. Hybrid Search with RRF (`hybrid_rrf/`)
 
-*The Best of Both Worlds: Keywords + Semantics.*
+_The Best of Both Worlds: Keywords + Semantics._
 
 Keyword search (BM25) is great for exact matches ("Part #123"). Vector search is great for meaning ("warm clothing" matches "coat"). **Hybrid Search** combines them using **Reciprocal Rank Fusion (RRF)** for superior results.
 
@@ -138,9 +138,9 @@ python hybrid_rrf.py    # Performs the hybrid search
 
 #### 6. RAG: Retrieval-Augmented Generation (`rag/`)
 
-*Chat with your Data.*
+_Chat with your Data._
 
-This example builds a mini QA system. It searches your data for relevant context and feeds it to an LLM (Large Language Model) to answer questions based *only* on your data.
+This example builds a mini QA system. It searches your data for relevant context and feeds it to an LLM (Large Language Model) to answer questions based _only_ on your data.
 
 **Prerequisites:**
 

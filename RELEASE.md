@@ -41,7 +41,7 @@ We follow SemVer for `django-paradedb`:
 
 ## Support Matrix (Draft)
 
-This matrix is a *policy target* and should be updated as the project grows.
+This matrix is a _policy target_ and should be updated as the project grows.
 
 - **Django**: Current LTS + previous LTS
 - **ParadeDB**: Latest minor + previous minor (while pre-1.0)

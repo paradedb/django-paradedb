@@ -44,7 +44,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pre-commit>=3.8",
+    "prek>=0.1.0",
     "ruff>=0.8",
     "mypy>=1.13",
     "django-stubs>=5.1",

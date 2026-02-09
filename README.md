@@ -667,8 +667,8 @@ Product.objects.filter(description=ParadeDB(user_query))
 # Install dev dependencies
 pip install -e ".[dev]"
 
-# Setup pre-commit hooks
-pre-commit install
+# Setup prek hooks
+prek install
 ```
 
 ### Testing

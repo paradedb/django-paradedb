@@ -2,7 +2,7 @@
 
 ParadeDB's pdb.agg() function provides fast aggregations using the columnar
 portion of the BM25 index. Note: Window functions (OVER clause) require a
-Top-N query with ORDER BY + LIMIT in pg_search 0.21.4.
+Top-N query with ORDER BY + LIMIT in pg_search 0.21.7.
 """
 
 from __future__ import annotations
@@ -262,7 +262,6 @@ class TestDjangoORMWithAgg:
     def test_agg_annotation_with_raw_sql(self) -> None:
         """Test that Agg annotation generates correct SQL (unit test validation)."""
         # This validates that the SQL generation works correctly
-        # Actual execution requires window functions which are not supported in pg_search 0.21.4
         json_spec = '{"category":{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}}'
         queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
             facets=Window(expression=Agg(json_spec))

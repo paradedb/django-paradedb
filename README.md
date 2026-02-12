@@ -11,12 +11,12 @@
 
 ## Requirements & Compatibility
 
-| Component  | Version                          |
-| ---------- | -------------------------------- |
-| Python     | 3.13+                            |
-| Django     | 6.0+                             |
-| ParadeDB   | 0.21.\* (tested on 0.21.4)       |
-| PostgreSQL | 17, 18 (with ParadeDB extension) |
+| Component  | Supported                        | Tested in CI         |
+| ---------- | -------------------------------- | -------------------- |
+| Python     | 3.13+                            | 3.10, 3.11, 3.12, 3.13 |
+| Django     | 6.0+                             | 5.2, 6.0             |
+| ParadeDB   | 0.21.\*                          |                      |
+| PostgreSQL | 17, 18 (with ParadeDB extension) |                      |
 
 ## Installation
 

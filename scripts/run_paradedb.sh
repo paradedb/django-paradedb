@@ -8,7 +8,7 @@ else
   RUNNING=0
 fi
 
-IMAGE="${PARADEDB_IMAGE:-paradedb/paradedb:0.21.4-pg18}"
+IMAGE="${PARADEDB_IMAGE:-paradedb/paradedb:0.21.7-pg18}"
 CONTAINER_NAME="${PARADEDB_CONTAINER_NAME:-paradedb-integration}"
 
 # Allow overriding connection details via env vars

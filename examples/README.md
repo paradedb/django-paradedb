@@ -89,6 +89,9 @@ _Instant "As-You-Type" Suggestions._
 
 Standard search requires hitting "Enter". Autocomplete gives immediate feedback. This example uses **N-gram tokenization** to match substrings (e.g., "wir" matches "wireless").
 
+Note: this example keeps raw SQL for a concise standalone setup script.
+`BM25Index` now supports multiple tokenizers per field and ngram positional/named arguments in managed Django models.
+
 **How it works:**
 
 1. We create a specialized index that breaks text into small chunks (n-grams).

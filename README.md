@@ -121,6 +121,78 @@ Index specific keys within a JSONField
 }
 ```
 
+### Multiple Tokenizers Per Field
+
+Index the same text field multiple ways by using `tokenizers` and aliases.
+
+```python
+'description': {
+    'tokenizers': [
+        {'tokenizer': 'literal'},
+        {'tokenizer': 'simple', 'alias': 'description_simple'},
+    ],
+}
+```
+
+### Tokenizer Args and Named Args
+
+`BM25Index` now supports a thin-wrapper tokenizer DSL:
+
+- `tokenizer`: tokenizer name (for structured args/named args) or raw tokenizer SQL function string
+- `args`: positional tokenizer arguments (list)
+- `named_args`: named tokenizer/filter arguments (dict), rendered as `key=value` config
+- `alias`: optional alias for query-time targeting
+- `filters` / `stemmer`: legacy convenience keys (merged into `named_args`)
+- `options`: legacy alias for `named_args` (backward compatibility)
+
+```python
+'description': {
+    'tokenizers': [
+        {'tokenizer': 'unicode_words'},
+        {
+            'tokenizer': 'ngram',
+            'args': [3, 8],
+            'named_args': {'prefix_only': True, 'positions': True},
+            'alias': 'description_ngram',
+        },
+        {
+            'tokenizer': 'regex_pattern',
+            'args': [r'(?i)\bshoe\w*'],
+            'alias': 'description_regex',
+        },
+    ]
+}
+```
+
+Common positional-argument tokenizers from ParadeDB docs:
+
+- `ngram(min_gram, max_gram, ...)`
+- `regex_pattern(pattern, ...)`
+- `lindera(dictionary, ...)`
+
+Common named args from ParadeDB docs:
+
+- tokenizer options: `prefix_only`, `positions`, `remove_emojis`, `lowercase`, `alias`
+- token filter options: `remove_long`, `remove_short`, `stopwords`, `stemmer`
+
+Query a specific tokenizer alias when needed:
+
+```sql
+SELECT *
+FROM products
+WHERE (description::pdb.alias('description_simple')) ||| 'running';
+```
+
+In Django ORM, use `RawSQL` for alias-targeted queries:
+
+```python
+from django.db.models.expressions import RawSQL
+
+queryset = Product.objects.filter(
+    RawSQL("(description::pdb.alias('description_simple')) ||| %s", ["running"])
+)
+```
+
 ### Migrations
 
 BM25Index works seamlessly with Django's migration system. You can add indexes to existing models or new models - Django will automatically generate and apply the necessary migrations.

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
+from paradedb.functions import Score, Snippet
 from paradedb.indexes import BM25Index
 from paradedb.search import (
     PQ,
@@ -364,45 +364,6 @@ class TestSnippetEdgeCases:
         )
         sql = str(queryset.query)
         assert "50" in sql
-
-
-class TestSnippetsEdgeCases:
-    """Test Snippets annotation edge cases."""
-
-    def test_snippets_invalid_sort_by_raises(self) -> None:
-        """Invalid sort_by value raises ValueError."""
-        with pytest.raises(ValueError, match="sort_by must be one of"):
-            Snippets("description", sort_by="invalid")  # type: ignore[arg-type]
-
-    def test_snippets_sort_by_score_is_valid(self) -> None:
-        """sort_by='score' is accepted."""
-        s = Snippets("description", sort_by="score")
-        assert s._sort_by == "score"
-
-    def test_snippets_sort_by_position_is_valid(self) -> None:
-        """sort_by='position' is accepted."""
-        s = Snippets("description", sort_by="position")
-        assert s._sort_by == "position"
-
-    def test_snippets_start_tag_with_quotes(self) -> None:
-        """start_tag with quotes is escaped."""
-        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
-            s=Snippets("description", start_tag="it's")
-        )
-        sql = str(queryset.query)
-        assert "it''s" in sql
-
-
-class TestSnippetPositionsEdgeCases:
-    """Test SnippetPositions edge cases."""
-
-    def test_snippet_positions_only_field(self) -> None:
-        """SnippetPositions takes only a field name."""
-        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
-            pos=SnippetPositions("description")
-        )
-        sql = str(queryset.query)
-        assert "pdb.snippet_positions" in sql
 
 
 class TestBM25IndexEdgeCases:

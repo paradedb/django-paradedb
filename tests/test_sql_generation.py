@@ -265,26 +265,30 @@ class TestSnippetsAnnotation:
         queryset = Product.objects.filter(
             description=ParadeDB("artistic", "vase")
         ).annotate(snippets=Snippets("description"))
-        sql = str(queryset.query)
-        assert 'pdb.snippets("tests_product"."description") AS "snippets"' in sql
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description") AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'artistic\', \'vase\']'
+        )
 
     def test_snippets_with_max_num_chars(self) -> None:
         """Snippets with max_num_chars only."""
         queryset = Product.objects.filter(
             description=ParadeDB("artistic", "vase")
         ).annotate(snippets=Snippets("description", max_num_chars=15))
-        sql = str(queryset.query)
-        assert 'pdb.snippets("tests_product"."description", max_num_chars => 15)' in sql
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description", max_num_chars => 15) AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'artistic\', \'vase\']'
+        )
 
     def test_snippets_with_limit_and_offset(self) -> None:
         """Snippets with limit and offset uses double-quoted SQL reserved words."""
         queryset = Product.objects.filter(description=ParadeDB("running")).annotate(
             snippets=Snippets("description", max_num_chars=15, limit=1, offset=1)
         )
-        sql = str(queryset.query)
-        assert "max_num_chars => 15" in sql
-        assert '"limit" => 1' in sql
-        assert '"offset" => 1' in sql
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description", max_num_chars => 15, "limit" => 1, "offset" => 1) AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& \'running\''
+        )
 
     def test_snippets_with_sort_by(self) -> None:
         """Snippets with sort_by parameter."""
@@ -293,8 +297,10 @@ class TestSnippetsAnnotation:
         ).annotate(
             snippets=Snippets("description", max_num_chars=15, sort_by="position")
         )
-        sql = str(queryset.query)
-        assert "sort_by => 'position'" in sql
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description", max_num_chars => 15, sort_by => \'position\') AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'artistic\', \'vase\']'
+        )
 
     def test_snippets_with_all_params(self) -> None:
         """Snippets with all named parameters."""
@@ -309,13 +315,10 @@ class TestSnippetsAnnotation:
                 sort_by="score",
             )
         )
-        sql = str(queryset.query)
-        assert "start_tag => '<mark>'" in sql
-        assert "end_tag => '</mark>'" in sql
-        assert "max_num_chars => 30" in sql
-        assert '"limit" => 2' in sql
-        assert '"offset" => 0' in sql
-        assert "sort_by => 'score'" in sql
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description", start_tag => \'<mark>\', end_tag => \'</mark>\', max_num_chars => 30, "limit" => 2, "offset" => 0, sort_by => \'score\') AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
+        )
 
 
 class TestSnippetPositionsAnnotation:
@@ -326,9 +329,9 @@ class TestSnippetPositionsAnnotation:
         queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
             positions=SnippetPositions("description")
         )
-        sql = str(queryset.query)
         assert (
-            'pdb.snippet_positions("tests_product"."description") AS "positions"' in sql
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippet_positions("tests_product"."description") AS "positions" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
 
     def test_snippet_positions_with_snippet(self) -> None:
@@ -337,9 +340,10 @@ class TestSnippetPositionsAnnotation:
             snippet=Snippet("description"),
             positions=SnippetPositions("description"),
         )
-        sql = str(queryset.query)
-        assert 'pdb.snippet("tests_product"."description")' in sql
-        assert 'pdb.snippet_positions("tests_product"."description")' in sql
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippet("tests_product"."description") AS "snippet", pdb.snippet_positions("tests_product"."description") AS "positions" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
+        )
 
 
 class TestBM25Index:

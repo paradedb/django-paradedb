@@ -334,6 +334,52 @@ class TestBM25Index:
             == "CREATE INDEX \"product_search_idx\" ON \"tests_product\"\nUSING bm25 (\n    \"id\",\n    ((\"metadata\"->>'title')::pdb.simple('alias=metadata_title,lowercase=true')),\n    ((\"metadata\"->>'brand')::pdb.simple('alias=metadata_brand'))\n)\nWITH (key_field='id')"
         )
 
+    def test_field_filters_without_tokenizer_raises(self) -> None:
+        """Specifying filters or stemmer without a tokenizer raises ValueError."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {"stemmer": "english"},
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="no tokenizer"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
+    def test_field_filters_only_without_tokenizer_raises(self) -> None:
+        """Specifying only filters without a tokenizer raises ValueError."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {"filters": ["lowercase"]},
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="no tokenizer"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
+    def test_json_key_without_tokenizer_raises(self) -> None:
+        """JSON keys without an explicit tokenizer raise ValueError."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "metadata": {
+                    "json_keys": {
+                        "color": {},
+                    }
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="requires an explicit tokenizer"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
     def test_json_field_literal_alias(self) -> None:
         """JSON subfields can be indexed with literal tokenizer aliases."""
         index = BM25Index(

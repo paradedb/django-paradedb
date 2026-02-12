@@ -121,7 +121,11 @@ class BM25Index(models.Index):
             stemmer = config.get("stemmer")
             if tokenizer or filters or stemmer:
                 if tokenizer is None:
-                    tokenizer = "simple"
+                    raise ValueError(
+                        f"Field {field_name!r} specifies filters or stemmer but no "
+                        f"tokenizer. Please set an explicit tokenizer (e.g. "
+                        f"'unicode_words', 'simple', 'literal')."
+                    )
                 tokenizer_sql = _build_tokenizer_config(
                     tokenizer=tokenizer,
                     filters=filters,
@@ -142,7 +146,12 @@ class BM25Index(models.Index):
     ) -> list[str]:
         expressions: list[str] = []
         for key, config in json_keys.items():
-            tokenizer = config.get("tokenizer") or "simple"
+            tokenizer = config.get("tokenizer")
+            if tokenizer is None:
+                raise ValueError(
+                    f"JSON key {key!r} in field {field_name!r} requires an explicit "
+                    f"tokenizer (e.g. 'unicode_words', 'simple', 'literal')."
+                )
             filters = config.get("filters")
             stemmer = config.get("stemmer")
             alias = f"{field_name}_{key}"

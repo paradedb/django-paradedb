@@ -46,7 +46,7 @@ class Product(models.Model):
                 fields={
                     'id': {},
                     'description': {'tokenizer': 'unicode_words'},
-                    'category': {'tokenizer': 'literal'},
+                    'category': {'tokenizer': 'literal'},  # exact match, no tokenization
                     'rating': {},
                 },
                 key_field='id',
@@ -95,6 +95,10 @@ class Meta:
 ```
 
 For a full list of supported tokenizers and their configurations, please refer to the [ParadeDB Tokenizer Documentation](https://docs.paradedb.com/documentation/tokenizers/overview).
+
+> **Note:** If no tokenizer is specified for a field (e.g. `'rating': {}`), ParadeDB applies its
+> own default (`unicode_words` for text fields). If you provide `filters` or `stemmer`, you
+> **must** also set an explicit `tokenizer` — omitting it will raise a `ValueError`.
 
 ```python
 'body': {

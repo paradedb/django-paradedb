@@ -157,7 +157,7 @@ def test_apply_and_unapply_create_model_migration(
         index_def = _fetch_index_definition(table_name, index_name)
         assert index_def is not None
         assert "USING bm25" in index_def
-        assert f"pdb.{tokenizer}" in index_def
+        assert f"title::pdb.{tokenizer}" in index_def
         assert {"id", "title", "metadata"}.issubset(column_names)
 
         # Insert test data in a separate transaction (simulates real usage)

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -38,10 +37,6 @@ def _render_config_value(value: Any) -> str:
     if isinstance(value, str):
         return value
     raise TypeError(f"Unsupported tokenizer named arg type: {type(value).__name__}")
-
-
-def _is_bare_tokenizer_name(tokenizer: str) -> bool:
-    return re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", tokenizer) is not None
 
 
 def _build_tokenizer_config(
@@ -82,11 +77,6 @@ def _build_tokenizer_config(
 
     if not args_sql:
         return tokenizer
-    if not _is_bare_tokenizer_name(tokenizer):
-        raise ValueError(
-            "Tokenizer with args/named_args/alias must use a bare tokenizer name "
-            "(e.g. 'ngram'), not a pre-rendered function string."
-        )
     return f"{tokenizer}({','.join(args_sql)})"
 
 

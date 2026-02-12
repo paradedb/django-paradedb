@@ -126,7 +126,7 @@ def test_json_key_without_tokenizer_raises_value_error() -> None:
         index.create_sql(model=Product, schema_editor=DummySchemaEditor())
 
 
-def test_pre_rendered_tokenizer_string_with_named_args_raises_value_error() -> None:
+def test_pre_rendered_tokenizer_string_with_named_args_is_rendered_verbatim() -> None:
     index = BM25Index(
         fields={
             "id": {},
@@ -138,5 +138,5 @@ def test_pre_rendered_tokenizer_string_with_named_args_raises_value_error() -> N
         key_field="id",
         name="product_search_idx",
     )
-    with pytest.raises(ValueError, match="must use a bare tokenizer name"):
-        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
+    sql = str(index.create_sql(model=Product, schema_editor=DummySchemaEditor()))
+    assert "pdb.ngram(3,8)('prefix_only=true')" in sql

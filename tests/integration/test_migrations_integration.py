@@ -157,7 +157,13 @@ def test_apply_and_unapply_create_model_migration(
         index_def = _fetch_index_definition(table_name, index_name)
         assert index_def is not None
         assert "USING bm25" in index_def
-        assert f"title::pdb.{tokenizer}" in index_def
+        normalized_index_def = (
+            index_def.replace('"', "")
+            .replace("(", "")
+            .replace(")", "")
+            .replace(" ", "")
+        )
+        assert f"title::pdb.{tokenizer}" in normalized_index_def, index_def
         assert {"id", "title", "metadata"}.issubset(column_names)
 
         # Insert test data in a separate transaction (simulates real usage)
@@ -167,7 +173,8 @@ def test_apply_and_unapply_create_model_migration(
                 f"INSERT INTO {quoted_table} (title, metadata) "
                 f"VALUES ('test document', '{{}}'::jsonb), "
                 f"('another test', '{{}}'::jsonb), "
-                f"('sample text', '{{}}'::jsonb);"
+                f"('sample text', '{{}}'::jsonb), "
+                f"('test', '{{}}'::jsonb);"
             )
         connection.commit()
 

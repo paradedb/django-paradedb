@@ -79,7 +79,21 @@ def _verify_index_usage(table_name: str, index_name: str) -> bool:  # noqa: ARG0
 
 
 @pytest.mark.django_db(transaction=True)
-def test_apply_and_unapply_create_model_migration() -> None:
+@pytest.mark.parametrize(
+    ("tokenizer", "table_name", "index_name"),
+    [
+        ("simple", "migtests_items_simple", "migtests_items_simple_bm25_idx"),
+        (
+            "unicode_words",
+            "migtests_items_unicode_words",
+            "migtests_items_unicode_words_bm25_idx",
+        ),
+        ("literal", "migtests_items_literal", "migtests_items_literal_bm25_idx"),
+    ],
+)
+def test_apply_and_unapply_create_model_migration(
+    tokenizer: str, table_name: str, index_name: str
+) -> None:
     """
     CreateModel with BM25Index migrates forwards/backwards, creates the index,
     and verifies the index is actually used by PostgreSQL query planner.
@@ -89,15 +103,12 @@ def test_apply_and_unapply_create_model_migration() -> None:
     """
 
     app_label = "migtests"
-    table_name = "migtests_items"
-    index_name = "migtests_items_bm25_idx"
-
     # Ensure a clean slate before applying the migration
     _drop_table_if_exists(table_name)
     connection.commit()
 
     create_model = migrations.CreateModel(
-        name="MigratedItem",
+        name=f"MigratedItem_{tokenizer}",
         fields=[
             ("id", models.AutoField(primary_key=True)),
             ("title", models.TextField()),
@@ -109,7 +120,7 @@ def test_apply_and_unapply_create_model_migration() -> None:
                 BM25Index(
                     fields={
                         "id": {},
-                        "title": {"tokenizer": "simple"},
+                        "title": {"tokenizer": tokenizer},
                         "metadata": {
                             "json_keys": {
                                 "color": {"tokenizer": "literal"},
@@ -146,6 +157,7 @@ def test_apply_and_unapply_create_model_migration() -> None:
         index_def = _fetch_index_definition(table_name, index_name)
         assert index_def is not None
         assert "USING bm25" in index_def
+        assert f"pdb.{tokenizer}" in index_def
         assert {"id", "title", "metadata"}.issubset(column_names)
 
         # Insert test data in a separate transaction (simulates real usage)

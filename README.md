@@ -45,8 +45,8 @@ class Product(models.Model):
             BM25Index(
                 fields={
                     'id': {},
-                    'description': {'tokenizer': 'unicode'},
-                    'category': {'tokenizer': 'keyword'},
+                    'description': {'tokenizer': 'unicode_words'},
+                    'category': {'tokenizer': 'literal'},
                     'rating': {},
                 },
                 key_field='id',
@@ -84,9 +84,9 @@ class Meta:
         BM25Index(
             fields={
                 'id': {},
-                'title': {'tokenizer': 'unicode'},
-                'body': {'tokenizer': 'unicode', 'stemmer': 'English'},
-                'category': {'tokenizer': 'keyword'},
+                'title': {'tokenizer': 'unicode_words'},
+                'body': {'tokenizer': 'unicode_words', 'stemmer': 'English'},
+                'category': {'tokenizer': 'literal'},
             },
             key_field='id',
             name='article_idx',
@@ -98,7 +98,7 @@ For a full list of supported tokenizers and their configurations, please refer t
 
 ```python
 'body': {
-    'tokenizer': 'unicode',
+    'tokenizer': 'unicode_words',
     'stemmer': 'English',        # Stemming language
     'filters': ['lowercase'],    # Token filters
 }
@@ -111,8 +111,8 @@ Index specific keys within a JSONField
 ```python
 'metadata': {
     'json_keys': {
-        'author': {'tokenizer': 'keyword'},
-        'tags': {'tokenizer': 'unicode'},
+        'author': {'tokenizer': 'literal'},
+        'tags': {'tokenizer': 'unicode_words'},
     }
 }
 ```

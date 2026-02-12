@@ -7,6 +7,7 @@ from pathlib import Path
 from django.db import models
 
 from paradedb.functions import Score
+from paradedb.indexes import BM25Index
 from paradedb.queryset import ParadeDBManager
 from paradedb.search import ParadeDB, Parse
 
@@ -32,6 +33,26 @@ class AutocompleteItem(models.Model):
         app_label = "examples"
         managed = False
         db_table = "autocomplete_items"
+        indexes = (
+            BM25Index(
+                fields={
+                    "id": {},
+                    "description": {
+                        "tokenizers": [
+                            {"tokenizer": "unicode_words"},
+                            {
+                                "tokenizer": "ngram",
+                                "args": [3, 8],
+                                "alias": "description_ngram",
+                            },
+                        ]
+                    },
+                    "category": {"tokenizer": "literal", "alias": "category"},
+                },
+                key_field="id",
+                name="autocomplete_items_idx",
+            ),
+        )
 
     def __str__(self) -> str:
         return self.description

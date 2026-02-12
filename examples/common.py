@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import django
 from django.conf import settings
 
+from paradedb.indexes import BM25Index
 from paradedb.queryset import ParadeDBManager
 
 
@@ -89,6 +90,27 @@ configure_django()
 from django.db import models  # noqa: E402
 
 
+def _mock_items_indexes() -> list[BM25Index]:
+    return [
+        BM25Index(
+            fields={
+                "id": {},
+                "description": {},
+                "rating": {},
+                "category": {"tokenizer": "literal", "alias": "category"},
+                "metadata": {
+                    "json_keys": {
+                        "color": {"tokenizer": "literal"},
+                        "location": {"tokenizer": "literal"},
+                    }
+                },
+            },
+            key_field="id",
+            name="mock_items_bm25_idx",
+        ),
+    ]
+
+
 class MockItem(models.Model):
     """ParadeDB's built-in mock_items table.
 
@@ -111,32 +133,7 @@ class MockItem(models.Model):
         app_label = "examples"
         managed = False
         db_table = "mock_items"
-
-        # This is an unmanaged model (ParadeDB's built-in test table), so the
-        # index is created with raw SQL in setup_mock_items(). For a managed
-        # model, define the index in Meta.indexes and let Django migrations
-        # handle creation:
-        #
-        #     from paradedb.indexes import BM25Index
-        #
-        #     indexes = [
-        #         BM25Index(
-        #             fields={
-        #                 'id': {},
-        #                 'description': {},
-        #                 'rating': {},
-        #                 'category': {'tokenizer': 'literal'},
-        #                 'metadata': {
-        #                     'json_keys': {
-        #                         'color': {'tokenizer': 'literal'},
-        #                         'location': {'tokenizer': 'literal'},
-        #                     }
-        #                 },
-        #             },
-        #             key_field='id',
-        #             name='mock_items_bm25_idx',
-        #         ),
-        #     ]
+        indexes = _mock_items_indexes()
 
     def __str__(self) -> str:
         return self.description
@@ -164,6 +161,7 @@ try:
             app_label = "examples"
             managed = False
             db_table = "mock_items"
+            indexes = _mock_items_indexes()
 
         def __str__(self) -> str:
             return self.description

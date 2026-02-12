@@ -59,39 +59,6 @@ def setup_autocomplete_table() -> int:
         count = cursor.fetchone()[0]
         print(f"  ✓ Copied {count} products from mock_items")
 
-        # Create BM25 index with ngram tokenizer for autocomplete.
-        # "3,8" means index 3- to 8-character ngrams; 1-2 char queries won't match.
-        #
-        # NOTE: This example keeps raw SQL for a standalone script that creates
-        # and indexes a dedicated table in one place. Equivalent BM25Index DSL
-        # (including ngram args/named_args) is available for managed models:
-        #
-        #     from paradedb.indexes import BM25Index
-        #
-        #     indexes = [
-        #         BM25Index(
-        #             fields={
-        #                 'id': {},
-        #                 'description': {
-        #                     'tokenizers': [
-        #                         {'tokenizer': 'unicode_words'},
-        #                         {
-        #                             'tokenizer': 'ngram',
-        #                             'args': [3, 8],
-        #                             'named_args': {
-        #                                 'prefix_only': True,
-        #                                 'positions': True,
-        #                             },
-        #                             'alias': 'description_ngram',
-        #                         },
-        #                     ],
-        #                 },
-        #                 'category': {'tokenizer': 'literal'},
-        #             },
-        #             key_field='id',
-        #             name='autocomplete_items_idx',
-        #         ),
-        #     ]
         print("\nCreating autocomplete-optimized BM25 index...")
         cursor.execute(
             """

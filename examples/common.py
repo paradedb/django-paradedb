@@ -69,16 +69,12 @@ def setup_mock_items() -> int:
             "schema_name => 'public', table_name => 'mock_items')"
         )
         cursor.execute("DROP INDEX IF EXISTS mock_items_bm25_idx;")
-        cursor.execute(
-            "CREATE INDEX mock_items_bm25_idx ON mock_items USING bm25 ("
-            "id, "
-            "description, "
-            "rating, "
-            "(category::pdb.literal('alias=category')), "
-            "((metadata->>'color')::pdb.literal('alias=metadata_color')), "
-            "((metadata->>'location')::pdb.literal('alias=metadata_location'))"
-            ") WITH (key_field='id');"
-        )
+
+    # Render index SQL from the unmanaged model metadata.
+    with connection.schema_editor(atomic=False) as schema_editor:
+        for index in MockItem._meta.indexes:
+            statement = index.create_sql(model=MockItem, schema_editor=schema_editor)
+            schema_editor.execute(statement)
 
     return MockItem.objects.count()
 

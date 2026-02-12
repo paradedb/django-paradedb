@@ -10,9 +10,7 @@ from pathlib import Path
 
 # Add parent directory to path to import common module
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from common import configure_django
-
-configure_django()
+from models import AutocompleteItem
 
 
 def setup_autocomplete_table() -> int:
@@ -60,18 +58,12 @@ def setup_autocomplete_table() -> int:
         print(f"  ✓ Copied {count} products from mock_items")
 
         print("\nCreating autocomplete-optimized BM25 index...")
-        cursor.execute(
-            """
-            CREATE INDEX autocomplete_items_idx ON autocomplete_items
-            USING bm25 (
-                id,
-                description,
-                (description::pdb.ngram(3,8,'alias=description_ngram')),
-                (category::pdb.literal('alias=category'))
+    with connection.schema_editor(atomic=False) as schema_editor:
+        for index in AutocompleteItem._meta.indexes:
+            statement = index.create_sql(
+                model=AutocompleteItem, schema_editor=schema_editor
             )
-            WITH (key_field='id');
-            """
-        )
+            schema_editor.execute(statement)
         print("  ✓ Created BM25 index with:")
         print("    - description (standard tokenizer)")
         print("    - description_ngram (ngram 3-8 for substring matching)")

@@ -4,58 +4,12 @@
 import sys
 from pathlib import Path
 
-from django.db import models
-
 from paradedb.functions import Score
-from paradedb.indexes import BM25Index
-from paradedb.queryset import ParadeDBManager
 from paradedb.search import ParadeDB, Parse
 
 # Add parent directory to path to import common module
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from common import configure_django
-
-configure_django()
-
-
-# Define model inline for the autocomplete_items table
-class AutocompleteItem(models.Model):
-    id = models.IntegerField(primary_key=True)
-    description = models.TextField()
-    category = models.CharField(max_length=100)
-    rating = models.IntegerField()
-    in_stock = models.BooleanField()
-    created_at = models.DateTimeField()
-
-    objects = ParadeDBManager()
-
-    class Meta:
-        app_label = "examples"
-        managed = False
-        db_table = "autocomplete_items"
-        indexes = (
-            BM25Index(
-                fields={
-                    "id": {},
-                    "description": {
-                        "tokenizers": [
-                            {"tokenizer": "unicode_words"},
-                            {
-                                "tokenizer": "ngram",
-                                "args": [3, 8],
-                                "alias": "description_ngram",
-                            },
-                        ]
-                    },
-                    "category": {"tokenizer": "literal", "alias": "category"},
-                },
-                key_field="id",
-                name="autocomplete_items_idx",
-            ),
-        )
-
-    def __str__(self) -> str:
-        return self.description
+from models import AutocompleteItem
 
 
 def demo_autocomplete() -> None:

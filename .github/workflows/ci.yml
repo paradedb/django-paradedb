@@ -41,36 +41,14 @@ jobs:
       - name: Type check
         run: mypy src/paradedb
 
-  test:
-    name: Unit Tests
+  matrix-tests:
+    name: Python ${{ matrix.python-version }} / Django ${{ matrix.django-version }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.13"]
-        django-version: ["6.0"]
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install "Django~=${{ matrix.django-version }}.0"
-          pip install -e ".[dev]"
-
-      - name: Run unit tests
-        run: pytest -m "not integration"
-
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: test
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        django-version: ["5.2", "6.0"]
     services:
       paradedb:
         image: paradedb/paradedb:0.21.4-pg18
@@ -90,20 +68,35 @@ jobs:
       PARADEDB_INTEGRATION: "1"
       PARADEDB_TEST_DSN: postgresql://postgres@localhost:5432/postgres
       PGPASSWORD: postgres
+      DATABASE_URL: postgresql://postgres@localhost:5432/postgres
+      PYTHONPATH: ${{ github.workspace }}/src
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Set up Python
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install "Django~=${{ matrix.django-version }}.0"
+          pip install \
+            pytest \
+            pytest-django \
+            pytest-cov \
+            "psycopg[binary]" \
+            psycopg2-binary \
+            django-cte \
+            httpx \
+            pgvector \
+            python-dotenv
+
+      - name: Run unit tests
+        run: pytest -m "not integration"
 
       - name: Run integration tests
         run: pytest -m integration --cov=paradedb --cov-report=xml
@@ -112,18 +105,13 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
-          flags: django-paradedb
+          flags: django-paradedb,py${{ matrix.python-version }},dj${{ matrix.django-version }}
           fail_ci_if_error: false
           verbose: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-      - name: Install example dependencies
-        run: pip install -r examples/requirements.txt
-
       - name: Run examples
-        env:
-          DATABASE_URL: ${{ env.PARADEDB_TEST_DSN }}
         run: |
           python examples/quickstart/quickstart.py
           python examples/autocomplete/setup.py
@@ -132,3 +120,13 @@ jobs:
           python examples/faceted_search/faceted_search.py
           python examples/hybrid_rrf/setup.py
           python examples/hybrid_rrf/hybrid_rrf.py
+
+      - name: Run RAG example (if API key configured)
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -n "${OPENROUTER_API_KEY}" ]; then
+            python examples/rag/rag.py
+          else
+            echo "Skipping RAG example: OPENROUTER_API_KEY is not configured."
+          fi

@@ -161,7 +161,7 @@ class BM25Index(models.Index):
             tokenizers = config.get("tokenizers")
             tokenizer = config.get("tokenizer")
             args = config.get("args")
-            named_args, legacy_options = self._extract_named_args(config, field_name)
+            named_args = self._extract_named_args(config, field_name)
             filters = config.get("filters")
             stemmer = config.get("stemmer")
             alias = config.get("alias")
@@ -172,13 +172,12 @@ class BM25Index(models.Index):
                     or stemmer is not None
                     or args is not None
                     or named_args is not None
-                    or legacy_options is not None
                     or alias is not None
                 ):
                     raise ValueError(
                         f"Field {field_name!r} cannot mix 'tokenizers' with "
-                        f"'tokenizer', 'args', 'named_args', 'options', "
-                        f"'filters', 'stemmer', or 'alias'."
+                        f"'tokenizer', 'args', 'named_args', 'filters', "
+                        f"'stemmer', or 'alias'."
                     )
                 expressions.extend(
                     self._build_multi_tokenizer_expressions(
@@ -195,7 +194,6 @@ class BM25Index(models.Index):
                 or stemmer is not None
                 or args is not None
                 or named_args is not None
-                or legacy_options is not None
                 or alias is not None
             ):
                 if tokenizer is None:
@@ -221,20 +219,16 @@ class BM25Index(models.Index):
     @staticmethod
     def _extract_named_args(
         config: dict[str, Any], field_name: str
-    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    ) -> dict[str, Any] | None:
         named_args = config.get("named_args")
-        legacy_options = config.get("options")
-        if named_args is not None and legacy_options is not None:
+        if "options" in config:
             raise ValueError(
-                f"Field {field_name!r} cannot specify both 'named_args' and "
-                f"'options'. Use only 'named_args'."
+                f"Field {field_name!r} uses deprecated 'options'. "
+                f"Use 'named_args' instead."
             )
         if named_args is not None and not isinstance(named_args, dict):
             raise ValueError(f"Field {field_name!r} 'named_args' must be a dictionary.")
-        if legacy_options is not None and not isinstance(legacy_options, dict):
-            raise ValueError(f"Field {field_name!r} 'options' must be a dictionary.")
-        effective = named_args if named_args is not None else legacy_options
-        return effective, legacy_options
+        return named_args
 
     def _build_multi_tokenizer_expressions(
         self, *, column: str, field_name: str, tokenizers: Any
@@ -259,9 +253,7 @@ class BM25Index(models.Index):
                     f"requires 'tokenizer'."
                 )
             args = config.get("args")
-            named_args, _legacy_options = self._extract_named_args(
-                config, f"{field_name}[{idx}]"
-            )
+            named_args = self._extract_named_args(config, f"{field_name}[{idx}]")
             filters = config.get("filters")
             stemmer = config.get("stemmer")
             alias = config.get("alias")
@@ -294,9 +286,7 @@ class BM25Index(models.Index):
                     f"tokenizer (e.g. 'unicode_words', 'simple', 'literal')."
                 )
             args = config.get("args")
-            named_args, _legacy_options = self._extract_named_args(
-                config, f"{field_name}.{key}"
-            )
+            named_args = self._extract_named_args(config, f"{field_name}.{key}")
             filters = config.get("filters")
             stemmer = config.get("stemmer")
             alias = config.get("alias") or f"{field_name}_{key}"

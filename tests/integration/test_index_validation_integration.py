@@ -50,20 +50,19 @@ def test_field_config_without_tokenizer_raises_value_error(
         index.create_sql(model=Product, schema_editor=DummySchemaEditor())
 
 
-def test_named_args_and_options_both_set_raises_value_error() -> None:
+def test_legacy_options_key_raises_value_error() -> None:
     index = BM25Index(
         fields={
             "id": {},
             "description": {
                 "tokenizer": "simple",
-                "named_args": {"lowercase": False},
                 "options": {"remove_long": 20},
             },
         },
         key_field="id",
         name="product_search_idx",
     )
-    with pytest.raises(ValueError, match="both 'named_args' and 'options'"):
+    with pytest.raises(ValueError, match="deprecated 'options'"):
         index.create_sql(model=Product, schema_editor=DummySchemaEditor())
 
 

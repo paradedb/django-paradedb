@@ -578,34 +578,13 @@ class TestBM25Index:
             == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=false,stopwords_language=English,French,remove_long=20,remove_short=2,stemmer=english\'))\n)\nWITH (key_field=\'id\')'
         )
 
-    def test_legacy_options_alias_still_supported(self) -> None:
-        """Legacy 'options' key remains supported for compatibility."""
+    def test_legacy_options_key_raises(self) -> None:
+        """Legacy 'options' key is no longer accepted."""
         index = BM25Index(
             fields={
                 "id": {},
                 "description": {
                     "tokenizer": "simple",
-                    "options": {"lowercase": False},
-                },
-            },
-            key_field="id",
-            name="product_search_idx",
-        )
-        schema_editor = DummySchemaEditor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
-        assert (
-            sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=false\'))\n)\nWITH (key_field=\'id\')'
-        )
-
-    def test_named_args_and_legacy_options_cannot_both_be_set(self) -> None:
-        """Cannot set both 'named_args' and legacy 'options' together."""
-        index = BM25Index(
-            fields={
-                "id": {},
-                "description": {
-                    "tokenizer": "simple",
-                    "named_args": {"lowercase": False},
                     "options": {"remove_long": 20},
                 },
             },
@@ -613,7 +592,7 @@ class TestBM25Index:
             name="product_search_idx",
         )
         schema_editor = DummySchemaEditor()
-        with pytest.raises(ValueError, match="both 'named_args' and 'options'"):
+        with pytest.raises(ValueError, match="deprecated 'options'"):
             index.create_sql(model=Product, schema_editor=schema_editor)
 
 

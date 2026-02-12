@@ -143,7 +143,6 @@ Index the same text field multiple ways by using `tokenizers` and aliases.
 - `named_args`: named tokenizer/filter arguments (dict), rendered as `key=value` config
 - `alias`: optional alias for query-time targeting
 - `filters` / `stemmer`: legacy convenience keys (merged into `named_args`)
-- `options`: legacy alias for `named_args` (backward compatibility)
 
 ```python
 'description': {

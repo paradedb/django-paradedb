@@ -61,6 +61,24 @@ def setup_autocomplete_table() -> int:
 
         # Create BM25 index with ngram tokenizer for autocomplete.
         # "3,8" means index 3- to 8-character ngrams; 1-2 char queries won't match.
+        #
+        # NOTE: This uses raw SQL because BM25Index does not yet support
+        # multiple tokenizers per field or ngram tokenizers. For a managed
+        # model with a single tokenizer per field, use BM25Index instead:
+        #
+        #     from paradedb.indexes import BM25Index
+        #
+        #     indexes = [
+        #         BM25Index(
+        #             fields={
+        #                 'id': {},
+        #                 'description': {'tokenizer': 'unicode_words'},
+        #                 'category': {'tokenizer': 'literal'},
+        #             },
+        #             key_field='id',
+        #             name='autocomplete_items_idx',
+        #         ),
+        #     ]
         print("\nCreating autocomplete-optimized BM25 index...")
         cursor.execute(
             """

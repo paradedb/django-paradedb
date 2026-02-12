@@ -112,6 +112,32 @@ class MockItem(models.Model):
         managed = False
         db_table = "mock_items"
 
+        # This is an unmanaged model (ParadeDB's built-in test table), so the
+        # index is created with raw SQL in setup_mock_items(). For a managed
+        # model, define the index in Meta.indexes and let Django migrations
+        # handle creation:
+        #
+        #     from paradedb.indexes import BM25Index
+        #
+        #     indexes = [
+        #         BM25Index(
+        #             fields={
+        #                 'id': {},
+        #                 'description': {},
+        #                 'rating': {},
+        #                 'category': {'tokenizer': 'literal'},
+        #                 'metadata': {
+        #                     'json_keys': {
+        #                         'color': {'tokenizer': 'literal'},
+        #                         'location': {'tokenizer': 'literal'},
+        #                     }
+        #                 },
+        #             },
+        #             key_field='id',
+        #             name='mock_items_bm25_idx',
+        #         ),
+        #     ]
+
     def __str__(self) -> str:
         return self.description
 

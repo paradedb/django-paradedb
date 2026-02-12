@@ -45,7 +45,7 @@ class Product(models.Model):
             BM25Index(
                 fields={
                     'id': {},
-                    'description': {'tokenizer': 'default'},
+                    'description': {'tokenizer': 'unicode'},
                     'category': {'tokenizer': 'keyword'},
                     'rating': {},
                 },
@@ -84,8 +84,8 @@ class Meta:
         BM25Index(
             fields={
                 'id': {},
-                'title': {'tokenizer': 'default'},
-                'body': {'tokenizer': 'default', 'stemmer': 'English'},
+                'title': {'tokenizer': 'unicode'},
+                'body': {'tokenizer': 'unicode', 'stemmer': 'English'},
                 'category': {'tokenizer': 'keyword'},
             },
             key_field='id',
@@ -98,7 +98,7 @@ For a full list of supported tokenizers and their configurations, please refer t
 
 ```python
 'body': {
-    'tokenizer': 'default',
+    'tokenizer': 'unicode',
     'stemmer': 'English',        # Stemming language
     'filters': ['lowercase'],    # Token filters
 }
@@ -112,7 +112,7 @@ Index specific keys within a JSONField
 'metadata': {
     'json_keys': {
         'author': {'tokenizer': 'keyword'},
-        'tags': {'tokenizer': 'default'},
+        'tags': {'tokenizer': 'unicode'},
     }
 }
 ```

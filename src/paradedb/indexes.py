@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -129,16 +130,75 @@ class BM25Index(models.Index):
             "CREATE INDEX %(name)s ON %(table)s\n"
             "USING bm25 (\n"
             "    %(expressions)s\n"
-            ")\n"
-            "WITH (key_field=%(key_field)s)"
+            ")\n%(with_clause)s"
         )
         return Statement(
             template,
             name=index_name,
             table=table,
             expressions=expr_sql,
-            key_field=_quote_term(self.key_field),
+            with_clause=self._build_with_clause(model),
         )
+
+    def _build_with_clause(self, model: type[models.Model]) -> str:
+        options: list[str] = [f"key_field={_quote_term(self.key_field)}"]
+
+        field_groups: dict[str, dict[str, dict[str, bool]]] = {
+            "text_fields": {},
+            "json_fields": {},
+            "numeric_fields": {},
+            "boolean_fields": {},
+            "datetime_fields": {},
+        }
+
+        for field_name, config in self.fields_config.items():
+            if "fast" not in config:
+                continue
+
+            # ParadeDB json_fields options apply to raw JSON columns, not extracted json_keys.
+            if config.get("json_keys"):
+                continue
+
+            fast = config["fast"]
+            if not isinstance(fast, bool):
+                continue
+
+            field = model._meta.get_field(field_name)
+            if not isinstance(field, models.Field):
+                continue
+            column_name: str = getattr(field, "column")  # noqa: B009
+            group = self._resolve_field_group(field)
+            field_groups[group][column_name] = {"fast": fast}
+
+        for group_name in (
+            "text_fields",
+            "json_fields",
+            "numeric_fields",
+            "boolean_fields",
+            "datetime_fields",
+        ):
+            group_config = field_groups[group_name]
+            if not group_config:
+                continue
+            options_json = json.dumps(group_config, separators=(",", ":"))
+            options.append(f"{group_name}={_quote_term(options_json)}")
+
+        return f"WITH ({', '.join(options)})"
+
+    def _resolve_field_group(self, field: models.Field[Any, Any]) -> str:
+        if isinstance(field, models.JSONField):
+            return "json_fields"
+        if isinstance(field, models.BooleanField):
+            return "boolean_fields"
+        if isinstance(
+            field, (models.DateField, models.DateTimeField, models.TimeField)
+        ):
+            return "datetime_fields"
+        if isinstance(
+            field, (models.IntegerField, models.FloatField, models.DecimalField)
+        ):
+            return "numeric_fields"
+        return "text_fields"
 
     def _build_index_expressions(
         self, model: type[models.Model], schema_editor: BaseDatabaseSchemaEditor

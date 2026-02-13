@@ -45,8 +45,8 @@ class Product(models.Model):
             BM25Index(
                 fields={
                     'id': {},
-                    'description': {'tokenizer': 'default'},
-                    'category': {'tokenizer': 'keyword'},
+                    'description': {'tokenizer': 'unicode_words'},
+                    'category': {'tokenizer': 'literal'},  # exact match, no tokenization
                     'rating': {},
                 },
                 key_field='id',
@@ -84,9 +84,9 @@ class Meta:
         BM25Index(
             fields={
                 'id': {},
-                'title': {'tokenizer': 'default'},
-                'body': {'tokenizer': 'default', 'stemmer': 'English'},
-                'category': {'tokenizer': 'keyword'},
+                'title': {'tokenizer': 'unicode_words'},
+                'body': {'tokenizer': 'unicode_words', 'stemmer': 'English'},
+                'category': {'tokenizer': 'literal'},
             },
             key_field='id',
             name='article_idx',
@@ -96,9 +96,13 @@ class Meta:
 
 For a full list of supported tokenizers and their configurations, please refer to the [ParadeDB Tokenizer Documentation](https://docs.paradedb.com/documentation/tokenizers/overview).
 
+> **Note:** If no tokenizer is specified for a field (e.g. `'rating': {}`), ParadeDB applies its
+> own default (`unicode_words` for text fields). If you provide `filters` or `stemmer`, you
+> **must** also set an explicit `tokenizer` — omitting it will raise a `ValueError`.
+
 ```python
 'body': {
-    'tokenizer': 'default',
+    'tokenizer': 'unicode_words',
     'stemmer': 'English',        # Stemming language
     'filters': ['lowercase'],    # Token filters
 }
@@ -111,10 +115,81 @@ Index specific keys within a JSONField
 ```python
 'metadata': {
     'json_keys': {
-        'author': {'tokenizer': 'keyword'},
-        'tags': {'tokenizer': 'default'},
+        'author': {'tokenizer': 'literal'},
+        'tags': {'tokenizer': 'unicode_words'},
     }
 }
+```
+
+### Multiple Tokenizers Per Field
+
+Index the same text field multiple ways by using `tokenizers` and aliases.
+
+```python
+'description': {
+    'tokenizers': [
+        {'tokenizer': 'literal'},
+        {'tokenizer': 'simple', 'alias': 'description_simple'},
+    ],
+}
+```
+
+### Tokenizer Args and Named Args
+
+`BM25Index` now supports a thin-wrapper tokenizer DSL:
+
+- `tokenizer`: tokenizer name (for structured args/named args) or raw tokenizer SQL function string
+- `args`: positional tokenizer arguments (list)
+- `named_args`: named tokenizer/filter arguments (dict), rendered as `key=value` config
+- `alias`: optional alias for query-time targeting
+- `filters` / `stemmer`: legacy convenience keys (merged into `named_args`)
+
+```python
+'description': {
+    'tokenizers': [
+        {'tokenizer': 'unicode_words'},
+        {
+            'tokenizer': 'ngram',
+            'args': [3, 8],
+            'named_args': {'prefix_only': True, 'positions': True},
+            'alias': 'description_ngram',
+        },
+        {
+            'tokenizer': 'regex_pattern',
+            'args': [r'(?i)\bshoe\w*'],
+            'alias': 'description_regex',
+        },
+    ]
+}
+```
+
+Common positional-argument tokenizers from ParadeDB docs:
+
+- `ngram(min_gram, max_gram, ...)`
+- `regex_pattern(pattern, ...)`
+- `lindera(dictionary, ...)`
+
+Common named args from ParadeDB docs:
+
+- tokenizer options: `prefix_only`, `positions`, `remove_emojis`, `lowercase`, `alias`
+- token filter options: `remove_long`, `remove_short`, `stopwords`, `stemmer`
+
+Query a specific tokenizer alias when needed:
+
+```sql
+SELECT *
+FROM products
+WHERE (description::pdb.alias('description_simple')) ||| 'running';
+```
+
+In Django ORM, use `RawSQL` for alias-targeted queries:
+
+```python
+from django.db.models.expressions import RawSQL
+
+queryset = Product.objects.filter(
+    RawSQL("(description::pdb.alias('description_simple')) ||| %s", ["running"])
+)
 ```
 
 ### Migrations

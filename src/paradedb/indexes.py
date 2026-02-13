@@ -15,27 +15,69 @@ def _quote_term(value: str) -> str:
     return f"'{escaped}'"
 
 
+def _render_sql_arg(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return str(value)
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return _quote_term(value)
+    raise TypeError(f"Unsupported tokenizer arg type: {type(value).__name__}")
+
+
+def _render_config_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return str(value)
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return value
+    raise TypeError(f"Unsupported tokenizer named arg type: {type(value).__name__}")
+
+
 def _build_tokenizer_config(
     *,
     tokenizer: str,
+    args: list[Any] | None,
+    named_args: dict[str, Any] | None,
     filters: list[str] | None,
     stemmer: str | None,
     alias: str | None = None,
 ) -> str:
-    parts: list[str] = []
+    config_parts: dict[str, str] = {}
     if alias is not None:
-        parts.append(f"alias={alias}")
+        config_parts["alias"] = alias
+
+    if named_args:
+        for key, value in named_args.items():
+            config_parts[str(key)] = _render_config_value(value)
+
     if filters:
         for name in filters:
             if name == "stemmer" and stemmer:
-                parts.append(f"stemmer={stemmer}")
+                config_parts.setdefault("stemmer", stemmer)
             else:
-                parts.append(f"{name}=true")
+                config_parts.setdefault(name, "true")
     elif stemmer:
-        parts.append(f"stemmer={stemmer}")
-    if not parts:
+        config_parts.setdefault("stemmer", stemmer)
+
+    args_sql: list[str] = []
+    if args:
+        args_sql = [_render_sql_arg(value) for value in args]
+
+    if config_parts:
+        rendered_config = ",".join(
+            f"{key}={value}" for key, value in config_parts.items()
+        )
+        args_sql.append(_quote_term(rendered_config))
+
+    if not args_sql:
         return tokenizer
-    return f"{tokenizer}({_quote_term(','.join(parts))})"
+    return f"{tokenizer}({','.join(args_sql)})"
 
 
 @dataclass(frozen=True)
@@ -116,20 +158,115 @@ class BM25Index(models.Index):
                 )
                 continue
 
+            tokenizers = config.get("tokenizers")
             tokenizer = config.get("tokenizer")
+            args = config.get("args")
+            named_args = self._extract_named_args(config, field_name)
             filters = config.get("filters")
             stemmer = config.get("stemmer")
-            if tokenizer or filters or stemmer:
+            alias = config.get("alias")
+            if tokenizers is not None:
+                if (
+                    tokenizer is not None
+                    or filters is not None
+                    or stemmer is not None
+                    or args is not None
+                    or named_args is not None
+                    or alias is not None
+                ):
+                    raise ValueError(
+                        f"Field {field_name!r} cannot mix 'tokenizers' with "
+                        f"'tokenizer', 'args', 'named_args', 'filters', "
+                        f"'stemmer', or 'alias'."
+                    )
+                expressions.extend(
+                    self._build_multi_tokenizer_expressions(
+                        column=column,
+                        field_name=field_name,
+                        tokenizers=tokenizers,
+                    )
+                )
+                continue
+
+            if (
+                tokenizer is not None
+                or filters is not None
+                or stemmer is not None
+                or args is not None
+                or named_args is not None
+                or alias is not None
+            ):
                 if tokenizer is None:
-                    tokenizer = "simple"
+                    raise ValueError(
+                        f"Field {field_name!r} specifies tokenizer configuration but "
+                        f"no tokenizer. Please set an explicit tokenizer (e.g. "
+                        f"'unicode_words', 'simple', 'literal')."
+                    )
                 tokenizer_sql = _build_tokenizer_config(
                     tokenizer=tokenizer,
+                    args=args,
+                    named_args=named_args,
                     filters=filters,
                     stemmer=stemmer,
+                    alias=alias,
                 )
                 expressions.append(f"({column}::pdb.{tokenizer_sql})")
             else:
                 expressions.append(column)
+
+        return expressions
+
+    @staticmethod
+    def _extract_named_args(
+        config: dict[str, Any], field_name: str
+    ) -> dict[str, Any] | None:
+        named_args = config.get("named_args")
+        if "options" in config:
+            raise ValueError(
+                f"Field {field_name!r} uses deprecated 'options'. "
+                f"Use 'named_args' instead."
+            )
+        if named_args is not None and not isinstance(named_args, dict):
+            raise ValueError(f"Field {field_name!r} 'named_args' must be a dictionary.")
+        return named_args
+
+    def _build_multi_tokenizer_expressions(
+        self, *, column: str, field_name: str, tokenizers: Any
+    ) -> list[str]:
+        if not isinstance(tokenizers, list) or not tokenizers:
+            raise ValueError(
+                f"Field {field_name!r} must define 'tokenizers' as a non-empty list."
+            )
+
+        expressions: list[str] = []
+        for idx, config in enumerate(tokenizers):
+            if not isinstance(config, dict):
+                raise ValueError(
+                    f"Field {field_name!r} tokenizer entry at position {idx} must be "
+                    f"a dictionary."
+                )
+
+            tokenizer = config.get("tokenizer")
+            if tokenizer is None:
+                raise ValueError(
+                    f"Field {field_name!r} tokenizer entry at position {idx} "
+                    f"requires 'tokenizer'."
+                )
+            args = config.get("args")
+            named_args = self._extract_named_args(config, f"{field_name}[{idx}]")
+            filters = config.get("filters")
+            stemmer = config.get("stemmer")
+            alias = config.get("alias")
+
+            tokenizer_sql = _build_tokenizer_config(
+                tokenizer=tokenizer,
+                args=args,
+                named_args=named_args,
+                filters=filters,
+                stemmer=stemmer,
+                alias=alias,
+            )
+            expressions.append(f"({column}::pdb.{tokenizer_sql})")
 
         return expressions
 
@@ -142,12 +279,21 @@ class BM25Index(models.Index):
     ) -> list[str]:
         expressions: list[str] = []
         for key, config in json_keys.items():
-            tokenizer = config.get("tokenizer") or "simple"
+            tokenizer = config.get("tokenizer")
+            if tokenizer is None:
+                raise ValueError(
+                    f"JSON key {key!r} in field {field_name!r} requires an explicit "
+                    f"tokenizer (e.g. 'unicode_words', 'simple', 'literal')."
+                )
+            args = config.get("args")
+            named_args = self._extract_named_args(config, f"{field_name}.{key}")
             filters = config.get("filters")
             stemmer = config.get("stemmer")
-            alias = f"{field_name}_{key}"
+            alias = config.get("alias") or f"{field_name}_{key}"
             tokenizer_sql = _build_tokenizer_config(
                 tokenizer=tokenizer,
+                args=args,
+                named_args=named_args,
                 filters=filters,
                 stemmer=stemmer,
                 alias=alias,

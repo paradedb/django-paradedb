@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import django
 from django.conf import settings
 
+from paradedb.indexes import BM25Index
 from paradedb.queryset import ParadeDBManager
 
 
@@ -68,16 +69,12 @@ def setup_mock_items() -> int:
             "schema_name => 'public', table_name => 'mock_items')"
         )
         cursor.execute("DROP INDEX IF EXISTS mock_items_bm25_idx;")
-        cursor.execute(
-            "CREATE INDEX mock_items_bm25_idx ON mock_items USING bm25 ("
-            "id, "
-            "description, "
-            "rating, "
-            "(category::pdb.literal('alias=category')), "
-            "((metadata->>'color')::pdb.literal('alias=metadata_color')), "
-            "((metadata->>'location')::pdb.literal('alias=metadata_location'))"
-            ") WITH (key_field='id');"
-        )
+
+    # Render index SQL from the unmanaged model metadata.
+    with connection.schema_editor(atomic=False) as schema_editor:
+        for index in MockItem._meta.indexes:
+            statement = index.create_sql(model=MockItem, schema_editor=schema_editor)
+            schema_editor.execute(statement)
 
     return MockItem.objects.count()
 
@@ -87,6 +84,27 @@ configure_django()
 
 # Import models after Django is configured
 from django.db import models  # noqa: E402
+
+
+def _mock_items_indexes() -> list[BM25Index]:
+    return [
+        BM25Index(
+            fields={
+                "id": {},
+                "description": {},
+                "rating": {},
+                "category": {"tokenizer": "literal", "alias": "category"},
+                "metadata": {
+                    "json_keys": {
+                        "color": {"tokenizer": "literal"},
+                        "location": {"tokenizer": "literal"},
+                    }
+                },
+            },
+            key_field="id",
+            name="mock_items_bm25_idx",
+        ),
+    ]
 
 
 class MockItem(models.Model):
@@ -111,6 +129,7 @@ class MockItem(models.Model):
         app_label = "examples"
         managed = False
         db_table = "mock_items"
+        indexes = _mock_items_indexes()
 
     def __str__(self) -> str:
         return self.description
@@ -138,6 +157,7 @@ try:
             app_label = "examples"
             managed = False
             db_table = "mock_items"
+            indexes = _mock_items_indexes()
 
         def __str__(self) -> str:
             return self.description

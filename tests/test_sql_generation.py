@@ -334,6 +334,52 @@ class TestBM25Index:
             == "CREATE INDEX \"product_search_idx\" ON \"tests_product\"\nUSING bm25 (\n    \"id\",\n    ((\"metadata\"->>'title')::pdb.simple('alias=metadata_title,lowercase=true')),\n    ((\"metadata\"->>'brand')::pdb.simple('alias=metadata_brand'))\n)\nWITH (key_field='id')"
         )
 
+    def test_field_filters_without_tokenizer_raises(self) -> None:
+        """Specifying filters or stemmer without a tokenizer raises ValueError."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {"stemmer": "english"},
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="no tokenizer"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
+    def test_field_filters_only_without_tokenizer_raises(self) -> None:
+        """Specifying only filters without a tokenizer raises ValueError."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {"filters": ["lowercase"]},
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="no tokenizer"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
+    def test_json_key_without_tokenizer_raises(self) -> None:
+        """JSON keys without an explicit tokenizer raise ValueError."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "metadata": {
+                    "json_keys": {
+                        "color": {},
+                    }
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="requires an explicit tokenizer"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
     def test_json_field_literal_alias(self) -> None:
         """JSON subfields can be indexed with literal tokenizer aliases."""
         index = BM25Index(
@@ -356,6 +402,198 @@ class TestBM25Index:
             sql
             == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "description",\n    (("metadata"->>\'color\')::pdb.literal(\'alias=metadata_color\')),\n    (("metadata"->>\'location\')::pdb.literal(\'alias=metadata_location\'))\n)\nWITH (key_field=\'id\')'
         )
+
+    def test_field_with_multiple_tokenizers(self) -> None:
+        """A field can include multiple tokenizer expressions."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizers": [
+                        {"tokenizer": "literal"},
+                        {
+                            "tokenizer": "simple",
+                            "filters": ["lowercase"],
+                            "alias": "description_simple",
+                        },
+                    ]
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple(\'alias=description_simple,lowercase=true\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_multiple_tokenizers_allows_secondary_entries_without_alias(self) -> None:
+        """Thin wrapper mode allows tokenizer entries without alias."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizers": [
+                        {"tokenizer": "literal"},
+                        {"tokenizer": "simple"},
+                    ]
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple)\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_multiple_tokenizers_cannot_mix_with_single_tokenizer_keys(self) -> None:
+        """The list syntax cannot be combined with top-level tokenizer keys."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizers": [{"tokenizer": "literal"}],
+                    "tokenizer": "simple",
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="cannot mix 'tokenizers'"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
+    def test_structured_ngram_args_and_named_args_in_multi_tokenizer_dsl(self) -> None:
+        """Supports positional ngram args plus named args in DSL."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizers": [
+                        {"tokenizer": "literal"},
+                        {
+                            "tokenizer": "ngram",
+                            "args": [3, 3],
+                            "named_args": {
+                                "prefix_only": True,
+                                "positions": True,
+                            },
+                            "alias": "description_ngram",
+                        },
+                    ]
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.ngram(3,3,\'alias=description_ngram,prefix_only=true,positions=true\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_structured_regex_pattern_and_alias_in_multi_tokenizer_dsl(self) -> None:
+        """Supports regex_pattern positional args with alias in DSL."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizers": [
+                        {"tokenizer": "literal"},
+                        {
+                            "tokenizer": "regex_pattern",
+                            "args": [r"(?i)\bh\w*"],
+                            "alias": "description_regex",
+                        },
+                    ]
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.regex_pattern(\'(?i)\\bh\\w*\',\'alias=description_regex\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_structured_lindera_dictionary_argument_in_multi_tokenizer_dsl(
+        self,
+    ) -> None:
+        """Supports lindera dictionary positional arg in DSL."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizers": [
+                        {"tokenizer": "literal"},
+                        {
+                            "tokenizer": "lindera",
+                            "args": ["japanese"],
+                            "alias": "description_jp",
+                        },
+                    ]
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.lindera(\'japanese\',\'alias=description_jp\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_value_based_token_filter_named_args(self) -> None:
+        """Supports non-boolean token filter named args in DSL."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizer": "simple",
+                    "named_args": {
+                        "lowercase": False,
+                        "stopwords_language": "English,French",
+                        "remove_long": 20,
+                        "remove_short": 2,
+                    },
+                    "stemmer": "english",
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=false,stopwords_language=English,French,remove_long=20,remove_short=2,stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_legacy_options_key_raises(self) -> None:
+        """Legacy 'options' key is no longer accepted."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizer": "simple",
+                    "options": {"remove_long": 20},
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="deprecated 'options'"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
 
 
 class TestMoreLikeThis:

@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.2] - 2026-02-13
+## [0.2.0] - 2026-02-13
 
 ### Added
 
@@ -59,6 +59,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JSON field key indexing support
 - Full Django ORM integration with `Q` objects and standard filters
 
-[0.1.2]: https://github.com/paradedb/django-paradedb/compare/v0.1.1...e8734548d5e823efd7bac4bef0d56a2a6d18c865
+[0.2.0]: https://github.com/paradedb/django-paradedb/compare/v0.1.1...e8734548d5e823efd7bac4bef0d56a2a6d18c865
 [0.1.1]: https://github.com/paradedb/django-paradedb/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/paradedb/django-paradedb/releases/tag/v0.1.0

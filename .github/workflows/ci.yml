@@ -103,10 +103,10 @@ jobs:
             python-dotenv
 
       - name: Run unit tests
-        run: pytest -m "not integration"
+        run: pytest -m "not integration" --cov=paradedb
 
       - name: Run integration tests
-        run: pytest -m integration --cov=paradedb --cov-report=xml
+        run: pytest -m integration --cov=paradedb --cov-append --cov-report=xml
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5

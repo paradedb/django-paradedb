@@ -68,16 +68,20 @@ class TestSnippetsIntegration:
         item = qs.get(id=5)  # ID 5: "Generic shoes"
         assert item.fragments == ["<mark>Generic</mark> shoes"]
 
-    def test_snippets_sort_by_score(self) -> None:
-        """Verify sort_by returns expected fragment arrays."""
-        # For a single short description, score/position usually return the same.
-        # This test ensures the parameter is accepted and doesn't crash.
-        qs = MockItem.objects.filter(description=ParadeDB("shoes")).annotate(
-            fragments=Snippets("description", sort_by="score")
+    def test_snippets_sort_by_score_and_position(self) -> None:
+        """Verify score and position sorting return different fragment orderings."""
+        qs = MockItem.objects.filter(
+            id=22, description=ParadeDB("charging power bank")
+        ).annotate(
+            by_score=Snippets("description", max_num_chars=12, sort_by="score"),
+            by_position=Snippets("description", max_num_chars=12, sort_by="position"),
         )
-        item = qs.first()
-        assert len(item.fragments) > 0
-        assert "<b>" in item.fragments[0]
+        item = qs.get()
+
+        expected_by_position = ["<b>charging</b>", "<b>power</b> <b>bank</b>"]
+        assert item.by_position == expected_by_position
+        assert set(item.by_score) == set(expected_by_position)
+        assert item.by_score != item.by_position
 
 
 class TestSnippetPositionsIntegration:

@@ -48,6 +48,23 @@ def test_multi_term_and() -> None:
     assert ids == {3}
 
 
+def test_exact_literal_disjunction_single() -> None:
+    ids = _ids(
+        MockItem.objects.filter(description=ParadeDB("running shoes", operator="OR"))
+    )
+    assert 3 in ids
+    assert {3, 4, 5}.issubset(ids)
+
+
+def test_exact_literal_disjunction_multi() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB("running", "wireless", operator="OR")
+        )
+    )
+    assert ids == {3, 12}
+
+
 def test_phrase_with_slop() -> None:
     ids = _ids(
         MockItem.objects.filter(description=ParadeDB(Phrase("running shoes", slop=1)))
@@ -60,6 +77,99 @@ def test_fuzzy_distance() -> None:
         MockItem.objects.filter(description=ParadeDB(Fuzzy("runnning", distance=1)))
     )
     assert ids == {3}
+
+
+def test_fuzzy_conjunction() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Fuzzy("runnning shose", distance=2, operator="AND"))
+        )
+    )
+    assert 3 in ids
+
+
+def test_fuzzy_term_form() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Fuzzy("shose", distance=2, operator="TERM"))
+        )
+    )
+    assert len(ids) > 0
+
+
+def test_fuzzy_prefix() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                Fuzzy("runn", distance=0, prefix=True, operator="TERM")
+            )
+        )
+    )
+    assert 3 in ids
+
+
+def test_fuzzy_transposition_cost_one() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                Fuzzy(
+                    "shose",
+                    distance=1,
+                    transposition_cost_one=True,
+                    operator="TERM",
+                )
+            )
+        )
+    )
+    assert len(ids) > 0
+
+
+def test_tokenizer_override_match() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB("running shoes", tokenizer="whitespace")
+        )
+    )
+    assert 3 in ids
+
+
+def test_tokenizer_override_phrase() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Phrase("running shoes", tokenizer="whitespace"))
+        )
+    )
+    assert 3 in ids
+
+
+def test_boost_does_not_change_result_set() -> None:
+    baseline_ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes")))
+    boosted_ids = _ids(
+        MockItem.objects.filter(description=ParadeDB("shoes", boost=2.0))
+    )
+    assert boosted_ids == baseline_ids
+
+
+def test_boost_with_fuzzy_integration() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Fuzzy("runnning", distance=1, boost=2.0))
+        )
+    )
+    assert ids == {3}
+
+
+def test_const_does_not_change_result_set() -> None:
+    baseline_ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes")))
+    const_ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes", const=1.0)))
+    assert const_ids == baseline_ids
+
+
+def test_const_with_fuzzy_rejected() -> None:
+    with pytest.raises(
+        ValueError, match="Fuzzy queries do not support constant scoring"
+    ):
+        Fuzzy("runnning", distance=1, const=1.0)
 
 
 def test_regex_query() -> None:

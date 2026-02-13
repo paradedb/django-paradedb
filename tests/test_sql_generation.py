@@ -20,6 +20,7 @@ from paradedb.search import (
     ParadeDB,
     Parse,
     Phrase,
+    Proximity,
     Regex,
     Term,
 )
@@ -201,6 +202,76 @@ class TestPhraseSearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.slop(1)'
         )
+
+
+class TestProximitySearch:
+    """Test Proximity search SQL generation."""
+
+    def test_proximity_unordered(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running shoes", distance=2))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ## \'running shoes\'::pdb.proximity(2)'
+        )
+
+    def test_proximity_ordered(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running shoes", distance=2, ordered=True))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ##> \'running shoes\'::pdb.proximity(2)'
+        )
+
+    def test_proximity_with_boost(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running shoes", distance=2, boost=1.5))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ## \'running shoes\'::pdb.proximity(2)::pdb.boost(1.5)'
+        )
+
+    def test_proximity_with_const(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running shoes", distance=2, const=1.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ## \'running shoes\'::pdb.proximity(2)::pdb.const(1.0)'
+        )
+
+    def test_proximity_multiple(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Proximity("running shoes", distance=2),
+                Proximity("lightweight design", distance=2),
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ## ARRAY[\'running shoes\'::pdb.proximity(2), \'lightweight design\'::pdb.proximity(2)]'
+        )
+
+    def test_proximity_mixed_ordered_rejected(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Proximity("running shoes", distance=2, ordered=True),
+                Proximity("sleek running", distance=2),
+            )
+        )
+        with pytest.raises(
+            ValueError, match=r"All Proximity terms must use the same ordered flag\."
+        ):
+            _ = str(queryset.query)
+
+    def test_proximity_distance_negative_rejected(self) -> None:
+        with pytest.raises(
+            ValueError, match=r"Proximity distance must be zero or positive\."
+        ):
+            Proximity("running shoes", distance=-1)
 
 
 class TestFuzzySearch:

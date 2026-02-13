@@ -96,6 +96,22 @@ class Fuzzy:
 
 
 @dataclass(frozen=True)
+class Proximity:
+    """Proximity search expression."""
+
+    text: str
+    distance: int
+    ordered: bool = False
+    boost: float | None = None
+    const: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.distance < 0:
+            raise ValueError("Proximity distance must be zero or positive.")
+        _validate_scoring(self.boost, self.const)
+
+
+@dataclass(frozen=True)
 class Parse:
     """Parse query expression."""
 
@@ -491,13 +507,20 @@ class ParadeDB:
         ...
 
     @overload
+    def __init__(
+        self, __prox1: Proximity, *prox: Proximity, operator: None = None
+    ) -> None:
+        """Proximity search with one or more Proximity objects."""
+        ...
+
+    @overload
     def __init__(self, __fuzzy1: Fuzzy, *fuzzy: Fuzzy, operator: None = None) -> None:
         """Fuzzy search with one or more Fuzzy objects."""
         ...
 
     def __init__(
         self,
-        *terms: str | PQ | Phrase | Fuzzy | Parse | Term | Regex | All,
+        *terms: str | PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All,
         operator: TermOperator | object = _DEFAULT_OPERATOR,
         tokenizer: str | None = None,
         boost: float | None = None,
@@ -517,14 +540,18 @@ class ParadeDB:
                 raise ValueError("ParadeDB operator must be 'AND', 'OR', or 'TERM'.")
             self._operator = cast(TermOperator, operator)
             if any(
-                isinstance(term, PQ | Phrase | Fuzzy | Parse | Term | Regex | All)
+                isinstance(
+                    term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
+                )
                 for term in self._terms
             ):
                 raise ValueError(
                     "ParadeDB operator is only supported with plain string terms."
                 )
         if self._tokenizer is not None and any(
-            isinstance(term, PQ | Phrase | Fuzzy | Parse | Term | Regex | All)
+            isinstance(
+                term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
+            )
             for term in self._terms
         ):
             raise ValueError(
@@ -533,14 +560,18 @@ class ParadeDB:
         if self._tokenizer is not None and self._operator == "TERM":
             raise ValueError("ParadeDB tokenizer cannot be used with TERM operator.")
         if self._boost is not None and any(
-            isinstance(term, PQ | Phrase | Fuzzy | Parse | Term | Regex | All)
+            isinstance(
+                term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
+            )
             for term in self._terms
         ):
             raise ValueError(
                 "ParadeDB boost is only supported with plain string terms."
             )
         if self._const is not None and any(
-            isinstance(term, PQ | Phrase | Fuzzy | Parse | Term | Regex | All)
+            isinstance(
+                term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
+            )
             for term in self._terms
         ):
             raise ValueError(
@@ -577,7 +608,9 @@ class ParadeDB:
 
     def _resolve_terms(
         self,
-    ) -> tuple[str, tuple[str | Phrase | Fuzzy | Parse | Term | Regex | All, ...]]:
+    ) -> tuple[
+        str, tuple[str | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All, ...]
+    ]:
         if len(self._terms) == 1 and isinstance(self._terms[0], PQ):
             pq = self._terms[0]
             operator = "|||" if pq.operator == "OR" else "&&&"
@@ -603,6 +636,17 @@ class ParadeDB:
                     raise TypeError("Phrase searches only accept Phrase terms.")
                 phrases.append(term)
             return "###", tuple(phrases)
+
+        if any(isinstance(term, Proximity) for term in self._terms):
+            proximities: list[Proximity] = []
+            for term in self._terms:
+                if not isinstance(term, Proximity):
+                    raise TypeError("Proximity searches only accept Proximity terms.")
+                proximities.append(term)
+            ordered_flags = {proximity.ordered for proximity in proximities}
+            if len(ordered_flags) != 1:
+                raise ValueError("All Proximity terms must use the same ordered flag.")
+            return ("##>" if proximities[0].ordered else "##"), tuple(proximities)
 
         if any(isinstance(term, Fuzzy) for term in self._terms):
             fuzzies: list[Fuzzy] = []
@@ -647,7 +691,7 @@ class ParadeDB:
         return sql
 
     def _render_term(
-        self, term: str | Phrase | Fuzzy | Parse | Term | Regex | All
+        self, term: str | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
     ) -> str:
         if isinstance(term, Phrase):
             literal = self._quote_term(term.text)
@@ -655,6 +699,10 @@ class ParadeDB:
                 literal = f"{literal}::pdb.slop({term.slop})"
             if term.tokenizer is not None:
                 literal = f"{literal}::pdb.{term.tokenizer}"
+            return self._append_scoring(literal, boost=term.boost, const=term.const)
+        if isinstance(term, Proximity):
+            literal = self._quote_term(term.text)
+            literal = f"{literal}::pdb.proximity({term.distance})"
             return self._append_scoring(literal, boost=term.boost, const=term.const)
         if isinstance(term, Fuzzy):
             literal = self._quote_term(term.text)
@@ -741,6 +789,7 @@ __all__ = [
     "ParadeDB",
     "Parse",
     "Phrase",
+    "Proximity",
     "Regex",
     "Term",
 ]

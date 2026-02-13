@@ -14,6 +14,7 @@ from paradedb.search import (
     ParadeDB,
     Parse,
     Phrase,
+    Proximity,
     Regex,
     Term,
 )
@@ -75,6 +76,24 @@ def test_phrase_with_slop() -> None:
         MockItem.objects.filter(description=ParadeDB(Phrase("running shoes", slop=1)))
     )
     assert ids == {3}
+
+
+def test_proximity_unordered() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Proximity("keyboard metal", distance=1))
+        )
+    )
+    assert 1 in ids
+
+
+def test_proximity_ordered() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Proximity("sleek running", distance=2, ordered=True))
+        )
+    )
+    assert 3 in ids
 
 
 def test_fuzzy_distance() -> None:

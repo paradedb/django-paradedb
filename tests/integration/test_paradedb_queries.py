@@ -65,6 +65,11 @@ def test_exact_literal_disjunction_multi() -> None:
     assert ids == {3, 12}
 
 
+def test_exact_literal_term() -> None:
+    ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes", operator="TERM")))
+    assert ids == {3, 4, 5}
+
+
 def test_phrase_with_slop() -> None:
     ids = _ids(
         MockItem.objects.filter(description=ParadeDB(Phrase("running shoes", slop=1)))

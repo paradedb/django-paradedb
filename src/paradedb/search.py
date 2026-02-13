@@ -25,7 +25,7 @@ from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
 
 PQOperator = Literal["OR", "AND"]
-FuzzyOperator = Literal["OR", "AND", "TERM"]
+TermOperator = Literal["OR", "AND", "TERM"]
 _DEFAULT_OPERATOR = object()
 _MIN_BOOST_FACTOR = -2048.0
 _MAX_BOOST_FACTOR = 2048.0
@@ -79,7 +79,7 @@ class Fuzzy:
     distance: int = 1
     prefix: bool = False
     transposition_cost_one: bool = False
-    operator: FuzzyOperator | None = None
+    operator: TermOperator | None = None
     boost: float | None = None
     const: float | None = None
 
@@ -463,7 +463,7 @@ class ParadeDB:
         self,
         __term1: str,
         *terms: str,
-        operator: PQOperator = "AND",
+        operator: TermOperator = "AND",
         tokenizer: str | None = None,
         boost: float | None = None,
         const: float | None = None,
@@ -498,7 +498,7 @@ class ParadeDB:
     def __init__(
         self,
         *terms: str | PQ | Phrase | Fuzzy | Parse | Term | Regex | All,
-        operator: PQOperator | object = _DEFAULT_OPERATOR,
+        operator: TermOperator | object = _DEFAULT_OPERATOR,
         tokenizer: str | None = None,
         boost: float | None = None,
         const: float | None = None,
@@ -511,11 +511,11 @@ class ParadeDB:
         self._const = const
         _validate_scoring(self._boost, self._const)
         self._operator_provided = operator is not _DEFAULT_OPERATOR
-        self._operator: PQOperator = "AND"
+        self._operator: TermOperator = "AND"
         if operator is not _DEFAULT_OPERATOR:
-            if operator not in ("AND", "OR"):
-                raise ValueError("ParadeDB operator must be 'AND' or 'OR'.")
-            self._operator = cast(PQOperator, operator)
+            if operator not in ("AND", "OR", "TERM"):
+                raise ValueError("ParadeDB operator must be 'AND', 'OR', or 'TERM'.")
+            self._operator = cast(TermOperator, operator)
             if any(
                 isinstance(term, PQ | Phrase | Fuzzy | Parse | Term | Regex | All)
                 for term in self._terms
@@ -530,6 +530,8 @@ class ParadeDB:
             raise ValueError(
                 "ParadeDB tokenizer is only supported with plain string terms."
             )
+        if self._tokenizer is not None and self._operator == "TERM":
+            raise ValueError("ParadeDB tokenizer cannot be used with TERM operator.")
         if self._boost is not None and any(
             isinstance(term, PQ | Phrase | Fuzzy | Parse | Term | Regex | All)
             for term in self._terms
@@ -623,7 +625,12 @@ class ParadeDB:
                 raise TypeError("ParadeDB terms must be strings.")
             terms.append(term)
 
-        operator = "|||" if self._operator == "OR" else "&&&"
+        if self._operator == "OR":
+            operator = "|||"
+        elif self._operator == "TERM":
+            operator = "==="
+        else:
+            operator = "&&&"
         return operator, tuple(terms)
 
     @staticmethod

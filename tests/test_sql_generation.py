@@ -89,6 +89,40 @@ class TestExactLiteralDisjunction:
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'shoes\', \'boots\']'
         )
 
+    def test_single_string_term(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", operator="TERM")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" === \'shoes\''
+        )
+
+    def test_multiple_strings_term(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", "boots", operator="TERM")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" === ARRAY[\'shoes\', \'boots\']'
+        )
+
+    def test_single_string_term_with_boost(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", operator="TERM", boost=2.0)
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" === \'shoes\'::pdb.boost(2.0)'
+        )
+
+    def test_single_string_term_with_tokenizer_rejected(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"ParadeDB tokenizer cannot be used with TERM operator\.",
+        ):
+            _ = ParadeDB("shoes", operator="TERM", tokenizer="whitespace")
+
     def test_default_operator_unchanged(self) -> None:
         queryset = Product.objects.filter(description=ParadeDB("a", "b"))
         assert (

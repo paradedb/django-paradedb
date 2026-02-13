@@ -6,9 +6,12 @@ These are unit tests that don't require a database.
 
 from __future__ import annotations
 
-import pytest
+from unittest.mock import Mock
 
-from paradedb.functions import Score, Snippet
+import pytest
+from django.db.models import Value
+
+from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
     PQ,
@@ -488,3 +491,26 @@ class TestLongInputs:
         sql = str(queryset.query)
         assert "term99" in sql
         assert "&&&" in sql
+
+
+class TestParameterizedFieldValidation:
+    """Test validation of parameterized fields in snippet functions."""
+
+    @pytest.mark.parametrize("func_class", [Snippet, Snippets, SnippetPositions])
+    def test_parameterized_field_raises(self, func_class) -> None:
+        """Verify parameterized field check in as_sql for various functions."""
+        instance = func_class("description")
+        instance.source_expressions = [Value("parameterized")]
+        compiler = Mock()
+        compiler.compile.return_value = ("'parameterized'", ["parameterized"])
+        with pytest.raises(ValueError, match="does not support parameterized fields"):
+            instance.as_sql(compiler, Mock())
+
+
+class TestSnippetsValidation:
+    """Test validation specifically for Snippets function."""
+
+    def test_snippets_invalid_sort_by_raises(self) -> None:
+        """Verify sort_by validation."""
+        with pytest.raises(ValueError, match="sort_by must be one of"):
+            Snippets("description", sort_by="invalid")  # type: ignore[arg-type]

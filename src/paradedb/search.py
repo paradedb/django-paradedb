@@ -596,10 +596,10 @@ __all__ = [
     "All",
     "Fuzzy",
     "MoreLikeThis",
-    "PQ",
     "ParadeDB",
     "Parse",
     "Phrase",
+    "PQ",
     "Regex",
     "Term",
 ]

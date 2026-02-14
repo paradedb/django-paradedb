@@ -13,10 +13,10 @@
 
 | Component  | Supported                        |
 | ---------- | -------------------------------- |
-| Python     | 3.10, 3.11, 3.12, 3.13          |
-| Django     | 5.2, 6.0                         |
-| ParadeDB   | 0.21.\*                          |
-| PostgreSQL | 17, 18 (with ParadeDB extension) |
+| Python     | 3.10+                            |
+| Django     | 4.2+                             |
+| ParadeDB   | 0.21.0+                          |
+| PostgreSQL | 17+    (with ParadeDB extension) |
 
 ## Installation
 

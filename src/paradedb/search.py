@@ -594,9 +594,9 @@ UUIDField.register_lookup(ParadeDBExact)
 
 __all__ = [
     "All",
-    "PQ",
     "Fuzzy",
     "MoreLikeThis",
+    "PQ",
     "ParadeDB",
     "Parse",
     "Phrase",

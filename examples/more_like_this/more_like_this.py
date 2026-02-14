@@ -2,7 +2,7 @@
 """MoreLikeThis example: find similar documents without vectors.
 
 This example demonstrates ParadeDB's MoreLikeThis feature, which finds similar
-documents based BM25 provided by ParadeDB, not vector embeddings.
+documents based on BM25 provided by ParadeDB, not vector embeddings.
 
 Use cases:
 - "Related products" on product pages

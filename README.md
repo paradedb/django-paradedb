@@ -559,7 +559,8 @@ rows, facets = (
 
 ```python
 # Filter, annotate, order, limit, then facet
-from paradedb.search import ParadeDB, Score
+from paradedb.functions import Score
+from paradedb.search import ParadeDB
 
 rows, facets = (
     Product.objects
@@ -712,7 +713,7 @@ Parameterized queries would require PostgreSQL to parse the search syntax at exe
 
 **Safety Guarantee:**
 
-All escaping follows PostgreSQL's standard string literal rules. The implementation has been reviewed by Django Security Framework members and is protected by:
+All escaping follows PostgreSQL's standard string literal rules. The implementation has been reviewed by Django Software Foundation members and is protected by:
 
 - Comprehensive test coverage (103 tests including special character escaping)
 - Input validation at the ORM layer
@@ -742,7 +743,7 @@ Product.objects.filter(description=ParadeDB(user_query))
 # Install dev dependencies
 pip install -e ".[dev]"
 
-# Setup prek hooks
+# Set up prek hooks
 prek install
 ```
 

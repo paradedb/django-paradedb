@@ -593,6 +593,7 @@ BigAutoField.register_lookup(ParadeDBExact)
 UUIDField.register_lookup(ParadeDBExact)
 
 __all__ = [
+    "All",
     "PQ",
     "Fuzzy",
     "MoreLikeThis",

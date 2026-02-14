@@ -715,7 +715,7 @@ Parameterized queries would require PostgreSQL to parse the search syntax at exe
 
 All escaping follows PostgreSQL's standard string literal rules. The implementation has been reviewed by Django Software Foundation members and is protected by:
 
-- Comprehensive test coverage (103 tests including special character escaping)
+- Comprehensive test coverage (300+ tests including special character escaping)
 - Input validation at the ORM layer
 - PostgreSQL's built-in literal escaping semantics
 

@@ -63,7 +63,7 @@ All changes to django-paradedb happen through GitHub Pull Requests. Here is the 
 3. Fork the django-paradedb repo and branch out from the `main` branch.
 4. Install [prek](https://prek.j178.dev/quickstart/#already-using-pre-commit) hooks within your fork with `prek install` to ensure code quality and consistency with upstream.
 5. Make your changes. If you've added new functionality, please add tests. We will not merge a feature without appropriate tests.
-6. Open a pull request towards the `main` branch. Ensure that all tests and checks pass. Note that the django-paradedb repository has pull request title linting in place and follows the [Conventional Commits spec](https://github.com/amannn/action-semantic-pull-request).
+6. Open a pull request towards the `main` branch. Ensure that all tests and checks pass. Note that the django-paradedb repository has pull request title linting in place and follows the [Conventional Commits spec](https://www.conventionalcommits.org/).
 7. Congratulations! Our team will review your pull request.
 
 ### Documentation

@@ -56,3 +56,6 @@ Thumbs.db
 
 # Sensitive files
 .env
+
+# Claude
+.claude/

@@ -58,4 +58,4 @@ Thumbs.db
 .env
 
 # Claude
-claude./
+.claude/

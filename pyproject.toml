@@ -59,7 +59,7 @@ dev = [
     "psycopg[binary]>=3.1",
 ]
 [project.urls]
-Homepage = "https://github.com/paradedb/django-paradedb"
+Homepage = "https://paradedb.com"
 Documentation = "https://docs.paradedb.com"
 Repository = "https://github.com/paradedb/django-paradedb"
 Issues = "https://github.com/paradedb/django-paradedb/issues"

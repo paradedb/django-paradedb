@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Literal, overload
+from typing import Any, Literal, cast, overload
 
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import (
@@ -25,6 +25,23 @@ from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
 
 PQOperator = Literal["OR", "AND"]
+TermOperator = Literal["OR", "AND", "TERM"]
+_DEFAULT_OPERATOR = object()
+_MIN_BOOST_FACTOR = -2048.0
+_MAX_BOOST_FACTOR = 2048.0
+
+
+def _validate_boost_factor(boost: float | None) -> None:
+    if boost is None:
+        return
+    if not (_MIN_BOOST_FACTOR <= boost <= _MAX_BOOST_FACTOR):
+        raise ValueError("Boost factor must be between -2048 and 2048 inclusive.")
+
+
+def _validate_scoring(boost: float | None, const: float | None) -> None:
+    _validate_boost_factor(boost)
+    if boost is not None and const is not None:
+        raise ValueError("boost and const are mutually exclusive.")
 
 
 @dataclass(frozen=True)
@@ -39,10 +56,14 @@ class Phrase:
 
     text: str
     slop: int | None = None
+    tokenizer: str | None = None
+    boost: float | None = None
+    const: float | None = None
 
     def __post_init__(self) -> None:
         if self.slop is not None and self.slop < 0:
             raise ValueError("Phrase slop must be zero or positive.")
+        _validate_scoring(self.boost, self.const)
 
 
 @dataclass(frozen=True)
@@ -56,12 +77,38 @@ class Fuzzy:
 
     text: str
     distance: int = 1
+    prefix: bool = False
+    transposition_cost_one: bool = False
+    operator: TermOperator | None = None
+    boost: float | None = None
+    const: float | None = None
 
     def __post_init__(self) -> None:
         if self.distance < 0:
             raise ValueError("Fuzzy distance must be zero or positive.")
         if self.distance > 2:
             raise ValueError("Fuzzy distance must be <= 2.")
+        if self.operator not in (None, "OR", "AND", "TERM"):
+            raise ValueError("Fuzzy operator must be one of: OR, AND, TERM.")
+        if self.const is not None:
+            raise ValueError("Fuzzy queries do not support constant scoring.")
+        _validate_scoring(self.boost, self.const)
+
+
+@dataclass(frozen=True)
+class Proximity:
+    """Proximity search expression."""
+
+    text: str
+    distance: int
+    ordered: bool = False
+    boost: float | None = None
+    const: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.distance < 0:
+            raise ValueError("Proximity distance must be zero or positive.")
+        _validate_scoring(self.boost, self.const)
 
 
 @dataclass(frozen=True)
@@ -70,6 +117,11 @@ class Parse:
 
     query: str
     lenient: bool | None = None
+    boost: float | None = None
+    const: float | None = None
+
+    def __post_init__(self) -> None:
+        _validate_scoring(self.boost, self.const)
 
 
 @dataclass(frozen=True)
@@ -77,6 +129,11 @@ class Term:
     """Term query expression."""
 
     text: str
+    boost: float | None = None
+    const: float | None = None
+
+    def __post_init__(self) -> None:
+        _validate_scoring(self.boost, self.const)
 
 
 @dataclass(frozen=True)
@@ -84,6 +141,11 @@ class Regex:
     """Regex query expression."""
 
     pattern: str
+    boost: float | None = None
+    const: float | None = None
+
+    def __post_init__(self) -> None:
+        _validate_scoring(self.boost, self.const)
 
 
 @dataclass(frozen=True)
@@ -403,7 +465,8 @@ class ParadeDB:
 
     Raises:
         ValueError: If PQ is mixed with other terms, or Parse/Term/Regex/All
-            is not provided as a single term
+            is not provided as a single term, or operator is passed with
+            non-string query expressions
         TypeError: If Phrase/Fuzzy terms are mixed with strings
     """
 
@@ -412,36 +475,108 @@ class ParadeDB:
     contains_column_references = False
 
     @overload
-    def __init__(self, __term1: str, *terms: str) -> None:
-        """Simple AND search with multiple string terms."""
+    def __init__(
+        self,
+        __term1: str,
+        *terms: str,
+        operator: TermOperator = "AND",
+        tokenizer: str | None = None,
+        boost: float | None = None,
+        const: float | None = None,
+    ) -> None:
+        """Simple literal search with multiple string terms."""
         ...
 
     @overload
-    def __init__(self, __pq: PQ) -> None:
+    def __init__(self, __pq: PQ, *, operator: None = None) -> None:
         """Boolean logic with PQ object (must be sole argument)."""
         ...
 
     @overload
-    def __init__(self, __expr: Parse | Term | Regex | All) -> None:
+    def __init__(
+        self, __expr: Parse | Term | Regex | All, *, operator: None = None
+    ) -> None:
         """Query expression (must be sole argument)."""
         ...
 
     @overload
-    def __init__(self, __phrase1: Phrase, *phrases: Phrase) -> None:
+    def __init__(
+        self, __phrase1: Phrase, *phrases: Phrase, operator: None = None
+    ) -> None:
         """Phrase search with one or more Phrase objects."""
         ...
 
     @overload
-    def __init__(self, __fuzzy1: Fuzzy, *fuzzy: Fuzzy) -> None:
+    def __init__(
+        self, __prox1: Proximity, *prox: Proximity, operator: None = None
+    ) -> None:
+        """Proximity search with one or more Proximity objects."""
+        ...
+
+    @overload
+    def __init__(self, __fuzzy1: Fuzzy, *fuzzy: Fuzzy, operator: None = None) -> None:
         """Fuzzy search with one or more Fuzzy objects."""
         ...
 
     def __init__(
-        self, *terms: str | PQ | Phrase | Fuzzy | Parse | Term | Regex | All
+        self,
+        *terms: str | PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All,
+        operator: TermOperator | object = _DEFAULT_OPERATOR,
+        tokenizer: str | None = None,
+        boost: float | None = None,
+        const: float | None = None,
     ) -> None:
         if not terms:
             raise ValueError("ParadeDB requires at least one search term.")
         self._terms = terms
+        self._tokenizer = tokenizer
+        self._boost = boost
+        self._const = const
+        _validate_scoring(self._boost, self._const)
+        self._operator_provided = operator is not _DEFAULT_OPERATOR
+        self._operator: TermOperator = "AND"
+        if operator is not _DEFAULT_OPERATOR:
+            if operator not in ("AND", "OR", "TERM"):
+                raise ValueError("ParadeDB operator must be 'AND', 'OR', or 'TERM'.")
+            self._operator = cast(TermOperator, operator)
+            if any(
+                isinstance(
+                    term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
+                )
+                for term in self._terms
+            ):
+                raise ValueError(
+                    "ParadeDB operator is only supported with plain string terms."
+                )
+        if self._tokenizer is not None and any(
+            isinstance(
+                term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
+            )
+            for term in self._terms
+        ):
+            raise ValueError(
+                "ParadeDB tokenizer is only supported with plain string terms."
+            )
+        if self._tokenizer is not None and self._operator == "TERM":
+            raise ValueError("ParadeDB tokenizer cannot be used with TERM operator.")
+        if self._boost is not None and any(
+            isinstance(
+                term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
+            )
+            for term in self._terms
+        ):
+            raise ValueError(
+                "ParadeDB boost is only supported with plain string terms."
+            )
+        if self._const is not None and any(
+            isinstance(
+                term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
+            )
+            for term in self._terms
+        ):
+            raise ValueError(
+                "ParadeDB const is only supported with plain string terms."
+            )
 
     def resolve_expression(
         self,
@@ -473,7 +608,9 @@ class ParadeDB:
 
     def _resolve_terms(
         self,
-    ) -> tuple[str, tuple[str | Phrase | Fuzzy | Parse | Term | Regex | All, ...]]:
+    ) -> tuple[
+        str, tuple[str | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All, ...]
+    ]:
         if len(self._terms) == 1 and isinstance(self._terms[0], PQ):
             pq = self._terms[0]
             operator = "|||" if pq.operator == "OR" else "&&&"
@@ -500,13 +637,31 @@ class ParadeDB:
                 phrases.append(term)
             return "###", tuple(phrases)
 
+        if any(isinstance(term, Proximity) for term in self._terms):
+            proximities: list[Proximity] = []
+            for term in self._terms:
+                if not isinstance(term, Proximity):
+                    raise TypeError("Proximity searches only accept Proximity terms.")
+                proximities.append(term)
+            ordered_flags = {proximity.ordered for proximity in proximities}
+            if len(ordered_flags) != 1:
+                raise ValueError("All Proximity terms must use the same ordered flag.")
+            return ("##>" if proximities[0].ordered else "##"), tuple(proximities)
+
         if any(isinstance(term, Fuzzy) for term in self._terms):
             fuzzies: list[Fuzzy] = []
             for term in self._terms:
                 if not isinstance(term, Fuzzy):
                     raise TypeError("Fuzzy searches only accept Fuzzy terms.")
                 fuzzies.append(term)
-            return "|||", tuple(fuzzies)
+            fuzzy_operators = {fuzzy.operator for fuzzy in fuzzies}
+            if fuzzy_operators <= {None, "OR"}:
+                return "|||", tuple(fuzzies)
+            if fuzzy_operators == {"AND"}:
+                return "&&&", tuple(fuzzies)
+            if fuzzy_operators == {"TERM"}:
+                return "===", tuple(fuzzies)
+            raise ValueError("All Fuzzy terms must use the same operator.")
 
         terms: list[str] = []
         for term in self._terms:
@@ -514,34 +669,68 @@ class ParadeDB:
                 raise TypeError("ParadeDB terms must be strings.")
             terms.append(term)
 
-        return "&&&", tuple(terms)
+        if self._operator == "OR":
+            operator = "|||"
+        elif self._operator == "TERM":
+            operator = "==="
+        else:
+            operator = "&&&"
+        return operator, tuple(terms)
 
     @staticmethod
     def _quote_term(term: str) -> str:
         escaped = term.replace("'", "''")
         return f"'{escaped}'"
 
+    @staticmethod
+    def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
+        if boost is not None:
+            sql = f"{sql}::pdb.boost({boost})"
+        if const is not None:
+            sql = f"{sql}::pdb.const({const})"
+        return sql
+
     def _render_term(
-        self, term: str | Phrase | Fuzzy | Parse | Term | Regex | All
+        self, term: str | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
     ) -> str:
         if isinstance(term, Phrase):
             literal = self._quote_term(term.text)
-            if term.slop is None:
-                return literal
-            return f"{literal}::pdb.slop({term.slop})"
+            if term.slop is not None:
+                literal = f"{literal}::pdb.slop({term.slop})"
+            if term.tokenizer is not None:
+                literal = f"{literal}::pdb.{term.tokenizer}"
+            return self._append_scoring(literal, boost=term.boost, const=term.const)
+        if isinstance(term, Proximity):
+            literal = self._quote_term(term.text)
+            literal = f"{literal}::pdb.proximity({term.distance})"
+            return self._append_scoring(literal, boost=term.boost, const=term.const)
         if isinstance(term, Fuzzy):
             literal = self._quote_term(term.text)
-            return f"{literal}::pdb.fuzzy({term.distance})"
+            fuzzy_args: list[str] = [str(term.distance)]
+            if term.transposition_cost_one:
+                fuzzy_args.extend(["t" if term.prefix else "f", "t"])
+            elif term.prefix:
+                fuzzy_args.append("t")
+            literal = f"{literal}::pdb.fuzzy({', '.join(fuzzy_args)})"
+            return self._append_scoring(literal, boost=term.boost, const=term.const)
         if isinstance(term, Parse):
-            options = self._render_options({"lenient": term.lenient})
-            return f"pdb.parse({self._quote_term(term.query)}{options})"
+            rendered = (
+                f"pdb.parse({self._quote_term(term.query)}"
+                f"{self._render_options({'lenient': term.lenient})})"
+            )
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Term):
-            return f"pdb.term({self._quote_term(term.text)})"
+            rendered = f"pdb.term({self._quote_term(term.text)})"
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Regex):
-            return f"pdb.regex({self._quote_term(term.pattern)})"
+            rendered = f"pdb.regex({self._quote_term(term.pattern)})"
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, All):
             return "pdb.all()"
-        return self._quote_term(term)
+        rendered = self._quote_term(term)
+        if self._tokenizer is not None:
+            rendered = f"{rendered}::pdb.{self._tokenizer}"
+        return self._append_scoring(rendered, boost=self._boost, const=self._const)
 
     @staticmethod
     def _render_options(options: dict[str, object | None]) -> str:
@@ -600,6 +789,7 @@ __all__ = [
     "ParadeDB",
     "Parse",
     "Phrase",
+    "Proximity",
     "Regex",
     "Term",
 ]

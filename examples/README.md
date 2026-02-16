@@ -72,6 +72,20 @@ Facets are the "filters" you see on shopping sites (e.g., "Brand (5)", "Color (3
 
 - **Aggregations**: Counting documents by category, rating, etc.
 - **Hybrid Results**: Getting search results _and_ facet counts together.
+- **Indexing for facets**: Text facet fields should be indexed with
+  `literal`/`literal_normalized` tokenizers (as done in `examples/common.py`).
+  Numeric fields like `rating` are naturally suited for aggregations.
+
+**About `fast` fields**
+
+This faceted example does not add explicit `fast` field options because the
+aggregated fields are already indexed in an aggregation-friendly way:
+
+- `category` and `metadata_color` use `literal` tokenization.
+- `rating` is numeric.
+
+Use explicit `fast` options when you need columnar behavior for other fields,
+especially when defining BM25 indexes through the Django `BM25Index` DSL.
 
 **Run it:**
 

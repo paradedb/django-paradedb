@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "django-paradedb"
 version = "0.2.0"
-description = "ParadeDB integration for Django"
+description = "Official ParadeDB integration for Django"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"

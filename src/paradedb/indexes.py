@@ -167,8 +167,9 @@ class BM25Index(models.Index):
             if not isinstance(field, models.Field):
                 continue
             column_name: str = getattr(field, "column")  # noqa: B009
+            field_key = config.get("alias") or column_name
             group = self._resolve_field_group(field)
-            field_groups[group][column_name] = {"fast": fast}
+            field_groups[group][field_key] = {"fast": fast}
 
         for group_name in (
             "text_fields",
@@ -186,6 +187,8 @@ class BM25Index(models.Index):
         return f"WITH ({', '.join(options)})"
 
     def _resolve_field_group(self, field: models.Field[Any, Any]) -> str:
+        if isinstance(field, models.ForeignKey):
+            field = field.target_field
         if isinstance(field, models.JSONField):
             return "json_fields"
         if isinstance(field, models.BooleanField):

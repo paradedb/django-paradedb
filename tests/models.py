@@ -25,6 +25,33 @@ class Product(models.Model):
         return self.description[:50]
 
 
+class Author(models.Model):
+    """Author model for FK testing."""
+
+    name = models.CharField(max_length=100)
+
+    class Meta:
+        app_label = "tests"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Book(models.Model):
+    """Book model with FK for testing fast fields on ForeignKey."""
+
+    title = models.TextField()
+    author = models.ForeignKey(Author, on_delete=models.CASCADE)
+
+    objects = ParadeDBManager()
+
+    class Meta:
+        app_label = "tests"
+
+    def __str__(self) -> str:
+        return self.title[:50]
+
+
 class MockItem(models.Model):
     """ParadeDB mock data table created via `paradedb.create_bm25_test_table`."""
 

@@ -8,7 +8,7 @@ from unittest.mock import Mock
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
 from paradedb.indexes import BM25Index
-from tests.models import Product
+from tests.models import Book, Product
 
 
 class DummySchemaEditor(BaseDatabaseSchemaEditor):
@@ -217,6 +217,40 @@ class TestFastFields:
             sql
             == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "price"\n)\nWITH (key_field=\'id\', numeric_fields=\'{"price":{"fast":true}}\')'
         )
+
+    def test_fast_field_with_alias(self):
+        """Fast field uses alias as key when alias is set."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizer": "simple",
+                    "alias": "description_simple",
+                    "fast": True,
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert "(\"description\"::pdb.simple('alias=description_simple'))" in sql
+        assert 'text_fields=\'{"description_simple":{"fast":true}}\'' in sql
+
+    def test_fast_field_foreign_key(self):
+        """Fast field on ForeignKey uses target field type (numeric, not text)."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "author": {"fast": True},
+            },
+            key_field="id",
+            name="book_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Book, schema_editor=schema_editor))
+        assert 'numeric_fields=\'{"author_id":{"fast":true}}\'' in sql
+        assert "text_fields" not in sql
 
     def test_fast_field_mixed_true_false(self):
         """Index with mixed fast=true and fast=false on different fields."""

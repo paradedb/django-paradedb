@@ -38,7 +38,7 @@ class Author(models.Model):
 
 
 class Book(models.Model):
-    """Book model with FK for testing fast fields on ForeignKey."""
+    """Book model with FK for testing fast (columnar) fields on ForeignKey."""
 
     title = models.TextField()
     author = models.ForeignKey(Author, on_delete=models.CASCADE)

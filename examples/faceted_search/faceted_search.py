@@ -7,7 +7,7 @@ query using the ParadeDBQuerySet.facets() helper (Top-N rows + buckets).
 Note:
 - Facets in this demo use `category` / `metadata_color` aliases indexed with
   the `literal` tokenizer and numeric `rating`.
-- For this pattern, no extra `fast` field config is required in the index.
+- For this pattern, no extra `fast` (columnar) field config is required in the index.
 """
 
 import sys

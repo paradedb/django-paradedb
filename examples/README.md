@@ -76,15 +76,15 @@ Facets are the "filters" you see on shopping sites (e.g., "Brand (5)", "Color (3
   `literal`/`literal_normalized` tokenizers (as done in `examples/common.py`).
   Numeric fields like `rating` are naturally suited for aggregations.
 
-**About `fast` fields**
+**About `fast` (columnar) fields**
 
-This faceted search example does not add explicit `fast` field options because the
+This faceted search example does not add explicit `fast` (columnar) field options because the
 aggregated fields are already indexed in an aggregation-friendly way:
 
 - `category` and `metadata_color` use `literal` tokenization.
 - `rating` is numeric.
 
-Use explicit `fast` options when you need columnar behavior for other fields,
+Use explicit `fast` (columnar) options when you need columnar behavior for other fields,
 especially when defining BM25 indexes through the Django `BM25Index` DSL.
 
 **Run it:**

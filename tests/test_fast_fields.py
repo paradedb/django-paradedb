@@ -1,6 +1,6 @@
-"""Tests for fast fields in BM25 index SQL generation.
+"""Tests for fast (columnar) fields in BM25 index SQL generation.
 
-This module tests the fast fields feature that enables columnar storage.
+This module tests the fast (columnar) fields feature that enables columnar storage.
 """
 
 from unittest.mock import Mock
@@ -24,7 +24,7 @@ class DummySchemaEditor(BaseDatabaseSchemaEditor):
 
 
 class TestFastFields:
-    """Test fast fields SQL generation."""
+    """Test fast (columnar) fields SQL generation."""
 
     def test_fast_field_text(self):
         """Index with fast=true on text field."""

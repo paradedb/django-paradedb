@@ -78,7 +78,7 @@ Facets are the "filters" you see on shopping sites (e.g., "Brand (5)", "Color (3
 
 **About `fast` fields**
 
-This faceted example does not add explicit `fast` field options because the
+This faceted search example does not add explicit `fast` field options because the
 aggregated fields are already indexed in an aggregation-friendly way:
 
 - `category` and `metadata_color` use `literal` tokenization.

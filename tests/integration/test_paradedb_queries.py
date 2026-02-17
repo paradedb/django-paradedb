@@ -66,11 +66,6 @@ def test_exact_literal_disjunction_multi() -> None:
     assert ids == {3, 12}
 
 
-def test_exact_literal_term() -> None:
-    ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes", operator="TERM")))
-    assert ids == {3, 4, 5}
-
-
 def test_phrase_with_slop() -> None:
     ids = _ids(
         MockItem.objects.filter(description=ParadeDB(Phrase("running shoes", slop=1)))
@@ -187,13 +182,6 @@ def test_const_does_not_change_result_set() -> None:
     baseline_ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes")))
     const_ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes", const=1.0)))
     assert const_ids == baseline_ids
-
-
-def test_const_with_fuzzy_rejected() -> None:
-    with pytest.raises(
-        ValueError, match="Fuzzy queries do not support constant scoring"
-    ):
-        Fuzzy("runnning", distance=1, const=1.0)
 
 
 def test_regex_query() -> None:

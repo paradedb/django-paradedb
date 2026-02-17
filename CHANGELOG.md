@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added (Unreleased)
+
+- `Proximity` query expression with unordered (`##`) and ordered (`##>`) forms
+- Plain string `ParadeDB(..., operator='OR' | 'AND')` support
+- `tokenizer=` override support for plain-string `ParadeDB(...)` queries
+- `tokenizer` support on `Phrase(...)`
+- Scoring modifiers across query expressions via `boost` and `const`
+- Extended `Fuzzy(...)` options: `operator`, `prefix`, `transposition_cost_one`
+
+### Changed
+
+- Added validation for incompatible argument combinations:
+  - `operator` on non-string `ParadeDB(...)` terms is rejected
+  - mixed fuzzy operators in one query are rejected
+  - mixed `Proximity(..., ordered=...)` flags in one query are rejected
+- Removed wrapper-side scoring validation for `boost`/`const`; scoring options are
+  forwarded to ParadeDB/PostgreSQL.
+
 ## [0.1.0] - 2025-01-30
 
 ### Added

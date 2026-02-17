@@ -25,23 +25,7 @@ from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
 
 PQOperator = Literal["OR", "AND"]
-TermOperator = Literal["OR", "AND", "TERM"]
 _DEFAULT_OPERATOR = object()
-_MIN_BOOST_FACTOR = -2048.0
-_MAX_BOOST_FACTOR = 2048.0
-
-
-def _validate_boost_factor(boost: float | None) -> None:
-    if boost is None:
-        return
-    if not (_MIN_BOOST_FACTOR <= boost <= _MAX_BOOST_FACTOR):
-        raise ValueError("Boost factor must be between -2048 and 2048 inclusive.")
-
-
-def _validate_scoring(boost: float | None, const: float | None) -> None:
-    _validate_boost_factor(boost)
-    if boost is not None and const is not None:
-        raise ValueError("boost and const are mutually exclusive.")
 
 
 @dataclass(frozen=True)
@@ -63,7 +47,6 @@ class Phrase:
     def __post_init__(self) -> None:
         if self.slop is not None and self.slop < 0:
             raise ValueError("Phrase slop must be zero or positive.")
-        _validate_scoring(self.boost, self.const)
 
 
 @dataclass(frozen=True)
@@ -79,7 +62,7 @@ class Fuzzy:
     distance: int = 1
     prefix: bool = False
     transposition_cost_one: bool = False
-    operator: TermOperator | None = None
+    operator: Literal["OR", "AND", "TERM"] | None = None
     boost: float | None = None
     const: float | None = None
 
@@ -90,9 +73,6 @@ class Fuzzy:
             raise ValueError("Fuzzy distance must be <= 2.")
         if self.operator not in (None, "OR", "AND", "TERM"):
             raise ValueError("Fuzzy operator must be one of: OR, AND, TERM.")
-        if self.const is not None:
-            raise ValueError("Fuzzy queries do not support constant scoring.")
-        _validate_scoring(self.boost, self.const)
 
 
 @dataclass(frozen=True)
@@ -108,7 +88,6 @@ class Proximity:
     def __post_init__(self) -> None:
         if self.distance < 0:
             raise ValueError("Proximity distance must be zero or positive.")
-        _validate_scoring(self.boost, self.const)
 
 
 @dataclass(frozen=True)
@@ -120,9 +99,6 @@ class Parse:
     boost: float | None = None
     const: float | None = None
 
-    def __post_init__(self) -> None:
-        _validate_scoring(self.boost, self.const)
-
 
 @dataclass(frozen=True)
 class Term:
@@ -132,9 +108,6 @@ class Term:
     boost: float | None = None
     const: float | None = None
 
-    def __post_init__(self) -> None:
-        _validate_scoring(self.boost, self.const)
-
 
 @dataclass(frozen=True)
 class Regex:
@@ -143,9 +116,6 @@ class Regex:
     pattern: str
     boost: float | None = None
     const: float | None = None
-
-    def __post_init__(self) -> None:
-        _validate_scoring(self.boost, self.const)
 
 
 @dataclass(frozen=True)
@@ -463,6 +433,12 @@ class ParadeDB:
         ParadeDB(Fuzzy('a'), Fuzzy('b'))     # ✅ Valid
         ParadeDB(Fuzzy('a'), 'b')            # ❌ Error - no mixing
 
+        # Important: operator='OR' and PQ(... | ...) are not equivalent.
+        # operator='OR' sends the raw string to ParadeDB (e.g. ||| 'running shoes'),
+        # which is tokenized using the column's configured tokenizer.
+        # PQ('running') | PQ('shoes') emits ||| ARRAY['running', 'shoes'],
+        # which bypasses tokenizer-based splitting.
+
     Raises:
         ValueError: If PQ is mixed with other terms, or Parse/Term/Regex/All
             is not provided as a single term, or operator is passed with
@@ -479,7 +455,7 @@ class ParadeDB:
         self,
         __term1: str,
         *terms: str,
-        operator: TermOperator = "AND",
+        operator: PQOperator = "AND",
         tokenizer: str | None = None,
         boost: float | None = None,
         const: float | None = None,
@@ -521,7 +497,7 @@ class ParadeDB:
     def __init__(
         self,
         *terms: str | PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All,
-        operator: TermOperator | object = _DEFAULT_OPERATOR,
+        operator: PQOperator | object = _DEFAULT_OPERATOR,
         tokenizer: str | None = None,
         boost: float | None = None,
         const: float | None = None,
@@ -532,13 +508,14 @@ class ParadeDB:
         self._tokenizer = tokenizer
         self._boost = boost
         self._const = const
-        _validate_scoring(self._boost, self._const)
         self._operator_provided = operator is not _DEFAULT_OPERATOR
-        self._operator: TermOperator = "AND"
+        self._operator: PQOperator = "AND"
         if operator is not _DEFAULT_OPERATOR:
-            if operator not in ("AND", "OR", "TERM"):
-                raise ValueError("ParadeDB operator must be 'AND', 'OR', or 'TERM'.")
-            self._operator = cast(TermOperator, operator)
+            if operator not in ("AND", "OR"):
+                raise ValueError(
+                    "ParadeDB operator must be 'AND' or 'OR'. Use Term('text') for exact token matching."
+                )
+            self._operator = cast(PQOperator, operator)
             if any(
                 isinstance(
                     term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
@@ -557,8 +534,6 @@ class ParadeDB:
             raise ValueError(
                 "ParadeDB tokenizer is only supported with plain string terms."
             )
-        if self._tokenizer is not None and self._operator == "TERM":
-            raise ValueError("ParadeDB tokenizer cannot be used with TERM operator.")
         if self._boost is not None and any(
             isinstance(
                 term, PQ | Phrase | Proximity | Fuzzy | Parse | Term | Regex | All
@@ -669,12 +644,7 @@ class ParadeDB:
                 raise TypeError("ParadeDB terms must be strings.")
             terms.append(term)
 
-        if self._operator == "OR":
-            operator = "|||"
-        elif self._operator == "TERM":
-            operator = "==="
-        else:
-            operator = "&&&"
+        operator = "|||" if self._operator == "OR" else "&&&"
         return operator, tuple(terms)
 
     @staticmethod

@@ -249,23 +249,34 @@ Product.objects.filter(description=ParadeDB('shoes'))
 Product.objects.filter(description=ParadeDB('running', 'shoes'))
 ```
 
-### Boolean Composition with PQ
+### Boolean Composition
 
-ParadeDB provides two ways to perform AND operations:
+ParadeDB supports boolean composition in two ways.
 
-#### Simple AND - Multiple Terms (Recommended for most cases)
+#### Plain String Terms with `operator=` (Recommended)
 
 ```python
 from paradedb.search import ParadeDB
 
-# Simple syntax - terms are automatically combined with AND
+# Default is AND
 Product.objects.filter(description=ParadeDB('running', 'shoes'))
 # SQL: WHERE description &&& ARRAY['running', 'shoes']
+
+# OR across plain string terms
+Product.objects.filter(description=ParadeDB('shoes', 'boots', operator='OR'))
+# SQL: WHERE description ||| ARRAY['shoes', 'boots']
 ```
 
-**Use this when:** You have a simple list of terms that must all match.
+**Use this when:** You are querying with plain strings.
 
-#### Explicit PQ Objects - Complex Boolean Logic
+**Important constraints:**
+
+- `operator=` only applies to plain string terms.
+- Supported values are `AND` and `OR`.
+- Do not pass `operator=` when using expression objects (`PQ`, `Phrase`, `Fuzzy`, etc.).
+- For exact token matching, use `Term(...)` query expressions.
+
+#### `PQ` Objects for Explicit Boolean Logic
 
 ```python
 from paradedb.search import ParadeDB, PQ
@@ -286,9 +297,9 @@ Product.objects.filter(
 
 **Use PQ when:**
 
-- You need **OR logic** (must use PQ with `|`)
-- You're building dynamic queries where the operator might vary
-- You want explicit control over boolean operators
+- You need explicit boolean trees with `|` and `&`
+- You are composing logic dynamically in application code
+- You want explicit control over grouped boolean structure
 
 #### Combining with Django Q Objects
 
@@ -305,11 +316,11 @@ Product.objects.filter(
 )
 ```
 
-**Note:** The simple comma-separated syntax `ParadeDB('a', 'b')` is equivalent to `ParadeDB(PQ('a') & PQ('b'))` but more concise. Use the simple syntax unless you need OR operations or explicit boolean control.
+**Note:** `ParadeDB('a', 'b')` is equivalent to `ParadeDB('a', 'b', operator='AND')`.
 
 ### Phrase Search
 
-Match exact phrases with optional slop (word distance)
+Match exact phrases with optional slop, tokenizer override, and scoring.
 
 ```python
 from paradedb.search import ParadeDB, Phrase
@@ -319,11 +330,37 @@ Product.objects.filter(description=ParadeDB(Phrase('running shoes')))
 
 # Phrase with slop (allow up to 2 words between)
 Product.objects.filter(description=ParadeDB(Phrase('running shoes', slop=2)))
+
+# Phrase with tokenizer override
+Product.objects.filter(
+    description=ParadeDB(Phrase('running shoes', tokenizer='whitespace'))
+)
+
+# Phrase with boost
+Product.objects.filter(description=ParadeDB(Phrase('running shoes', boost=1.5)))
+```
+
+### Proximity Search
+
+Match terms with distance constraints, with optional ordering.
+
+```python
+from paradedb.search import ParadeDB, Proximity
+
+# Unordered proximity
+Product.objects.filter(description=ParadeDB(Proximity('running shoes', distance=2)))
+# SQL uses ##
+
+# Ordered proximity
+Product.objects.filter(
+    description=ParadeDB(Proximity('running shoes', distance=2, ordered=True))
+)
+# SQL uses ##>
 ```
 
 ### Fuzzy Search
 
-Match terms with typo tolerance (Levenshtein distance)
+Match terms with typo tolerance (Levenshtein distance) and optional operator/flags.
 
 ```python
 from paradedb.search import ParadeDB, Fuzzy
@@ -333,7 +370,65 @@ Product.objects.filter(description=ParadeDB(Fuzzy('shoez')))
 
 # Fuzzy match with distance 2 (max)
 Product.objects.filter(description=ParadeDB(Fuzzy('runing', distance=2)))
+
+# Fuzzy AND form
+Product.objects.filter(description=ParadeDB(Fuzzy('runing shose', operator='AND')))
+
+# Fuzzy TERM form
+Product.objects.filter(description=ParadeDB(Fuzzy('shose', operator='TERM')))
+
+# Prefix and transposition options
+Product.objects.filter(
+    description=ParadeDB(
+        Fuzzy('shose', distance=1, prefix=True, transposition_cost_one=True, operator='TERM')
+    )
+)
 ```
+
+**Fuzzy constraints:**
+
+- `distance` must be `0..2`.
+- If multiple `Fuzzy(...)` terms are passed, all must use the same `operator`.
+
+### Tokenizer Overrides
+
+Apply tokenizer overrides to plain string terms and phrase expressions.
+
+```python
+from paradedb.search import ParadeDB, Phrase
+
+Product.objects.filter(description=ParadeDB('running shoes', tokenizer='whitespace'))
+Product.objects.filter(description=ParadeDB(Phrase('running shoes', tokenizer='whitespace')))
+```
+
+**Tokenizer constraints:**
+
+- `tokenizer=` with `ParadeDB(...)` is only for plain string terms.
+
+### Scoring Modifiers (`boost` and `const`)
+
+Attach scoring modifiers directly in query expressions.
+
+```python
+from paradedb.search import ParadeDB, Fuzzy, Parse, Phrase, Regex, Term
+
+# Plain string scoring
+Product.objects.filter(description=ParadeDB('shoes', boost=2.0))
+Product.objects.filter(description=ParadeDB('shoes', const=1.0))
+
+# Expression scoring
+Product.objects.filter(description=ParadeDB(Phrase('running shoes', boost=1.5)))
+Product.objects.filter(description=ParadeDB(Fuzzy('shose', distance=2, boost=2.0)))
+Product.objects.filter(description=ParadeDB(Parse('running AND shoes', boost=3.0)))
+Product.objects.filter(description=ParadeDB(Term('electronics', const=2.0)))
+Product.objects.filter(description=ParadeDB(Regex('run.*', const=1.0)))
+```
+
+**Scoring behavior:**
+
+- `django-paradedb` passes scoring modifiers through as-is.
+- For plain-string `ParadeDB(...)`, `boost`/`const` are only valid with plain string terms.
+- Any scoring-semantic errors are surfaced by ParadeDB/PostgreSQL at query execution time.
 
 ### Term Query
 
@@ -691,7 +786,7 @@ def _quote_term(term: str) -> str:
 
 **Which features use escaping:**
 
-- `ParadeDB()` - All search terms (strings, Phrase, Fuzzy, Parse, Term, Regex)
+- `ParadeDB()` - All search terms (strings, Phrase, Proximity, Fuzzy, Parse, Term, Regex)
 - `Snippet()` - HTML tag markers (start_sel, stop_sel)
 - `Agg()` - JSON aggregation specs
 
@@ -702,7 +797,7 @@ def _quote_term(term: str) -> str:
 
 **Why literals instead of parameters?**
 
-ParadeDB's full-text operators (`&&&`, `|||`, `###`, `@@@`) work with:
+ParadeDB's full-text operators (`&&&`, `|||`, `===`, `###`, `##`, `##>`, `@@@`) work with:
 
 1. Single string literals: `description &&& 'shoes'`
 2. Array literals: `description &&& ARRAY['running', 'shoes']`

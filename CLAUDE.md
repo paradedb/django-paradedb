@@ -11,5 +11,3 @@ To run a subset of tests, pass pytest selectors:
 ```bash
 PARADEDB_PASSWORD=postgres scripts/run_integration_tests.sh tests/integration/test_paradedb_queries.py::test_tokenizer_override_invalid_identifier
 ```
-
-The script exports `PARADEDB_TEST_DSN` and `PGPASSWORD` so Django connects using `postgres://postgres:postgres@localhost:5432/postgres` by default. Override `PARADEDB_PORT`, `PARADEDB_USER`, or `PARADEDB_DB` as needed.

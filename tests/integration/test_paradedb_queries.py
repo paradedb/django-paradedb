@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from django.db import connection
+from django.db import DatabaseError, connection
 from tests.models import MockItem
 
 from paradedb.functions import Snippet
@@ -235,14 +235,14 @@ def test_tokenizer_override_phrase() -> None:
 
 
 def test_tokenizer_override_invalid_identifier() -> None:
-    with pytest.raises(ValueError, match="tokenizer must be a valid identifier"):
+    with pytest.raises(DatabaseError, match="does not exist"):
         MockItem.objects.filter(
             description=ParadeDB("running shoes", tokenizer="bad-tokenizer;")
         ).exists()
 
 
 def test_phrase_tokenizer_invalid_identifier() -> None:
-    with pytest.raises(ValueError, match="Phrase tokenizer must be a valid identifier"):
+    with pytest.raises(DatabaseError, match="does not exist"):
         MockItem.objects.filter(
             description=ParadeDB(Phrase("running shoes", tokenizer="bad tokenizer"))
         ).exists()
@@ -318,9 +318,12 @@ def test_const_multi_term_or_query() -> None:
     assert len(ids) > 0
 
 
-def test_boost_and_const_mutually_exclusive() -> None:
-    with pytest.raises(ValueError, match="mutually exclusive"):
-        ParadeDB("shoes", boost=2.0, const=1.0)
+def test_boost_and_const_error_deferred_to_database() -> None:
+    queryset = MockItem.objects.filter(
+        description=ParadeDB("shoes", boost=2.0, const=1.0)
+    )
+    with pytest.raises(DatabaseError, match="cannot cast type"):
+        list(queryset)
 
 
 def test_regex_query() -> None:

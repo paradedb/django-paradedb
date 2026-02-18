@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -25,17 +24,11 @@ from django.db.models import (
 from django.db.models.expressions import Expression
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
+from psycopg import sql as pg_sql
 
 PQOperator = Literal["OR", "AND"]
 ParadeOperator = Literal["OR", "AND", "TERM"]
 _DEFAULT_OPERATOR = object()
-_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-
-
-def _validate_identifier(value: str, *, label: str) -> str:
-    if not _IDENTIFIER_RE.fullmatch(value):
-        raise ValueError(f"{label} must be a valid identifier.")
-    return value
 
 
 @dataclass(frozen=True)
@@ -57,12 +50,6 @@ class Phrase:
     def __post_init__(self) -> None:
         if self.slop is not None and self.slop < 0:
             raise ValueError("Phrase slop must be zero or positive.")
-        if self.tokenizer is not None:
-            _validate_identifier(self.tokenizer, label="Phrase tokenizer")
-        if self.boost is not None and self.const is not None:
-            raise ValueError(
-                "Phrase boost and const are mutually exclusive scoring modifiers."
-            )
 
 
 @dataclass(frozen=True)
@@ -89,10 +76,6 @@ class Fuzzy:
             raise ValueError("Fuzzy distance must be <= 2.")
         if self.operator not in (None, "OR", "AND", "TERM"):
             raise ValueError("Fuzzy operator must be one of: OR, AND, TERM.")
-        if self.boost is not None and self.const is not None:
-            raise ValueError(
-                "Fuzzy boost and const are mutually exclusive scoring modifiers."
-            )
 
 
 @dataclass(frozen=True)
@@ -108,10 +91,6 @@ class Proximity:
     def __post_init__(self) -> None:
         if self.distance < 0:
             raise ValueError("Proximity distance must be zero or positive.")
-        if self.boost is not None and self.const is not None:
-            raise ValueError(
-                "Proximity boost and const are mutually exclusive scoring modifiers."
-            )
 
 
 @dataclass(frozen=True)
@@ -123,12 +102,6 @@ class Parse:
     conjunction_mode: bool | None = None
     boost: float | None = None
     const: float | None = None
-
-    def __post_init__(self) -> None:
-        if self.boost is not None and self.const is not None:
-            raise ValueError(
-                "Parse boost and const are mutually exclusive scoring modifiers."
-            )
 
 
 @dataclass(frozen=True)
@@ -149,10 +122,6 @@ class PhrasePrefix:
     ) -> None:
         if not phrases:
             raise ValueError("PhrasePrefix requires at least one phrase term.")
-        if boost is not None and const is not None:
-            raise ValueError(
-                "PhrasePrefix boost and const are mutually exclusive scoring modifiers."
-            )
         object.__setattr__(self, "phrases", tuple(phrases))
         object.__setattr__(self, "max_expansion", max_expansion)
         object.__setattr__(self, "boost", boost)
@@ -181,10 +150,6 @@ class RegexPhrase:
             raise ValueError("RegexPhrase requires at least one regex term.")
         if slop is not None and slop < 0:
             raise ValueError("RegexPhrase slop must be zero or positive.")
-        if boost is not None and const is not None:
-            raise ValueError(
-                "RegexPhrase boost and const are mutually exclusive scoring modifiers."
-            )
         object.__setattr__(self, "regexes", tuple(regexes))
         object.__setattr__(self, "slop", slop)
         object.__setattr__(self, "max_expansions", max_expansions)
@@ -209,10 +174,6 @@ class ProximityRegex:
             raise ValueError("ProximityRegex distance must be zero or positive.")
         if self.max_expansions < 0:
             raise ValueError("ProximityRegex max_expansions must be zero or positive.")
-        if self.boost is not None and self.const is not None:
-            raise ValueError(
-                "ProximityRegex boost and const are mutually exclusive scoring modifiers."
-            )
 
 
 @dataclass(frozen=True)
@@ -245,10 +206,6 @@ class ProximityArray:
             raise ValueError("ProximityArray distance must be zero or positive.")
         if max_expansions < 0:
             raise ValueError("ProximityArray max_expansions must be zero or positive.")
-        if boost is not None and const is not None:
-            raise ValueError(
-                "ProximityArray boost and const are mutually exclusive scoring modifiers."
-            )
         object.__setattr__(self, "left_terms", tuple(left_terms))
         object.__setattr__(self, "right_term", right_term)
         object.__setattr__(self, "distance", distance)
@@ -306,10 +263,6 @@ class RangeTerm:
             )
         if self.range_type is not None:
             _validate_range_type(self.range_type)
-        if self.boost is not None and self.const is not None:
-            raise ValueError(
-                "RangeTerm boost and const are mutually exclusive scoring modifiers."
-            )
 
 
 @dataclass(frozen=True)
@@ -320,12 +273,6 @@ class Term:
     boost: float | None = None
     const: float | None = None
 
-    def __post_init__(self) -> None:
-        if self.boost is not None and self.const is not None:
-            raise ValueError(
-                "Term boost and const are mutually exclusive scoring modifiers."
-            )
-
 
 @dataclass(frozen=True)
 class Regex:
@@ -334,12 +281,6 @@ class Regex:
     pattern: str
     boost: float | None = None
     const: float | None = None
-
-    def __post_init__(self) -> None:
-        if self.boost is not None and self.const is not None:
-            raise ValueError(
-                "Regex boost and const are mutually exclusive scoring modifiers."
-            )
 
 
 @dataclass(frozen=True)
@@ -754,8 +695,6 @@ class ParadeDB:
             raise ValueError("ParadeDB requires at least one search term.")
         self._terms = terms
         self._tokenizer = tokenizer
-        if self._tokenizer is not None:
-            _validate_identifier(self._tokenizer, label="ParadeDB tokenizer")
         self._boost = boost
         self._const = const
         self._operator_provided = operator is not _DEFAULT_OPERATOR
@@ -852,10 +791,6 @@ class ParadeDB:
             raise ValueError(
                 "ParadeDB const is only supported with plain string terms."
             )
-        if self._boost is not None and self._const is not None:
-            raise ValueError(
-                "ParadeDB boost and const are mutually exclusive scoring modifiers; use one or the other."
-            )
 
     def resolve_expression(
         self,
@@ -877,12 +812,11 @@ class ParadeDB:
         lhs_sql: str,
     ) -> tuple[str, list[object]]:
         operator, terms = self._resolve_terms()
-        literals = [self._render_term(term) for term in terms]
+        literals = [self._render_term(term, _connection) for term in terms]
 
         if len(literals) == 1:
             # For plain strings, _render_term returns bare literals; scoring is applied here.
-            # For structured types, _render_term already bakes in term-level scoring,
-            # and self._boost/self._const are None (enforced by __init__).
+            # For structured types, _render_term already bakes in term-level scoring.
             scored = self._append_scoring(
                 literals[0], boost=self._boost, const=self._const
             )
@@ -1027,10 +961,6 @@ class ParadeDB:
 
     @staticmethod
     def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
-        if boost is not None and const is not None:
-            raise ValueError(
-                "boost and const are mutually exclusive scoring modifiers; use one or the other."
-            )
         if boost is not None:
             sql = f"{sql}::pdb.boost({boost})"
         if const is not None:
@@ -1052,6 +982,7 @@ class ParadeDB:
         | Term
         | Regex
         | All,
+        connection: BaseDatabaseWrapper,
     ) -> str:
         if isinstance(term, Phrase):
             literal = self._quote_term(term.text)
@@ -1061,10 +992,10 @@ class ParadeDB:
                 if term.const is not None:
                     literal = f"{literal}::pdb.query"
             if term.tokenizer is not None:
-                tokenizer = _validate_identifier(
-                    term.tokenizer, label="Phrase tokenizer"
+                quoted = pg_sql.Identifier(term.tokenizer).as_string(
+                    connection.connection
                 )
-                literal = f"{literal}::pdb.{tokenizer}"
+                literal = f"{literal}::pdb.{quoted}"
             return self._append_scoring(literal, boost=term.boost, const=term.const)
         if isinstance(term, Proximity):
             words = [word for word in term.text.split() if word]
@@ -1158,7 +1089,8 @@ class ParadeDB:
             return "pdb.all()"
         rendered = self._quote_term(term)
         if self._tokenizer is not None:
-            rendered = f"{rendered}::pdb.{self._tokenizer}"
+            quoted = pg_sql.Identifier(self._tokenizer).as_string(connection.connection)
+            rendered = f"{rendered}::pdb.{quoted}"
         # Scoring is NOT applied here for plain strings: as_sql applies self._boost/self._const
         # at the right level (to the single literal or to the ARRAY as a whole).
         return rendered

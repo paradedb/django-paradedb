@@ -1,6 +1,6 @@
 """Tests for SQL generation.
 
-This plugin tests SQL string generation only - no database required.
+This module tests SQL string generation only - no database required.
 """
 
 import json

@@ -86,6 +86,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JSON field key indexing support
 - Full Django ORM integration with `Q` objects and standard filters
 
-[0.2.0]: https://github.com/paradedb/django-paradedb/releases/tag/v0.2.0
-[0.1.1]: https://github.com/paradedb/django-paradedb/releases/tag/v0.1.1
+[0.2.0]: https://github.com/paradedb/django-paradedb/compare/v0.1.1...e8734548d5e823efd7bac4bef0d56a2a6d18c865
+[0.1.1]: https://github.com/paradedb/django-paradedb/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/paradedb/django-paradedb/releases/tag/v0.1.0

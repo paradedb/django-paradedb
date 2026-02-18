@@ -2,7 +2,7 @@
 
 ParadeDB's pdb.agg() function provides fast aggregations using the columnar
 portion of the BM25 index. Note: Window functions (OVER clause) require a
-Top-N query with ORDER BY + LIMIT in pg_search 0.21.7.
+Top-N query with ORDER BY + LIMIT in pg_search 0.21.8.
 """
 
 from __future__ import annotations

@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-paradedb"
-version = "0.1.1"
-description = "ParadeDB integration for Django"
+version = "0.2.0"
+description = "Official ParadeDB integration for Django"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 authors = [
     { name = "ParadeDB", email = "support@paradedb.com" },
 ]
@@ -29,22 +29,27 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Web Environment",
     "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.2",
     "Framework :: Django :: 6.0",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Database",
     "Topic :: Internet :: WWW/HTTP",
 ]
 dependencies = [
-    "Django>=6.0",
+    "Django>=4.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "prek>=0.1.0",
     "ruff>=0.8",
     "mypy>=1.13",
     "django-stubs>=5.1",
@@ -52,10 +57,9 @@ dev = [
     "pytest-django>=4.9",
     "pytest-cov>=6.0",
     "psycopg[binary]>=3.1",
-    "psycopg2-binary>=2.9",
 ]
 [project.urls]
-Homepage = "https://github.com/paradedb/django-paradedb"
+Homepage = "https://paradedb.com"
 Documentation = "https://docs.paradedb.com"
 Repository = "https://github.com/paradedb/django-paradedb"
 Issues = "https://github.com/paradedb/django-paradedb/issues"
@@ -64,7 +68,7 @@ Issues = "https://github.com/paradedb/django-paradedb/issues"
 packages = ["src/paradedb"]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py310"
 line-length = 88
 src = ["src", "tests"]
 
@@ -91,7 +95,7 @@ ignore = [
 known-first-party = ["paradedb"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.10"
 strict = true
 plugins = ["mypy_django_plugin.main"]
 

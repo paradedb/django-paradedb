@@ -13,10 +13,10 @@
 
 | Component  | Supported                        |
 | ---------- | -------------------------------- |
-| Python     | 3.10, 3.11, 3.12, 3.13          |
-| Django     | 5.2, 6.0                         |
-| ParadeDB   | 0.21.\*                          |
-| PostgreSQL | 17, 18 (with ParadeDB extension) |
+| Python     | 3.10+                            |
+| Django     | 4.2+                             |
+| ParadeDB   | 0.21.0+                          |
+| PostgreSQL | 17+    (with ParadeDB extension) |
 
 ## Installation
 
@@ -748,7 +748,8 @@ rows, facets = (
 
 ```python
 # Filter, annotate, order, limit, then facet
-from paradedb.search import ParadeDB, Score
+from paradedb.functions import Score
+from paradedb.search import ParadeDB
 
 rows, facets = (
     Product.objects
@@ -901,9 +902,9 @@ Parameterized queries would require PostgreSQL to parse the search syntax at exe
 
 **Safety Guarantee:**
 
-All escaping follows PostgreSQL's standard string literal rules. The implementation has been reviewed by Django Security Framework members and is protected by:
+All escaping follows PostgreSQL's standard string literal rules. The implementation has been reviewed by Django Software Foundation members and is protected by:
 
-- Comprehensive test coverage (103 tests including special character escaping)
+- Comprehensive test coverage (300+ tests including special character escaping)
 - Input validation at the ORM layer
 - PostgreSQL's built-in literal escaping semantics
 
@@ -931,7 +932,7 @@ Product.objects.filter(description=ParadeDB(user_query))
 # Install dev dependencies
 pip install -e ".[dev]"
 
-# Setup prek hooks
+# Set up prek hooks
 prek install
 ```
 

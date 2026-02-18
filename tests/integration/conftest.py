@@ -8,9 +8,9 @@ import pytest
 from django.db import connection
 
 try:
-    import psycopg2  # noqa: F401
+    import psycopg  # noqa: F401
 except ImportError as exc:
-    raise RuntimeError("psycopg2 is required to run integration tests") from exc
+    raise RuntimeError("psycopg is required to run integration tests") from exc
 
 
 def _require_postgres() -> None:

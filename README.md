@@ -265,6 +265,10 @@ Product.objects.filter(description=ParadeDB('running', 'shoes'))
 # OR across plain string terms
 Product.objects.filter(description=ParadeDB('shoes', 'boots', operator='OR'))
 # SQL: WHERE description ||| ARRAY['shoes', 'boots']
+
+# TERM operator for exact token / array-element matching
+Product.objects.filter(description=ParadeDB('shoes', operator='TERM'))
+# SQL: WHERE description === 'shoes'
 ```
 
 **Use this when:** You are querying with plain strings.
@@ -272,9 +276,9 @@ Product.objects.filter(description=ParadeDB('shoes', 'boots', operator='OR'))
 **Important constraints:**
 
 - `operator=` only applies to plain string terms.
-- Supported values are `AND` and `OR`.
+- Supported values are `AND`, `OR`, and `TERM`.
 - Do not pass `operator=` when using expression objects (`PQ`, `Phrase`, `Fuzzy`, etc.).
-- For exact token matching, use `Term(...)` query expressions.
+- `TERM` (`===`) also works for `text[]` element search.
 
 #### `PQ` Objects for Explicit Boolean Logic
 
@@ -345,18 +349,33 @@ Product.objects.filter(description=ParadeDB(Phrase('running shoes', boost=1.5)))
 Match terms with distance constraints, with optional ordering.
 
 ```python
-from paradedb.search import ParadeDB, Proximity
+from paradedb.search import ParadeDB, Proximity, ProximityArray, ProximityRegex
 
 # Unordered proximity
 Product.objects.filter(description=ParadeDB(Proximity('running shoes', distance=2)))
-# SQL uses ##
+# SQL: WHERE description @@@ pdb.proximity('running' ## 2 ## 'shoes')
 
 # Ordered proximity
 Product.objects.filter(
     description=ParadeDB(Proximity('running shoes', distance=2, ordered=True))
 )
-# SQL uses ##>
+# SQL: WHERE description @@@ pdb.proximity('running' ##> 2 ##> 'shoes')
+
+# Proximity with regex clause
+Product.objects.filter(
+    description=ParadeDB(ProximityRegex('running', 'sho.*', distance=1))
+)
+
+# Proximity with prox_array clause
+Product.objects.filter(
+    description=ParadeDB(ProximityArray('sleek', 'running', right_term='shoes', distance=1))
+)
 ```
+
+**Proximity constraints:**
+
+- `Proximity(...)` must be passed as a single term to `ParadeDB(...)`.
+- `text` must include at least two whitespace-separated terms.
 
 ### Fuzzy Search
 
@@ -429,6 +448,81 @@ Product.objects.filter(description=ParadeDB(Regex('run.*', const=1.0)))
 - `django-paradedb` passes scoring modifiers through as-is.
 - For plain-string `ParadeDB(...)`, `boost`/`const` are only valid with plain string terms.
 - Any scoring-semantic errors are surfaced by ParadeDB/PostgreSQL at query execution time.
+
+### Parse Query
+
+Use ParadeDB's parser with optional parse options.
+
+```python
+from paradedb.search import ParadeDB, Parse
+
+# Lenient parse behavior
+Product.objects.filter(description=ParadeDB(Parse('running AND shoes', lenient=True)))
+
+# Treat whitespace-separated terms as conjunctions
+Product.objects.filter(description=ParadeDB(Parse('running shoes', conjunction_mode=True)))
+```
+
+### Phrase Prefix Query
+
+Match phrases where the last term can be a prefix.
+
+```python
+from paradedb.search import ParadeDB, PhrasePrefix
+
+# Prefix phrase query
+Product.objects.filter(description=ParadeDB(PhrasePrefix('running', 'sh')))
+
+# Control the max expansion count
+Product.objects.filter(
+    description=ParadeDB(PhrasePrefix('running', 'sh', max_expansion=100))
+)
+```
+
+### Regex Phrase Query
+
+Match phrase-shaped regex patterns.
+
+```python
+from paradedb.search import ParadeDB, RegexPhrase
+
+Product.objects.filter(description=ParadeDB(RegexPhrase('run.*', 'sho.*')))
+Product.objects.filter(
+    description=ParadeDB(RegexPhrase('run.*', 'sho.*', slop=2, max_expansions=100))
+)
+```
+
+### Range Term Query
+
+Range-term queries on range-typed indexed fields.
+
+```python
+from paradedb.search import ParadeDB, RangeTerm
+
+# Scalar term query
+Product.objects.filter(weight_range=ParadeDB(RangeTerm(1)))
+
+# Explicit range + relation query
+Product.objects.filter(
+    weight_range=ParadeDB(
+        RangeTerm('(10, 12]', relation='Intersects', range_type='int4range')
+    )
+)
+```
+
+### Ad-Hoc Expression Search
+
+ParadeDB operators can target SQL expressions (when indexed accordingly).
+
+```python
+from django.db.models import F, TextField, Value
+from django.db.models.functions import Concat
+from paradedb.search import ParadeDB
+
+Product.objects.annotate(
+    combined=Concat(F('description'), Value(' '), F('category'), output_field=TextField())
+).filter(combined=ParadeDB('running Sportswear', tokenizer='simple'))
+```
 
 ### Term Query
 

@@ -14,8 +14,13 @@ from paradedb.search import (
     ParadeDB,
     Parse,
     Phrase,
+    PhrasePrefix,
     Proximity,
+    ProximityArray,
+    ProximityRegex,
+    RangeTerm,
     Regex,
+    RegexPhrase,
     Term,
 )
 
@@ -28,6 +33,17 @@ pytestmark = [
 
 def _ids(queryset) -> set[int]:
     return set(queryset.values_list("id", flat=True))
+
+
+def _raw_ids(sql: str) -> set[int]:
+    with connection.cursor() as cursor:
+        cursor.execute(sql)
+        return {int(row[0]) for row in cursor.fetchall()}
+
+
+def _where_sql(lhs_sql: str, expr: ParadeDB) -> str:
+    sql, _ = expr.as_sql(None, connection, lhs_sql)  # type: ignore[arg-type]
+    return sql
 
 
 def test_pq_or_semantics() -> None:
@@ -66,6 +82,11 @@ def test_exact_literal_disjunction_multi() -> None:
     assert ids == {3, 12}
 
 
+def test_term_operator_for_plain_strings() -> None:
+    ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes", operator="TERM")))
+    assert ids == {3, 4, 5}
+
+
 def test_phrase_with_slop() -> None:
     ids = _ids(
         MockItem.objects.filter(description=ParadeDB(Phrase("running shoes", slop=1)))
@@ -89,6 +110,58 @@ def test_proximity_ordered() -> None:
         )
     )
     assert 3 in ids
+
+
+def test_proximity_with_boost() -> None:
+    baseline_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Proximity("sleek running", distance=2, ordered=True))
+        )
+    )
+    boosted_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                Proximity("sleek running", distance=2, ordered=True, boost=2.0)
+            )
+        )
+    )
+    assert boosted_ids == baseline_ids
+
+
+def test_proximity_with_const() -> None:
+    baseline_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Proximity("sleek running", distance=2, ordered=True))
+        )
+    )
+    const_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                Proximity("sleek running", distance=2, ordered=True, const=1.0)
+            )
+        )
+    )
+    assert const_ids == baseline_ids
+
+
+def test_proximity_regex_query() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(ProximityRegex("running", "sho.*", distance=1))
+        )
+    )
+    assert ids == {3}
+
+
+def test_proximity_array_query() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray("sleek", "running", right_term="shoes", distance=1)
+            )
+        )
+    )
+    assert ids == {3}
 
 
 def test_fuzzy_distance() -> None:
@@ -198,9 +271,174 @@ def test_parse_lenient() -> None:
     assert ids == {3}
 
 
+def test_parse_conjunction_mode() -> None:
+    default_ids = _ids(
+        MockItem.objects.filter(description=ParadeDB(Parse("running shoes")))
+    )
+    conjunction_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Parse("running shoes", conjunction_mode=True))
+        )
+    )
+    assert conjunction_ids == {3}
+    assert conjunction_ids.issubset(default_ids)
+    assert len(default_ids) > len(conjunction_ids)
+
+
+def test_phrase_prefix_query() -> None:
+    ids = _ids(
+        MockItem.objects.filter(description=ParadeDB(PhrasePrefix("running", "sh")))
+    )
+    assert ids == {3}
+
+
+def test_phrase_prefix_with_max_expansion() -> None:
+    baseline_ids = _ids(
+        MockItem.objects.filter(description=ParadeDB(PhrasePrefix("running", "sh")))
+    )
+    expanded_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(PhrasePrefix("running", "sh", max_expansion=100))
+        )
+    )
+    assert expanded_ids == baseline_ids
+
+
+def test_phrase_prefix_with_boost() -> None:
+    baseline_ids = _ids(
+        MockItem.objects.filter(description=ParadeDB(PhrasePrefix("running", "sh")))
+    )
+    boosted_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(PhrasePrefix("running", "sh", boost=2.0))
+        )
+    )
+    assert boosted_ids == baseline_ids
+
+
+def test_phrase_prefix_with_const() -> None:
+    baseline_ids = _ids(
+        MockItem.objects.filter(description=ParadeDB(PhrasePrefix("running", "sh")))
+    )
+    const_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(PhrasePrefix("running", "sh", const=1.0))
+        )
+    )
+    assert const_ids == baseline_ids
+
+
+def test_regex_phrase_query() -> None:
+    ids = _ids(
+        MockItem.objects.filter(description=ParadeDB(RegexPhrase("run.*", "sho.*")))
+    )
+    assert ids == {3}
+
+
+def test_regex_phrase_with_options() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                RegexPhrase("run.*", "sho.*", slop=2, max_expansions=100)
+            )
+        )
+    )
+    assert ids == {3}
+
+
 def test_term_query() -> None:
     ids = _ids(MockItem.objects.filter(description=ParadeDB(Term("shoes"))))
     assert ids == {3, 4, 5}
+
+
+def test_array_element_search_operator_with_text_array() -> None:
+    with connection.cursor() as cursor:
+        cursor.execute("DROP TABLE IF EXISTS tmp_array_ops;")
+        cursor.execute(
+            "CREATE TABLE tmp_array_ops (id integer primary key, tags text[], description text);"
+        )
+        cursor.execute(
+            "INSERT INTO tmp_array_ops (id, tags, description) VALUES "
+            "(1, ARRAY['red','shoe'], 'red shoe'), "
+            "(2, ARRAY['blue','hat'], 'blue hat'), "
+            "(3, ARRAY['red','hat'], 'red hat');"
+        )
+        cursor.execute(
+            "CREATE INDEX tmp_array_ops_bm25_idx ON tmp_array_ops USING bm25 "
+            "(id, tags, description) WITH (key_field='id');"
+        )
+
+    where_sql = _where_sql("tags", ParadeDB("red", operator="TERM"))
+    ids = _raw_ids(f"SELECT id FROM tmp_array_ops WHERE {where_sql} ORDER BY id;")
+    assert ids == {1, 3}
+
+    with connection.cursor() as cursor:
+        cursor.execute("DROP TABLE IF EXISTS tmp_array_ops;")
+
+
+def test_range_term_query_with_range_field() -> None:
+    with connection.cursor() as cursor:
+        cursor.execute("DROP TABLE IF EXISTS tmp_range_ops;")
+        cursor.execute(
+            "CREATE TABLE tmp_range_ops (id integer primary key, weight_range int4range, description text);"
+        )
+        cursor.execute(
+            "INSERT INTO tmp_range_ops (id, weight_range, description) VALUES "
+            "(1, '[1,4]'::int4range, 'low'), "
+            "(2, '[3,9]'::int4range, 'mid'), "
+            "(3, '[10,12]'::int4range, 'high');"
+        )
+        cursor.execute(
+            "CREATE INDEX tmp_range_ops_bm25_idx ON tmp_range_ops USING bm25 "
+            "(id, weight_range, description) WITH (key_field='id');"
+        )
+
+    scalar_where = _where_sql("weight_range", ParadeDB(RangeTerm(1)))
+    scalar_ids = _raw_ids(
+        f"SELECT id FROM tmp_range_ops WHERE {scalar_where} ORDER BY id;"
+    )
+    assert scalar_ids == {1}
+
+    relation_where = _where_sql(
+        "weight_range",
+        ParadeDB(RangeTerm("(10, 12]", relation="Intersects", range_type="int4range")),
+    )
+    relation_ids = _raw_ids(
+        f"SELECT id FROM tmp_range_ops WHERE {relation_where} ORDER BY id;"
+    )
+    assert relation_ids == {3}
+
+    with connection.cursor() as cursor:
+        cursor.execute("DROP TABLE IF EXISTS tmp_range_ops;")
+
+
+def test_paradedb_operators_over_expression_lhs() -> None:
+    with connection.cursor() as cursor:
+        cursor.execute("DROP TABLE IF EXISTS tmp_expr_ops;")
+        cursor.execute(
+            "CREATE TABLE tmp_expr_ops (id integer primary key, description text, category text);"
+        )
+        cursor.execute(
+            "INSERT INTO tmp_expr_ops (id, description, category) VALUES "
+            "(1, 'sleek running shoes', 'Sportswear'), "
+            "(2, 'wireless earbuds', 'Electronics'), "
+            "(3, 'formal shoes', 'Fashion');"
+        )
+        cursor.execute(
+            "CREATE INDEX tmp_expr_ops_bm25_idx ON tmp_expr_ops USING bm25 "
+            "(id, (((description || ' ' || category)::pdb.simple('alias=combined')))) "
+            "WITH (key_field='id');"
+        )
+
+    expr_where = _where_sql(
+        "(description || ' ' || category)",
+        ParadeDB("running Sportswear", tokenizer="simple"),
+    )
+    ids = _raw_ids(f"SELECT id FROM tmp_expr_ops WHERE {expr_where} ORDER BY id;")
+    assert ids == {1}
+
+    with connection.cursor() as cursor:
+        cursor.execute("DROP TABLE IF EXISTS tmp_expr_ops;")
 
 
 def test_snippet_rendering() -> None:

@@ -44,7 +44,7 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         missing: object | None = None,
         agg: dict[str, object] | str | None = None,
         include_rows: bool = True,
-        consistent: bool | None = None,
+        exact: bool | None = None,
     ) -> dict[str, object] | tuple[list[Any], dict[str, object]]:
         # Faceted queries require pdb.agg() OVER () with ORDER BY + LIMIT and a ParadeDB
         # operator in the WHERE clause to trigger the custom scan.
@@ -61,9 +61,9 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         self._require_paradedb_operator()
         if include_rows:
             self._require_order_by_and_limit()
-        elif consistent is False:
+        elif exact is False:
             raise ValueError(
-                "facets(consistent=False) requires include_rows=True so the aggregation "
+                "facets(exact=False) requires include_rows=True so the aggregation "
                 "runs as a window function."
             )
 
@@ -78,37 +78,35 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         if include_rows:
             queryset = self._normalized_queryset()
             annotations = {
-                alias: Window(expression=Agg(spec, consistent=consistent))
+                alias: Window(expression=Agg(spec, exact=exact))
                 for alias, spec in agg_specs.items()
             }
             queryset = queryset.annotate(**annotations)
             rows = list(queryset)
             if not rows:
-                facets = self._facets_only_multi(agg_specs, consistent=consistent)
+                facets = self._facets_only_multi(agg_specs, exact=exact)
             else:
                 facets = self._extract_facets_multi(rows, list(agg_specs.keys()))
             return rows, facets
 
-        return self._facets_only_multi(agg_specs, consistent=consistent)
+        return self._facets_only_multi(agg_specs, exact=exact)
 
     def _normalized_queryset(self) -> ParadeDBQuerySet:
         return cast(ParadeDBQuerySet, self._chain())  # type: ignore[attr-defined]
 
     def _facets_only(
-        self, json_spec: str, *, consistent: bool | None = None
+        self, json_spec: str, *, exact: bool | None = None
     ) -> dict[str, object]:
         queryset = self._normalized_queryset()
-        result = queryset.aggregate(
-            _paradedb_facets=Agg(json_spec, consistent=consistent)
-        )
+        result = queryset.aggregate(_paradedb_facets=Agg(json_spec, exact=exact))
         return result.get("_paradedb_facets") or {}
 
     def _facets_only_multi(
-        self, agg_specs: dict[str, str], *, consistent: bool | None = None
+        self, agg_specs: dict[str, str], *, exact: bool | None = None
     ) -> dict[str, object]:
         queryset = self._normalized_queryset()
         aggregations = {
-            alias: Agg(spec, consistent=consistent) for alias, spec in agg_specs.items()
+            alias: Agg(spec, exact=exact) for alias, spec in agg_specs.items()
         }
         result = queryset.aggregate(**aggregations)
         if len(agg_specs) == 1:

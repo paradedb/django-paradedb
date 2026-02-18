@@ -40,16 +40,16 @@ class TestFacetsIntegration:
         for row in rows:
             assert not hasattr(row, "_paradedb_facets")
 
-    @pytest.mark.parametrize("consistent", [None, True, False])
-    def test_facets_consistent_toggle(self, consistent: bool | None) -> None:
-        """Facets allow consistent defaults, explicit true, and explicit false."""
+    @pytest.mark.parametrize("exact", [None, True, False])
+    def test_facets_exact_toggle(self, exact: bool | None) -> None:
+        """Facets allow exact defaults, explicit true, and explicit false."""
         queryset = MockItem.objects.filter(description=ParadeDB("shoes")).order_by(
             "rating"
         )[:3]
-        if consistent is None:
+        if exact is None:
             rows, facets = queryset.facets("rating")
         else:
-            rows, facets = queryset.facets("rating", consistent=consistent)
+            rows, facets = queryset.facets("rating", exact=exact)
         assert isinstance(facets, dict)
         assert "buckets" in facets
         assert len(rows) <= 3

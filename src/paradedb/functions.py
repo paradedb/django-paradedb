@@ -170,11 +170,11 @@ class Agg(Func):
     contains_aggregate = True
     window_compatible = True
 
-    def __init__(self, json_spec: str, *, consistent: bool | None = None) -> None:
-        if consistent is not None and not isinstance(consistent, bool):
-            raise TypeError("Agg consistent must be a boolean when provided.")
+    def __init__(self, json_spec: str, *, exact: bool | None = None) -> None:
+        if exact is not None and not isinstance(exact, bool):
+            raise TypeError("Agg exact must be a boolean when provided.")
         self._json_spec = json_spec
-        self._consistent = consistent
+        self._exact = exact
         super().__init__()
 
     def as_sql(  # type: ignore[override]
@@ -184,7 +184,7 @@ class Agg(Func):
         **_extra_context: Any,
     ) -> tuple[str, list[Any]]:
         json_literal = _quote_term(self._json_spec)
-        if self._consistent is False:
+        if self._exact is False:
             sql = f"{self.function}({json_literal}, false)"
         else:
             sql = f"{self.function}({json_literal})"

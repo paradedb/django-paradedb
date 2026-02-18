@@ -1550,11 +1550,11 @@ class TestFacets:
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.agg(\'{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}\') OVER () AS "facets" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
 
-    def test_facets_window_annotation_approximate(self) -> None:
-        """Approximate facets emit the second pdb.agg argument."""
+    def test_facets_window_annotation_exact_false(self) -> None:
+        """Non-exact (exact=False) facets emit the second pdb.agg argument."""
         json_spec = '{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}'
         queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
-            facets=Window(expression=Agg(json_spec, approximate=True))
+            facets=Window(expression=Agg(json_spec, exact=False))
         )
         assert (
             str(queryset.query)
@@ -1573,11 +1573,11 @@ class TestFacets:
         with pytest.raises(ValueError, match="order_by\\(\\) and a LIMIT"):
             queryset.facets("category")
 
-    def test_facets_approximate_requires_window(self) -> None:
-        """Approximate facets require windowed aggregations."""
+    def test_facets_exact_false_requires_window(self) -> None:
+        """exact=False facets require windowed aggregations."""
         queryset = Product.objects.filter(description=ParadeDB("shoes"))
-        with pytest.raises(ValueError, match="approximate=True"):
-            queryset.facets("category", include_rows=False, approximate=True)
+        with pytest.raises(ValueError, match="exact=False"):
+            queryset.facets("category", include_rows=False, exact=False)
 
     def test_facets_multiple_fields_specs(self) -> None:
         """facets() generates correct specs for multiple fields."""

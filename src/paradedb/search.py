@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -29,6 +30,16 @@ from psycopg import sql as pg_sql
 PQOperator = Literal["OR", "AND"]
 ParadeOperator = Literal["OR", "AND", "TERM"]
 _DEFAULT_OPERATOR = object()
+
+
+_SIMPLE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _tokenizer_cast(name: str) -> str:
+    """Return ``::pdb.<name>`` using quoting only when the name is not a plain identifier."""
+    if _SIMPLE_IDENTIFIER_RE.match(name):
+        return f"pdb.{name}"
+    return f"pdb.{pg_sql.Identifier(name).as_string(None)}"
 
 
 @dataclass(frozen=True)
@@ -812,7 +823,7 @@ class ParadeDB:
         lhs_sql: str,
     ) -> tuple[str, list[object]]:
         operator, terms = self._resolve_terms()
-        literals = [self._render_term(term, _connection) for term in terms]
+        literals = [self._render_term(term) for term in terms]
 
         if len(literals) == 1:
             # For plain strings, _render_term returns bare literals; scoring is applied here.
@@ -982,7 +993,6 @@ class ParadeDB:
         | Term
         | Regex
         | All,
-        connection: BaseDatabaseWrapper,
     ) -> str:
         if isinstance(term, Phrase):
             literal = self._quote_term(term.text)
@@ -992,10 +1002,7 @@ class ParadeDB:
                 if term.const is not None:
                     literal = f"{literal}::pdb.query"
             if term.tokenizer is not None:
-                quoted = pg_sql.Identifier(term.tokenizer).as_string(
-                    connection.connection
-                )
-                literal = f"{literal}::pdb.{quoted}"
+                literal = f"{literal}::{_tokenizer_cast(term.tokenizer)}"
             return self._append_scoring(literal, boost=term.boost, const=term.const)
         if isinstance(term, Proximity):
             words = [word for word in term.text.split() if word]
@@ -1089,8 +1096,7 @@ class ParadeDB:
             return "pdb.all()"
         rendered = self._quote_term(term)
         if self._tokenizer is not None:
-            quoted = pg_sql.Identifier(self._tokenizer).as_string(connection.connection)
-            rendered = f"{rendered}::pdb.{quoted}"
+            rendered = f"{rendered}::{_tokenizer_cast(self._tokenizer)}"
         # Scoring is NOT applied here for plain strings: as_sql applies self._boost/self._const
         # at the right level (to the single literal or to the ARRAY as a whole).
         return rendered

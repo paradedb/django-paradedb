@@ -1,4 +1,14 @@
-# Integration Tests
+# Testing
+
+## Unit Tests
+
+Run unit tests (no database required) before every push — this is what CI checks first:
+
+```bash
+.venv/bin/python -m pytest -m "not integration"
+```
+
+## Integration Tests
 
 Integration tests require a running ParadeDB/Postgres instance. Use the provided script to start the container and set up the correct DSN:
 

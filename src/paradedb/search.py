@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -28,6 +29,13 @@ from django.db.models.sql.compiler import SQLCompiler
 PQOperator = Literal["OR", "AND"]
 ParadeOperator = Literal["OR", "AND", "TERM"]
 _DEFAULT_OPERATOR = object()
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_identifier(value: str, *, label: str) -> str:
+    if not _IDENTIFIER_RE.fullmatch(value):
+        raise ValueError(f"{label} must be a valid identifier.")
+    return value
 
 
 @dataclass(frozen=True)
@@ -49,6 +57,8 @@ class Phrase:
     def __post_init__(self) -> None:
         if self.slop is not None and self.slop < 0:
             raise ValueError("Phrase slop must be zero or positive.")
+        if self.tokenizer is not None:
+            _validate_identifier(self.tokenizer, label="Phrase tokenizer")
         if self.boost is not None and self.const is not None:
             raise ValueError(
                 "Phrase boost and const are mutually exclusive scoring modifiers."
@@ -258,6 +268,21 @@ RangeType = Literal[
     "tsrange",
     "tstzrange",
 ]
+_RANGE_TYPES: set[str] = {
+    "int4range",
+    "int8range",
+    "numrange",
+    "daterange",
+    "tsrange",
+    "tstzrange",
+}
+
+
+def _validate_range_type(range_type: str) -> str:
+    if range_type not in _RANGE_TYPES:
+        valid = ", ".join(sorted(_RANGE_TYPES))
+        raise ValueError(f"Range type must be one of: {valid}.")
+    return range_type
 
 
 @dataclass(frozen=True)
@@ -279,6 +304,8 @@ class RangeTerm:
             raise ValueError(
                 "RangeTerm relation requires range_type for explicit range casting."
             )
+        if self.range_type is not None:
+            _validate_range_type(self.range_type)
         if self.boost is not None and self.const is not None:
             raise ValueError(
                 "RangeTerm boost and const are mutually exclusive scoring modifiers."
@@ -727,6 +754,8 @@ class ParadeDB:
             raise ValueError("ParadeDB requires at least one search term.")
         self._terms = terms
         self._tokenizer = tokenizer
+        if self._tokenizer is not None:
+            _validate_identifier(self._tokenizer, label="ParadeDB tokenizer")
         self._boost = boost
         self._const = const
         self._operator_provided = operator is not _DEFAULT_OPERATOR
@@ -993,7 +1022,8 @@ class ParadeDB:
             literal = value.isoformat()
         else:
             literal = str(value)
-        return f"{ParadeDB._quote_term(literal)}::{range_type}"
+        safe_range_type = _validate_range_type(range_type)
+        return f"{ParadeDB._quote_term(literal)}::{safe_range_type}"
 
     @staticmethod
     def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
@@ -1031,7 +1061,10 @@ class ParadeDB:
                 if term.const is not None:
                     literal = f"{literal}::pdb.query"
             if term.tokenizer is not None:
-                literal = f"{literal}::pdb.{term.tokenizer}"
+                tokenizer = _validate_identifier(
+                    term.tokenizer, label="Phrase tokenizer"
+                )
+                literal = f"{literal}::pdb.{tokenizer}"
             return self._append_scoring(literal, boost=term.boost, const=term.const)
         if isinstance(term, Proximity):
             words = [word for word in term.text.split() if word]

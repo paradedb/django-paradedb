@@ -132,6 +132,11 @@ class TestParadeDBValidation:
         with pytest.raises(TypeError, match="only accept Fuzzy"):
             str(queryset.query)
 
+    def test_paradedb_invalid_tokenizer_raises(self) -> None:
+        """Invalid tokenizer identifiers raise ValueError."""
+        with pytest.raises(ValueError, match="tokenizer must be a valid identifier"):
+            ParadeDB("shoes", tokenizer="bad-tokenizer;")
+
 
 class TestPhraseValidation:
     """Test Phrase dataclass validation."""
@@ -150,6 +155,13 @@ class TestPhraseValidation:
         """Large slop values work."""
         phrase = Phrase("test", slop=100)
         assert phrase.slop == 100
+
+    def test_phrase_invalid_tokenizer_raises(self) -> None:
+        """Invalid phrase tokenizers raise ValueError."""
+        with pytest.raises(
+            ValueError, match="Phrase tokenizer must be a valid identifier"
+        ):
+            Phrase("test", tokenizer="bad tokenizer")
 
 
 class TestFuzzyValidation:

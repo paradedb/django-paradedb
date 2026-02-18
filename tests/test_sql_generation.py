@@ -637,6 +637,10 @@ class TestRangeTermQuery:
         ):
             RangeTerm("(10, 12]", range_type="int4range")
 
+    def test_range_term_invalid_range_type(self) -> None:
+        with pytest.raises(ValueError, match=r"Range type must be one of"):
+            RangeTerm("(10, 12]", relation="Intersects", range_type="badtype")
+
 
 class TestTermQuery:
     """Test Term query SQL generation."""

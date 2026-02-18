@@ -234,6 +234,20 @@ def test_tokenizer_override_phrase() -> None:
     assert 3 in ids
 
 
+def test_tokenizer_override_invalid_identifier() -> None:
+    with pytest.raises(ValueError, match="tokenizer must be a valid identifier"):
+        MockItem.objects.filter(
+            description=ParadeDB("running shoes", tokenizer="bad-tokenizer;")
+        ).exists()
+
+
+def test_phrase_tokenizer_invalid_identifier() -> None:
+    with pytest.raises(ValueError, match="Phrase tokenizer must be a valid identifier"):
+        MockItem.objects.filter(
+            description=ParadeDB(Phrase("running shoes", tokenizer="bad tokenizer"))
+        ).exists()
+
+
 def test_boost_does_not_change_result_set() -> None:
     baseline_ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes")))
     boosted_ids = _ids(
@@ -459,6 +473,14 @@ def test_range_term_query_with_range_field() -> None:
         f"SELECT id FROM tmp_range_ops WHERE {relation_where} ORDER BY id;"
     )
     assert relation_ids == {3}
+
+    with pytest.raises(ValueError, match="Range type must be one of"):
+        _where_sql(
+            "weight_range",
+            ParadeDB(
+                RangeTerm("(10, 12]", relation="Intersects", range_type="badtype")
+            ),
+        )
 
     with connection.cursor() as cursor:
         cursor.execute("DROP TABLE IF EXISTS tmp_range_ops;")

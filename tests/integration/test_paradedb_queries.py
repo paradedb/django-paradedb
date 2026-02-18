@@ -251,6 +251,34 @@ def test_boost_with_fuzzy_integration() -> None:
     assert ids == {3}
 
 
+def test_const_with_fuzzy_integration() -> None:
+    # Verifies pdb.fuzzy::pdb.query::pdb.const executes (previously failed with
+    # "cannot cast type pdb.fuzzy to pdb.const").
+    baseline_ids = _ids(
+        MockItem.objects.filter(description=ParadeDB(Fuzzy("shose", distance=2)))
+    )
+    const_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Fuzzy("shose", distance=2, const=1.0))
+        )
+    )
+    assert const_ids == baseline_ids
+
+
+def test_const_with_phrase_slop_integration() -> None:
+    # Verifies pdb.slop::pdb.query::pdb.const executes (previously failed with
+    # "cannot cast type pdb.slop to pdb.const").
+    baseline_ids = _ids(
+        MockItem.objects.filter(description=ParadeDB(Phrase("running shoes", slop=2)))
+    )
+    const_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Phrase("running shoes", slop=2, const=1.0))
+        )
+    )
+    assert const_ids == baseline_ids
+
+
 def test_const_does_not_change_result_set() -> None:
     baseline_ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes")))
     const_ids = _ids(MockItem.objects.filter(description=ParadeDB("shoes", const=1.0)))

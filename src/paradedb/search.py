@@ -1027,6 +1027,9 @@ class ParadeDB:
             literal = self._quote_term(term.text)
             if term.slop is not None:
                 literal = f"{literal}::pdb.slop({term.slop})"
+                # pdb.slop has no direct cast to pdb.const; bridge via pdb.query.
+                if term.const is not None:
+                    literal = f"{literal}::pdb.query"
             if term.tokenizer is not None:
                 literal = f"{literal}::pdb.{term.tokenizer}"
             return self._append_scoring(literal, boost=term.boost, const=term.const)
@@ -1053,6 +1056,9 @@ class ParadeDB:
             elif term.prefix:
                 fuzzy_args.append("t")
             literal = f"{literal}::pdb.fuzzy({', '.join(fuzzy_args)})"
+            # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
+            if term.const is not None:
+                literal = f"{literal}::pdb.query"
             return self._append_scoring(literal, boost=term.boost, const=term.const)
         if isinstance(term, Parse):
             rendered = (

@@ -733,12 +733,13 @@ class TestConstantScoring:
         )
 
     def test_const_fuzzy_passthrough(self) -> None:
+        # pdb.fuzzy has no direct cast to pdb.const; must bridge via pdb.query.
         queryset = Product.objects.filter(
             description=ParadeDB(Fuzzy("shose", distance=2, const=5.0))
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'shose\'::pdb.fuzzy(2)::pdb.const(5.0)'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'shose\'::pdb.fuzzy(2)::pdb.query::pdb.const(5.0)'
         )
 
     def test_const_phrase(self) -> None:
@@ -748,6 +749,16 @@ class TestConstantScoring:
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.const(1.0)'
+        )
+
+    def test_const_phrase_with_slop(self) -> None:
+        # pdb.slop has no direct cast to pdb.const; must bridge via pdb.query.
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("running shoes", slop=2, const=1.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.slop(2)::pdb.query::pdb.const(1.0)'
         )
 
     def test_const_regex(self) -> None:

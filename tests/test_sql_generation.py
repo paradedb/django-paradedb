@@ -307,11 +307,11 @@ class TestFuzzySearch:
 class TestFuzzyConjunction:
     def test_fuzzy_conjunction_single(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Fuzzy("runing shose", distance=2, operator="AND"))
+            description=ParadeDB(Fuzzy("runnning shose", distance=2, operator="AND"))
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'runing shose\'::pdb.fuzzy(2)'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'runnning shose\'::pdb.fuzzy(2)'
         )
 
     def test_fuzzy_conjunction_multiple(self) -> None:

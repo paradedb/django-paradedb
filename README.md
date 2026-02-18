@@ -388,10 +388,10 @@ from paradedb.search import ParadeDB, Fuzzy
 Product.objects.filter(description=ParadeDB(Fuzzy('shoez')))
 
 # Fuzzy match with distance 2 (max)
-Product.objects.filter(description=ParadeDB(Fuzzy('runing', distance=2)))
+Product.objects.filter(description=ParadeDB(Fuzzy('runnning', distance=2)))
 
 # Fuzzy AND form
-Product.objects.filter(description=ParadeDB(Fuzzy('runing shose', operator='AND')))
+Product.objects.filter(description=ParadeDB(Fuzzy('runnning shose', operator='AND')))
 
 # Fuzzy TERM form
 Product.objects.filter(description=ParadeDB(Fuzzy('shose', operator='TERM')))

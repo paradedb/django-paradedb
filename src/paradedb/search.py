@@ -32,6 +32,10 @@ ParadeOperator = Literal["OR", "AND", "TERM"]
 _DEFAULT_OPERATOR = object()
 
 
+# Regex to detect simple PostgreSQL identifiers (no quoting needed) vs complex ones.
+# Simple identifiers can be used directly as `pdb.name`, while complex identifiers
+# require pg_sql.Identifier quoting to prevent SQL injection. Using a whitelist of
+# ParadeDB tokenizers would require constant updates as new features launch.
 _SIMPLE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 

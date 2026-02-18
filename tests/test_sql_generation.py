@@ -772,22 +772,35 @@ class TestConstantScoring:
         queryset = Product.objects.filter(description=ParadeDB(Fuzzy("x")))
         assert "::pdb.const" not in str(queryset.query)
 
-    def test_boost_and_const_passthrough_phrase(self) -> None:
+    def test_boost_and_const_mutually_exclusive_phrase(self) -> None:
+        # pdb.boost -> pdb.const cast does not exist in PostgreSQL; the two are
+        # mutually exclusive scoring modifiers.
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            ParadeDB(Phrase("x", boost=2.0, const=1.0))
+
+    def test_boost_and_const_mutually_exclusive_plain(self) -> None:
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            ParadeDB("shoes", boost=2.0, const=1.0)
+
+    def test_boost_multi_term_plain_strings(self) -> None:
+        # boost must be cast on the ARRAY as a whole, not per-element;
+        # ARRAY['a'::pdb.boost(N), 'b'::pdb.boost(N)] produces pdb.boost[] which
+        # has no matching &&& operator.
         queryset = Product.objects.filter(
-            description=ParadeDB(Phrase("x", boost=2.0, const=1.0))
+            description=ParadeDB("shoes", "boots", boost=2.0)
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'x\'::pdb.boost(2.0)::pdb.const(1.0)'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'shoes\', \'boots\']::pdb.boost(2.0)'
         )
 
-    def test_boost_and_const_passthrough_plain(self) -> None:
+    def test_const_multi_term_plain_strings(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB("shoes", boost=2.0, const=1.0)
+            description=ParadeDB("shoes", "boots", operator="OR", const=1.5)
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.boost(2.0)::pdb.const(1.0)'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'shoes\', \'boots\']::pdb.const(1.5)'
         )
 
 

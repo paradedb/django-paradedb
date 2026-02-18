@@ -257,6 +257,30 @@ def test_const_does_not_change_result_set() -> None:
     assert const_ids == baseline_ids
 
 
+def test_boost_multi_term_or_query() -> None:
+    # Verifies ARRAY['shoes', 'boots']::pdb.boost(2.0) is valid SQL and executes.
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB("shoes", "boots", operator="OR", boost=2.0)
+        )
+    )
+    assert len(ids) > 0
+
+
+def test_const_multi_term_or_query() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB("shoes", "boots", operator="OR", const=1.5)
+        )
+    )
+    assert len(ids) > 0
+
+
+def test_boost_and_const_mutually_exclusive() -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        ParadeDB("shoes", boost=2.0, const=1.0)
+
+
 def test_regex_query() -> None:
     ids = _ids(MockItem.objects.filter(description=ParadeDB(Regex(".*running.*"))))
     assert ids == {3}

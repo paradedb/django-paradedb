@@ -196,7 +196,22 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, running tests, lin
 
 ## Support
 
-Open a [GitHub Issue](https://github.com/paradedb/django-paradedb/issues/new/choose), post in the [ParadeDB Slack Community](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw), or [contact us](mailto:sales@paradedb.com) for commercial support.
+If you're missing a feature or have found a bug, please open a
+[GitHub Issue](https://github.com/paradedb/django-paradedb/issues/new/choose).
+
+To get community support, you can:
+
+- Post a question in the [ParadeDB Slack Community](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)
+- Ask for help on our [GitHub Discussions](https://github.com/paradedb/paradedb/discussions)
+
+If you need commercial support, please [contact the ParadeDB team](mailto:sales@paradedb.com).
+
+## Acknowledgments
+
+We would like to thank the following members of the Django community for their valuable feedback and reviews during the development of this package:
+
+- [Timothy Allen](https://github.com/FlipperPA) - Principal Engineer at The Wharton School, PSF and DSF member
+- [Frank Wiles](https://github.com/frankwiles) - President & Founder of REVSYS
 
 ## License
 

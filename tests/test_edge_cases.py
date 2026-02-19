@@ -20,7 +20,11 @@ from paradedb.search import (
     ParadeDB,
     Parse,
     Phrase,
+    Proximity,
+    ProximityArray,
+    ProximityRegex,
     Regex,
+    RegexPhrase,
     Term,
 )
 from tests.models import Product
@@ -132,6 +136,13 @@ class TestParadeDBValidation:
         with pytest.raises(TypeError, match="only accept Fuzzy"):
             str(queryset.query)
 
+    def test_paradedb_invalid_tokenizer_deferred_to_database(self) -> None:
+        """Tokenizer names are quoted in SQL; validity is deferred to database execution."""
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", tokenizer="bad-tokenizer;")
+        )
+        assert '::pdb."bad-tokenizer;"' in str(queryset.query)
+
 
 class TestPhraseValidation:
     """Test Phrase dataclass validation."""
@@ -150,6 +161,13 @@ class TestPhraseValidation:
         """Large slop values work."""
         phrase = Phrase("test", slop=100)
         assert phrase.slop == 100
+
+    def test_phrase_invalid_tokenizer_deferred_to_database(self) -> None:
+        """Phrase tokenizer names are quoted in SQL; validity is deferred to database execution."""
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("test", tokenizer="bad tokenizer"))
+        )
+        assert '::pdb."bad tokenizer"' in str(queryset.query)
 
 
 class TestFuzzyValidation:
@@ -174,6 +192,78 @@ class TestFuzzyValidation:
         """Distance values > 2 raise ValueError."""
         with pytest.raises(ValueError, match="<= 2"):
             Fuzzy("test", distance=10)
+
+    def test_fuzzy_invalid_operator_raises(self) -> None:
+        """Invalid fuzzy operators raise ValueError."""
+        with pytest.raises(ValueError, match="must be one of"):
+            Fuzzy("test", operator="BAD")  # type: ignore[arg-type]
+
+    def test_fuzzy_boost_and_const_deferred_to_database(self) -> None:
+        """Fuzzy accepts boost+const; invalid cast is deferred to database execution."""
+        fuzzy = Fuzzy("test", boost=1.0, const=1.0)
+        assert fuzzy.boost == 1.0
+        assert fuzzy.const == 1.0
+
+
+class TestExpressionValidation:
+    """Validation coverage for expression dataclasses."""
+
+    def test_proximity_boost_and_const_deferred_to_database(self) -> None:
+        proximity = Proximity("a b", distance=1, boost=1.0, const=1.0)
+        assert proximity.boost == 1.0
+        assert proximity.const == 1.0
+
+    def test_parse_boost_and_const_deferred_to_database(self) -> None:
+        parsed = Parse("query", boost=1.0, const=1.0)
+        assert parsed.boost == 1.0
+        assert parsed.const == 1.0
+
+    def test_regex_phrase_requires_terms(self) -> None:
+        with pytest.raises(ValueError, match="requires at least one regex term"):
+            RegexPhrase()
+
+    def test_regex_phrase_negative_slop_raises(self) -> None:
+        with pytest.raises(ValueError, match="slop must be zero or positive"):
+            RegexPhrase("a.*", slop=-1)
+
+    def test_regex_phrase_boost_and_const_deferred_to_database(self) -> None:
+        regex_phrase = RegexPhrase("a.*", boost=1.0, const=1.0)
+        assert regex_phrase.boost == 1.0
+        assert regex_phrase.const == 1.0
+
+    def test_proximity_regex_negative_distance_raises(self) -> None:
+        with pytest.raises(ValueError, match="distance must be zero or positive"):
+            ProximityRegex("left", "right.*", distance=-1)
+
+    def test_proximity_regex_negative_max_expansions_raises(self) -> None:
+        with pytest.raises(ValueError, match="max_expansions must be zero or positive"):
+            ProximityRegex("left", "right.*", distance=1, max_expansions=-1)
+
+    def test_proximity_regex_boost_and_const_deferred_to_database(self) -> None:
+        proximity_regex = ProximityRegex(
+            "left", "right.*", distance=1, boost=1.0, const=1.0
+        )
+        assert proximity_regex.boost == 1.0
+        assert proximity_regex.const == 1.0
+
+    def test_proximity_array_requires_left_terms(self) -> None:
+        with pytest.raises(ValueError, match="requires at least one left-side term"):
+            ProximityArray(right_term="right", distance=1)
+
+    def test_proximity_array_negative_distance_raises(self) -> None:
+        with pytest.raises(ValueError, match="distance must be zero or positive"):
+            ProximityArray("left", right_term="right", distance=-1)
+
+    def test_proximity_array_negative_max_expansions_raises(self) -> None:
+        with pytest.raises(ValueError, match="max_expansions must be zero or positive"):
+            ProximityArray("left", right_term="right", distance=1, max_expansions=-1)
+
+    def test_proximity_array_boost_and_const_deferred_to_database(self) -> None:
+        proximity_array = ProximityArray(
+            "left", right_term="right", distance=1, boost=1.0, const=1.0
+        )
+        assert proximity_array.boost == 1.0
+        assert proximity_array.const == 1.0
 
 
 class TestPQValidation:

@@ -8,8 +8,8 @@ from unittest.mock import Mock
 
 import pytest
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
-from django.db.models import F, Q, Window
-from django.db.models.functions import RowNumber
+from django.db.models import F, Q, TextField, Value, Window
+from django.db.models.functions import Concat, RowNumber
 
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
@@ -20,7 +20,13 @@ from paradedb.search import (
     ParadeDB,
     Parse,
     Phrase,
+    PhrasePrefix,
+    Proximity,
+    ProximityArray,
+    ProximityRegex,
+    RangeTerm,
     Regex,
+    RegexPhrase,
     Term,
 )
 from tests.models import Product
@@ -66,6 +72,74 @@ class TestParadeDBLookup:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'running\', \'shoes\', \'lightweight\']'
         )
+
+
+class TestExactLiteralDisjunction:
+    """Test exact literal OR search SQL generation."""
+
+    def test_single_string_or(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("running shoes", operator="OR")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'running shoes\''
+        )
+
+    def test_multiple_strings_or(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", "boots", operator="OR")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'shoes\', \'boots\']'
+        )
+
+    def test_term_operator_single(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", operator="TERM")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" === \'shoes\''
+        )
+
+    def test_term_operator_multiple(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", "boots", operator="TERM")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" === ARRAY[\'shoes\', \'boots\']'
+        )
+
+    def test_default_operator_unchanged(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB("a", "b"))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'a\', \'b\']'
+        )
+
+    def test_operator_invalid_with_pq(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"ParadeDB operator is only supported with plain string terms\.",
+        ):
+            _ = ParadeDB(PQ("a") | PQ("b"), operator="OR")
+
+    def test_operator_invalid_with_phrase(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"ParadeDB operator is only supported with plain string terms\.",
+        ):
+            _ = ParadeDB(Phrase("text"), operator="OR")
+
+    def test_operator_invalid_value(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"ParadeDB operator must be 'AND', 'OR', or 'TERM'\.",
+        ):
+            _ = ParadeDB("shoes", operator="BAD")
 
 
 class TestPQObject:
@@ -126,6 +200,84 @@ class TestPhraseSearch:
         )
 
 
+class TestProximitySearch:
+    """Test Proximity search SQL generation."""
+
+    def test_proximity_unordered(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running shoes", distance=2))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 2 ## \'shoes\')'
+        )
+
+    def test_proximity_ordered(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running shoes", distance=2, ordered=True))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ##> 2 ##> \'shoes\')'
+        )
+
+    def test_proximity_with_boost(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running shoes", distance=2, boost=1.5))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 2 ## \'shoes\')::pdb.boost(1.5)'
+        )
+
+    def test_proximity_with_const(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running shoes", distance=2, const=1.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 2 ## \'shoes\')::pdb.const(1.0)'
+        )
+
+    def test_proximity_three_terms_chain(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running shoes lightweight", distance=2))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 2 ## \'shoes\' ## 2 ## \'lightweight\')'
+        )
+
+    def test_multiple_proximity_terms_rejected(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Proximity("running shoes", distance=2),
+                Proximity("lightweight design", distance=2),
+            )
+        )
+        with pytest.raises(
+            ValueError,
+            match=r"Proximity queries must be a single term\. Proximity arrays are not supported yet\.",
+        ):
+            _ = str(queryset.query)
+
+    def test_proximity_distance_negative_rejected(self) -> None:
+        with pytest.raises(
+            ValueError, match=r"Proximity distance must be zero or positive\."
+        ):
+            Proximity("running shoes", distance=-1)
+
+    def test_proximity_single_word_rejected(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Proximity("running", distance=2))
+        )
+        with pytest.raises(
+            ValueError,
+            match=r"Proximity text must include at least two whitespace-separated terms\.",
+        ):
+            _ = str(queryset.query)
+
+
 class TestFuzzySearch:
     """Test Fuzzy search SQL generation."""
 
@@ -152,6 +304,180 @@ class TestFuzzySearch:
         )
 
 
+class TestFuzzyConjunction:
+    def test_fuzzy_conjunction_single(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Fuzzy("runnning shose", distance=2, operator="AND"))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'runnning shose\'::pdb.fuzzy(2)'
+        )
+
+    def test_fuzzy_conjunction_multiple(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Fuzzy("term1", distance=1, operator="AND"),
+                Fuzzy("term2", distance=1, operator="AND"),
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'term1\'::pdb.fuzzy(1), \'term2\'::pdb.fuzzy(1)]'
+        )
+
+
+class TestFuzzyTerm:
+    def test_fuzzy_term_single(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Fuzzy("shose", distance=2, operator="TERM"))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" === \'shose\'::pdb.fuzzy(2)'
+        )
+
+
+class TestFuzzyPrefix:
+    def test_fuzzy_prefix(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Fuzzy("rann", distance=1, prefix=True, operator="TERM")
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" === \'rann\'::pdb.fuzzy(1, t)'
+        )
+
+    def test_fuzzy_prefix_with_match(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Fuzzy("slee rann", distance=1, prefix=True, operator="AND")
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'slee rann\'::pdb.fuzzy(1, t)'
+        )
+
+
+class TestFuzzyTransposition:
+    def test_fuzzy_transposition_cost_one(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Fuzzy(
+                    "shose",
+                    distance=1,
+                    transposition_cost_one=True,
+                    operator="TERM",
+                )
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" === \'shose\'::pdb.fuzzy(1, f, t)'
+        )
+
+    def test_fuzzy_prefix_and_transposition(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Fuzzy(
+                    "text",
+                    distance=1,
+                    prefix=True,
+                    transposition_cost_one=True,
+                    operator="TERM",
+                )
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" === \'text\'::pdb.fuzzy(1, t, t)'
+        )
+
+
+class TestFuzzyOperatorValidation:
+    def test_mixed_fuzzy_operators_rejected(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Fuzzy("a", operator="AND"),
+                Fuzzy("b", operator="TERM"),
+            )
+        )
+        with pytest.raises(
+            ValueError, match=r"All Fuzzy terms must use the same operator\."
+        ):
+            _ = str(queryset.query)
+
+
+class TestTokenizerOverride:
+    def test_match_with_tokenizer(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("running shoes", tokenizer="whitespace")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'running shoes\'::pdb.whitespace'
+        )
+
+    def test_match_or_with_tokenizer(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                "running shoes",
+                operator="OR",
+                tokenizer="whitespace",
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'running shoes\'::pdb.whitespace'
+        )
+
+    def test_phrase_with_tokenizer(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("running shoes", tokenizer="whitespace"))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.whitespace'
+        )
+
+    def test_phrase_with_slop_and_tokenizer(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Phrase("running shoes", slop=2, tokenizer="whitespace")
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.slop(2)::pdb.whitespace'
+        )
+
+    def test_tokenizer_with_boost(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", tokenizer="whitespace", boost=2.0)
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.whitespace::pdb.boost(2.0)'
+        )
+
+    def test_tokenizer_invalid_with_pq(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"ParadeDB tokenizer is only supported with plain string terms\.",
+        ):
+            _ = ParadeDB(PQ("a") | PQ("b"), tokenizer="whitespace")
+
+    def test_tokenizer_invalid_with_fuzzy(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"ParadeDB tokenizer is only supported with plain string terms\.",
+        ):
+            _ = ParadeDB(Fuzzy("x"), tokenizer="whitespace")
+
+
 class TestParseQuery:
     """Test Parse query SQL generation."""
 
@@ -164,6 +490,156 @@ class TestParseQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.parse(\'running AND shoes\', lenient => true)'
         )
+
+    def test_parse_query_with_conjunction_mode(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Parse("running shoes", conjunction_mode=True))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.parse(\'running shoes\', conjunction_mode => true)'
+        )
+
+
+class TestPhrasePrefixQuery:
+    """Test phrase_prefix query SQL generation."""
+
+    def test_phrase_prefix_query(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(PhrasePrefix("running", "sh"))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])'
+        )
+
+    def test_phrase_prefix_with_max_expansion(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(PhrasePrefix("running", "sh", max_expansion=50))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'], max_expansion => 50)'
+        )
+
+    def test_phrase_prefix_with_boost(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(PhrasePrefix("running", "sh", boost=2.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])::pdb.boost(2.0)'
+        )
+
+    def test_phrase_prefix_with_const(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(PhrasePrefix("running", "sh", const=1.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])::pdb.const(1.0)'
+        )
+
+    def test_phrase_prefix_requires_terms(self) -> None:
+        with pytest.raises(
+            ValueError, match=r"PhrasePrefix requires at least one phrase term\."
+        ):
+            PhrasePrefix()
+
+
+class TestRegexPhraseQuery:
+    def test_regex_phrase_query(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(RegexPhrase("run.*", "sho.*"))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.regex_phrase(ARRAY[\'run.*\', \'sho.*\'])'
+        )
+
+    def test_regex_phrase_with_options(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                RegexPhrase("run.*", "sho.*", slop=2, max_expansions=100)
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.regex_phrase(ARRAY[\'run.*\', \'sho.*\'], slop => 2, max_expansions => 100)'
+        )
+
+
+class TestProximityAdvancedQuery:
+    def test_proximity_regex_query(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(ProximityRegex("running", "sho.*", distance=1))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 1 ## pdb.prox_regex(\'sho.*\', 50))'
+        )
+
+    def test_proximity_array_query(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                ProximityArray("sleek", "running", right_term="shoes", distance=1)
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(pdb.prox_array(\'sleek\', \'running\') ## 1 ## \'shoes\')'
+        )
+
+    def test_proximity_array_regex_rhs_query(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                ProximityArray(
+                    "running",
+                    right_term="unused",
+                    right_pattern="sho.*",
+                    distance=1,
+                    max_expansions=80,
+                )
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(pdb.prox_array(\'running\') ## 1 ## pdb.prox_regex(\'sho.*\', 80))'
+        )
+
+
+class TestRangeTermQuery:
+    def test_range_term_scalar_query(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(RangeTerm(10)))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.range_term(10)'
+        )
+
+    def test_range_term_relation_query(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                RangeTerm("(10, 12]", relation="Intersects", range_type="int4range")
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.range_term(\'(10, 12]\'::int4range, \'Intersects\')'
+        )
+
+    def test_range_term_relation_requires_range_type(self) -> None:
+        with pytest.raises(ValueError, match=r"RangeTerm relation requires range_type"):
+            RangeTerm("(10, 12]", relation="Intersects")
+
+    def test_range_term_range_type_requires_relation(self) -> None:
+        with pytest.raises(
+            ValueError, match=r"RangeTerm range_type is only valid when relation"
+        ):
+            RangeTerm("(10, 12]", range_type="int4range")
+
+    def test_range_term_invalid_range_type(self) -> None:
+        with pytest.raises(ValueError, match=r"Range type must be one of"):
+            RangeTerm("(10, 12]", relation="Intersects", range_type="badtype")
 
 
 class TestTermQuery:
@@ -187,6 +663,167 @@ class TestRegexQuery:
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.regex(\'run.*shoes\')'
+        )
+
+
+class TestBoosting:
+    """Test boost SQL generation and validation."""
+
+    def test_boost_plain_string(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB("shoes", boost=2.0))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.boost(2.0)'
+        )
+
+    def test_boost_fuzzy(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Fuzzy("shose", distance=2, boost=2.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'shose\'::pdb.fuzzy(2)::pdb.boost(2.0)'
+        )
+
+    def test_boost_phrase(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("running shoes", boost=1.5))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.boost(1.5)'
+        )
+
+    def test_boost_regex(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Regex("key.*", boost=2.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.regex(\'key.*\')::pdb.boost(2.0)'
+        )
+
+    def test_boost_parse(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Parse("shoes", boost=3.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.parse(\'shoes\')::pdb.boost(3.0)'
+        )
+
+    def test_boost_term(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Term("shoes", boost=2.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.term(\'shoes\')::pdb.boost(2.0)'
+        )
+
+    def test_boost_none_default(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(Fuzzy("x")))
+        assert "::pdb.boost" not in str(queryset.query)
+
+
+class TestConstantScoring:
+    """Test constant scoring SQL generation."""
+
+    def test_const_plain_string(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB("shoes", const=1.0))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.const(1.0)'
+        )
+
+    def test_const_fuzzy_passthrough(self) -> None:
+        # pdb.fuzzy has no direct cast to pdb.const; must bridge via pdb.query.
+        queryset = Product.objects.filter(
+            description=ParadeDB(Fuzzy("shose", distance=2, const=5.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'shose\'::pdb.fuzzy(2)::pdb.query::pdb.const(5.0)'
+        )
+
+    def test_const_phrase(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("running shoes", const=1.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.const(1.0)'
+        )
+
+    def test_const_phrase_with_slop(self) -> None:
+        # pdb.slop has no direct cast to pdb.const; must bridge via pdb.query.
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("running shoes", slop=2, const=1.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.slop(2)::pdb.query::pdb.const(1.0)'
+        )
+
+    def test_const_regex(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Regex("key.*", const=1.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.regex(\'key.*\')::pdb.const(1.0)'
+        )
+
+    def test_const_term(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Term("shoes", const=2.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.term(\'shoes\')::pdb.const(2.0)'
+        )
+
+    def test_const_none_default(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(Fuzzy("x")))
+        assert "::pdb.const" not in str(queryset.query)
+
+    def test_boost_and_const_phrase_sql_is_generated(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("x", boost=2.0, const=1.0))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'x\'::pdb.boost(2.0)::pdb.const(1.0)'
+        )
+
+    def test_boost_and_const_plain_sql_is_generated(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", boost=2.0, const=1.0)
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.boost(2.0)::pdb.const(1.0)'
+        )
+
+    def test_boost_multi_term_plain_strings(self) -> None:
+        # boost must be cast on the ARRAY as a whole, not per-element;
+        # ARRAY['a'::pdb.boost(N), 'b'::pdb.boost(N)] produces pdb.boost[] which
+        # has no matching &&& operator.
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", "boots", boost=2.0)
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'shoes\', \'boots\']::pdb.boost(2.0)'
+        )
+
+    def test_const_multi_term_plain_strings(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB("shoes", "boots", operator="OR", const=1.5)
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'shoes\', \'boots\']::pdb.const(1.5)'
         )
 
 
@@ -883,6 +1520,20 @@ class TestDjangoIntegration:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", ROW_NUMBER() OVER (PARTITION BY "tests_product"."category" ORDER BY "tests_product"."price" DESC) AS "rank_in_category" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
+
+    def test_with_adhoc_expression_lhs(self) -> None:
+        queryset = Product.objects.annotate(
+            combined=Concat(
+                F("description"),
+                Value(" "),
+                F("category"),
+                output_field=TextField(),
+            )
+        ).filter(combined=ParadeDB("running"))
+        sql = str(queryset.query)
+        assert "&&& 'running'" in sql
+        assert '"tests_product"."description"' in sql
+        assert '"tests_product"."category"' in sql
 
 
 class TestFacets:

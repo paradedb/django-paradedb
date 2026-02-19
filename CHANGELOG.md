@@ -6,9 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## Unreleased
 
-### Added (Unreleased)
+## [0.3.0] - 2026-02-19
+
+### Added
 
 - `Proximity` query expression with unordered (`##`) and ordered (`##>`) forms
 - Plain string `ParadeDB(..., operator='OR' | 'AND' | 'TERM')` support
@@ -32,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - multiple `Proximity(...)` terms in one query are rejected (use `ProximityArray(...)`)
 - Removed wrapper-side scoring validation for `boost`/`const`; scoring options are
   forwarded to ParadeDB/PostgreSQL.
+- Compatibility and packaging metadata were updated for broader support:
+  Django `4.2+`, Python `3.10+`, and refreshed project metadata/dependencies.
 
 ## [0.2.0] - 2026-02-13
 
@@ -86,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - JSON field key indexing support
 - Full Django ORM integration with `Q` objects and standard filters
 
-[0.2.0]: https://github.com/paradedb/django-paradedb/compare/v0.1.1...e8734548d5e823efd7bac4bef0d56a2a6d18c865
+[0.3.0]: https://github.com/paradedb/django-paradedb/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/paradedb/django-paradedb/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/paradedb/django-paradedb/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/paradedb/django-paradedb/releases/tag/v0.1.0

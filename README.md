@@ -26,6 +26,11 @@ pip install django-paradedb
 
 ## Quick Start
 
+### Prerequisites
+
+This guide assumes you have installed `pg_search`, and have configured your Django project with
+the Postgres database where `pg_search` is installed.
+
 ### Create an Index
 
 Add a BM25 index to your model and use `ParadeDBManager`:

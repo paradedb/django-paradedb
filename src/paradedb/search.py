@@ -57,10 +57,8 @@ def validate_distance(method: F) -> F:
         distance = getattr(self, "distance", None)
         if distance is None:
             return result
-        if distance < 0:
-            raise ValueError("Distance must be zero or positive.")
-        if distance > 2:
-            raise ValueError("Distance must be <= 2.")
+        if distance < 0 or distance > 2:
+            raise ValueError("Distance must be between 0 and 2, inclusive.")
         return result
 
     return cast(F, wrapper)

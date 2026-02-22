@@ -330,7 +330,7 @@ class TestDistanceOption:
         )
 
     def test_match_distance_invalid(self) -> None:
-        with pytest.raises(ValueError, match=r"Distance must be <= 2\."):
+        with pytest.raises(ValueError, match=r"Distance must be between 0 and 2, inclusive\."):
             Match("x", operator="AND", distance=3)
 
 

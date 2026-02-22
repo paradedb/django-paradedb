@@ -311,9 +311,7 @@ class TestDistanceOption:
 
     def test_match_distance_multiple_terms(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("runnning", "shoez", operator="OR", distance=1)
-            )
+            description=ParadeDB(Match("runnning", "shoez", operator="OR", distance=1))
         )
         assert (
             str(queryset.query)
@@ -330,14 +328,18 @@ class TestDistanceOption:
         )
 
     def test_match_distance_invalid(self) -> None:
-        with pytest.raises(ValueError, match=r"Distance must be between 0 and 2, inclusive\."):
+        with pytest.raises(
+            ValueError, match=r"Distance must be between 0 and 2, inclusive\."
+        ):
             Match("x", operator="AND", distance=3)
 
 
 class TestTokenizerOverride:
     def test_match_with_tokenizer(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("running shoes", operator="AND", tokenizer="whitespace"))
+            description=ParadeDB(
+                Match("running shoes", operator="AND", tokenizer="whitespace")
+            )
         )
         assert (
             str(queryset.query)
@@ -377,7 +379,9 @@ class TestTokenizerOverride:
 
     def test_tokenizer_with_boost(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND", tokenizer="whitespace", boost=2.0))
+            description=ParadeDB(
+                Match("shoes", operator="AND", tokenizer="whitespace", boost=2.0)
+            )
         )
         assert (
             str(queryset.query)
@@ -591,7 +595,9 @@ class TestBoosting:
     """Test boost SQL generation and validation."""
 
     def test_boost_plain_string(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND", boost=2.0)))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND", boost=2.0))
+        )
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.boost(2.0)'
@@ -599,9 +605,7 @@ class TestBoosting:
 
     def test_boost_match_distance(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shose", operator="OR", distance=2, boost=2.0)
-            )
+            description=ParadeDB(Match("shose", operator="OR", distance=2, boost=2.0))
         )
         assert (
             str(queryset.query)
@@ -655,7 +659,9 @@ class TestConstantScoring:
     """Test constant scoring SQL generation."""
 
     def test_const_plain_string(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND", const=1.0)))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND", const=1.0))
+        )
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.const(1.0)'
@@ -663,9 +669,7 @@ class TestConstantScoring:
 
     def test_const_match_distance(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shose", operator="OR", distance=2, const=5.0)
-            )
+            description=ParadeDB(Match("shose", operator="OR", distance=2, const=5.0))
         )
         assert (
             str(queryset.query)
@@ -747,9 +751,7 @@ class TestConstantScoring:
 
     def test_const_multi_term_plain_strings(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shoes", "boots", operator="OR", const=1.5)
-            )
+            description=ParadeDB(Match("shoes", "boots", operator="OR", const=1.5))
         )
         assert (
             str(queryset.query)
@@ -810,7 +812,9 @@ class TestSnippetAnnotation:
 
     def test_snippet_with_custom_formatting(self) -> None:
         """Custom snippet: pdb.snippet(description, '<mark>', '</mark>', 100)."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).annotate(
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             snippet=Snippet(
                 "description",
                 start_sel="<mark>",
@@ -849,7 +853,9 @@ class TestSnippetsAnnotation:
 
     def test_snippets_with_limit_and_offset(self) -> None:
         """Snippets with limit and offset uses double-quoted SQL reserved words."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("running", operator="AND"))).annotate(
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("running", operator="AND"))
+        ).annotate(
             snippets=Snippets("description", max_num_chars=15, limit=1, offset=1)
         )
         assert (
@@ -871,7 +877,9 @@ class TestSnippetsAnnotation:
 
     def test_snippets_with_all_params(self) -> None:
         """Snippets with all named parameters."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).annotate(
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             snippets=Snippets(
                 "description",
                 start_tag="<mark>",
@@ -893,9 +901,9 @@ class TestSnippetPositionsAnnotation:
 
     def test_snippet_positions_basic(self) -> None:
         """SnippetPositions generates: pdb.snippet_positions(description)."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).annotate(
-            positions=SnippetPositions("description")
-        )
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(positions=SnippetPositions("description"))
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippet_positions("tests_product"."description") AS "positions" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
@@ -903,7 +911,9 @@ class TestSnippetPositionsAnnotation:
 
     def test_snippet_positions_with_snippet(self) -> None:
         """SnippetPositions alongside Snippet."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).annotate(
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             snippet=Snippet("description"),
             positions=SnippetPositions("description"),
         )
@@ -1379,9 +1389,9 @@ class TestMoreLikeThis:
 
         # Should NOT contain array form
         # With parameterized SQL, would appear as ARRAY[description] not ARRAY['description']
-        assert "ARRAY[description]" not in sql, (
-            f"Should not use array form for document input\nGot SQL: {sql}"
-        )
+        assert (
+            "ARRAY[description]" not in sql
+        ), f"Should not use array form for document input\nGot SQL: {sql}"
 
     def test_mlt_empty_stopwords_should_not_generate_empty_string(self) -> None:
         """Empty stopwords should be omitted."""
@@ -1394,9 +1404,9 @@ class TestMoreLikeThis:
         sql = str(queryset.query)
 
         # Should NOT have stopwords at all (parameterized or not)
-        assert "stopwords" not in sql, (
-            f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"
-        )
+        assert (
+            "stopwords" not in sql
+        ), f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"
 
 
 class TestDjangoIntegration:
@@ -1406,7 +1416,10 @@ class TestDjangoIntegration:
         """Combine ParadeDB with Django Q for complex logic."""
         queryset = Product.objects.filter(
             Q(description=ParadeDB(Phrase("running shoes")), rating__gte=4)
-            | Q(category=ParadeDB(Match("Electronics", operator="AND")), description=ParadeDB(Match("wireless", operator="AND")))
+            | Q(
+                category=ParadeDB(Match("Electronics", operator="AND")),
+                description=ParadeDB(Match("wireless", operator="AND")),
+            )
         )
         assert (
             str(queryset.query)
@@ -1439,7 +1452,9 @@ class TestDjangoIntegration:
 
     def test_with_window_functions(self) -> None:
         """ParadeDB search with Django window functions."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).annotate(
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             rank_in_category=Window(
                 expression=RowNumber(),
                 partition_by=[F("category")],
@@ -1472,9 +1487,9 @@ class TestFacets:
     def test_facets_window_annotation(self) -> None:
         """Facets window annotation uses pdb.agg() OVER ()."""
         json_spec = '{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}'
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).annotate(
-            facets=Window(expression=Agg(json_spec))
-        )
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(facets=Window(expression=Agg(json_spec)))
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.agg(\'{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}\') OVER () AS "facets" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
@@ -1488,15 +1503,17 @@ class TestFacets:
 
     def test_facets_requires_order_by_and_limit(self) -> None:
         """facets() raises if include_rows requires order_by + LIMIT."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND")))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        )
         with pytest.raises(ValueError, match="order_by\\(\\) and a LIMIT"):
             queryset.facets("category")
 
     def test_facets_multiple_fields_specs(self) -> None:
         """facets() generates correct specs for multiple fields."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).order_by(
-            "price"
-        )[:5]
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).order_by("price")[:5]
         specs = queryset._build_agg_specs(
             fields=["category", "rating"],
             size=10,
@@ -1511,9 +1528,9 @@ class TestFacets:
 
     def test_facets_single_field_spec_shape(self) -> None:
         """Single field facets use terms as the root aggregation."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).order_by(
-            "price"
-        )[:5]
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).order_by("price")[:5]
         specs = queryset._build_agg_specs(
             fields=["category"],
             size=5,
@@ -1528,9 +1545,9 @@ class TestFacets:
 
     def test_facets_missing_allows_non_string(self) -> None:
         """Missing values accept non-string JSON types."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).order_by(
-            "price"
-        )[:5]
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).order_by("price")[:5]
         specs = queryset._build_agg_specs(
             fields=["in_stock"],
             size=None,
@@ -1544,9 +1561,9 @@ class TestFacets:
 
     def test_facets_requires_unique_fields(self) -> None:
         """facets() raises when fields are duplicated."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).order_by(
-            "price"
-        )[:5]
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).order_by("price")[:5]
         with pytest.raises(ValueError, match="unique"):
             queryset.facets("category", "category")
 
@@ -1566,9 +1583,9 @@ class TestFacets:
 
         # Should NOT contain array form
         # With parameterized SQL, would appear as ARRAY[description] not ARRAY['description']
-        assert "ARRAY[description]" not in sql, (
-            f"Should not use array form for document input\nGot SQL: {sql}"
-        )
+        assert (
+            "ARRAY[description]" not in sql
+        ), f"Should not use array form for document input\nGot SQL: {sql}"
 
     def test_mlt_empty_stopwords_should_not_generate_empty_string(self) -> None:
         """Empty stopwords should be omitted."""
@@ -1581,6 +1598,6 @@ class TestFacets:
         sql = str(queryset.query)
 
         # Should NOT have stopwords at all (parameterized or not)
-        assert "stopwords" not in sql, (
-            f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"
-        )
+        assert (
+            "stopwords" not in sql
+        ), f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"

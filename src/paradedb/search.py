@@ -657,9 +657,7 @@ class ParadeDB:
     contains_column_references = False
 
     @overload
-    def __init__(
-        self, __match: Match, *, operator: object = _DEFAULT_OPERATOR
-    ) -> None:
+    def __init__(self, __match: Match, *, operator: object = _DEFAULT_OPERATOR) -> None:
         """Explicit literal search with required Match operator."""
         ...
 

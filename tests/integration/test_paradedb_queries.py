@@ -176,18 +176,14 @@ def test_fuzzy_distance() -> None:
 def test_fuzzy_conjunction() -> None:
     ids = _ids(
         MockItem.objects.filter(
-            description=ParadeDB(
-                Match("runnning shose", operator="AND", distance=2)
-            )
+            description=ParadeDB(Match("runnning shose", operator="AND", distance=2))
         )
     )
     assert 3 in ids
 
 
 def test_fuzzy_term_form() -> None:
-    ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(Term("shose", distance=2)))
-    )
+    ids = _ids(MockItem.objects.filter(description=ParadeDB(Term("shose", distance=2))))
     assert len(ids) > 0
 
 
@@ -260,9 +256,7 @@ def test_const_with_fuzzy_integration() -> None:
     )
     const_ids = _ids(
         MockItem.objects.filter(
-            description=ParadeDB(
-                Match("shose", operator="OR", distance=2, const=1.0)
-            )
+            description=ParadeDB(Match("shose", operator="OR", distance=2, const=1.0))
         )
     )
     assert const_ids == baseline_ids
@@ -579,15 +573,15 @@ def test_more_like_this_with_stopwords() -> None:
 
     # With "shoes" as stopword, results should be different
     # (fewer matches since "shoes" term is excluded from matching)
-    assert with_stopword_ids != baseline_ids, (
-        "Stopwords should change the results - excluding 'shoes' should remove shoe-related matches"
-    )
+    assert (
+        with_stopword_ids != baseline_ids
+    ), "Stopwords should change the results - excluding 'shoes' should remove shoe-related matches"
 
     # Typically, stopwords should reduce the number of matches
     # (unless all matches are from other terms like "running")
-    assert len(with_stopword_ids) <= len(baseline_ids), (
-        "Stopwords should not increase match count"
-    )
+    assert len(with_stopword_ids) <= len(
+        baseline_ids
+    ), "Stopwords should not increase match count"
 
 
 def test_more_like_this_with_word_length() -> None:
@@ -618,9 +612,9 @@ def test_more_like_this_with_word_length() -> None:
     assert 3 in with_min_length_ids
 
     # Results should differ when short words are filtered
-    assert with_min_length_ids != baseline_ids, (
-        "min_word_length=6 should filter out 'shoes' (5 chars) and change results"
-    )
+    assert (
+        with_min_length_ids != baseline_ids
+    ), "min_word_length=6 should filter out 'shoes' (5 chars) and change results"
 
 
 def test_more_like_this_stopwords_reversible() -> None:
@@ -662,9 +656,9 @@ def test_more_like_this_stopwords_reversible() -> None:
 
     # With "shoes" as stopword, we should have fewer or equal matches
     # (excluding the main matching term reduces similarity matches)
-    assert len(ids_with) <= len(ids_without), (
-        "Stopwords should not increase match count"
-    )
+    assert len(ids_with) <= len(
+        ids_without
+    ), "Stopwords should not increase match count"
 
     # Source item always included regardless of stopwords
     assert 3 in ids_with
@@ -706,23 +700,23 @@ def test_more_like_this_document_input_generates_correct_sql() -> None:
     sql, params = query.query.sql_with_params()
 
     # With parameterized SQL, the SQL should contain placeholder
-    assert "pdb.more_like_this(%s)" in sql, (
-        f"Expected parameterized format: pdb.more_like_this(%s)\nGot SQL: {sql}"
-    )
+    assert (
+        "pdb.more_like_this(%s)" in sql
+    ), f"Expected parameterized format: pdb.more_like_this(%s)\nGot SQL: {sql}"
 
     # Check that the parameter contains the JSON string
     assert len(params) > 0, "Expected at least one parameter"
     # Find the JSON parameter (it should be a string containing the JSON)
     json_params = [p for p in params if isinstance(p, str) and "description" in p]
     assert len(json_params) > 0, f"Expected JSON parameter in {params}"
-    assert '"wireless earbuds"' in json_params[0], (
-        f"Expected JSON content in {json_params[0]}"
-    )
+    assert (
+        '"wireless earbuds"' in json_params[0]
+    ), f"Expected JSON content in {json_params[0]}"
 
     # Ensure it does NOT contain the array form
-    assert "ARRAY[" not in sql or "description" not in sql, (
-        f"Should not use array form for document input\nGot SQL: {sql}"
-    )
+    assert (
+        "ARRAY[" not in sql or "description" not in sql
+    ), f"Should not use array form for document input\nGot SQL: {sql}"
 
 
 def test_more_like_this_empty_stopwords_generates_correct_sql() -> None:
@@ -741,9 +735,9 @@ def test_more_like_this_empty_stopwords_generates_correct_sql() -> None:
     sql, _params = query.query.sql_with_params()
 
     # Check that stopwords is not present at all
-    assert "stopwords" not in sql, (
-        f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"
-    )
+    assert (
+        "stopwords" not in sql
+    ), f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"
 
 
 def test_more_like_this_with_key_field() -> None:

@@ -430,9 +430,7 @@ class TestScoreEdgeCases:
         """Score defaults to pk field."""
         queryset = Product.objects.filter(
             description=ParadeDB(Match("shoes", operator="AND"))
-        ).annotate(
-            s=Score()
-        )
+        ).annotate(s=Score())
         sql = str(queryset.query)
         assert "pdb.score" in sql
 
@@ -444,9 +442,7 @@ class TestSnippetEdgeCases:
         """Snippet with only start_sel."""
         queryset = Product.objects.filter(
             description=ParadeDB(Match("shoes", operator="AND"))
-        ).annotate(
-            s=Snippet("description", start_sel="<b>")
-        )
+        ).annotate(s=Snippet("description", start_sel="<b>"))
         sql = str(queryset.query)
         assert "<b>" in sql
 
@@ -454,9 +450,7 @@ class TestSnippetEdgeCases:
         """Snippet with only max_num_chars."""
         queryset = Product.objects.filter(
             description=ParadeDB(Match("shoes", operator="AND"))
-        ).annotate(
-            s=Snippet("description", max_num_chars=50)
-        )
+        ).annotate(s=Snippet("description", max_num_chars=50))
         sql = str(queryset.query)
         assert "50" in sql
 
@@ -532,7 +526,9 @@ class TestEmptyAndWhitespaceInputs:
 
     def test_empty_string_search(self) -> None:
         """Empty string search term works (ParadeDB handles it)."""
-        queryset = Product.objects.filter(description=ParadeDB(Match("", operator="AND")))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("", operator="AND"))
+        )
         sql = str(queryset.query)
         assert "&&& ''" in sql
 

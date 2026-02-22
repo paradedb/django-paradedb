@@ -11,12 +11,12 @@
 
 ## Requirements & Compatibility
 
-| Component  | Supported                        |
-| ---------- | -------------------------------- |
-| Python     | 3.10+                            |
-| Django     | 4.2+                             |
-| ParadeDB   | 0.21.0+                          |
-| PostgreSQL | 17+    (with ParadeDB extension) |
+| Component  | Supported                     |
+| ---------- | ----------------------------- |
+| Python     | 3.10+                         |
+| Django     | 4.2+                          |
+| ParadeDB   | 0.21.0+                       |
+| PostgreSQL | 17+ (with ParadeDB extension) |
 
 ## Installation
 
@@ -165,7 +165,7 @@ MockItemDjango.objects.filter(
 ).filter(
     category='footwear'
 ).exclude(
-    rating__lt=3
+    rating__lt=4
 )
 ```
 
@@ -192,11 +192,11 @@ class MockItemDjango(models.Model):
 
 ```python
 # ❌ Missing ParadeDB filter
-MockItemDjango.objects.filter(price__lt=100).order_by('id')[:10].facets('category')
+MockItemDjango.objects.filter(rating__lt=4).order_by('id')[:10].facets('category')
 
 # ✅ Add a ParadeDB search filter
 MockItemDjango.objects.filter(
-    price__lt=100,
+    rating__lt=4,
     description=ParadeDB('shoes')
 ).order_by('id')[:10].facets('category')
 ```

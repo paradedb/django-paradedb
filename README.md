@@ -26,31 +26,47 @@ pip install django-paradedb
 
 ## Quick Start
 
+### Create an Index
+
 Add a BM25 index to your model and use `ParadeDBManager`:
 
 ```python
 from django.db import models
+from django.contrib.postgres.fields import IntegerRangeField
 from paradedb.indexes import BM25Index
 from paradedb.queryset import ParadeDBManager
 
-class Product(models.Model):
-    description = models.TextField()
-    category = models.CharField(max_length=100)
-    rating = models.IntegerField(default=0)
+class MockItemDjango(models.Model):
+    description = models.TextField(null=True, blank=True)
+    rating = models.IntegerField(null=True, blank=True)
+    category = models.CharField(max_length=255, null=True, blank=True)
+    in_stock = models.BooleanField(null=True, blank=True)
+    metadata = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(null=True, blank=True)
+    last_updated_date = models.DateField(null=True, blank=True)
+    latest_available_time = models.TimeField(null=True, blank=True)
+    weight_range = IntegerRangeField(null=True, blank=True)
 
     objects = ParadeDBManager()
 
     class Meta:
+        db_table = "mock_items_django"
         indexes = [
             BM25Index(
                 fields={
-                    'id': {},
-                    'description': {'tokenizer': 'unicode_words'},
-                    'category': {'tokenizer': 'literal'},
-                    'rating': {},
+                    "id": {},
+                    "description": {"tokenizer": "unicode_words"},
+                    "category": {"tokenizer": "literal"},
+                    "rating": {},
+                    "in_stock": {},
+                    "metadata": {},
+                    "created_at": {},
+                    "last_updated_date": {},
+                    "latest_available_time": {},
+                    "weight_range": {},
                 },
-                key_field='id',
-                name='product_search_idx',
+                key_field="id",
+                name="search_idx",
             ),
         ]
 ```
@@ -62,22 +78,55 @@ python manage.py makemigrations
 python manage.py migrate
 ```
 
+### Generate Test Data
+
+To demonstrate search, we need to populate the table we just created.
+First, open a Python shell:
+
+```bash
+python manage.py shell
+```
+
+And paste the following command
+
+```python
+from django.db import connection
+
+cursor = connection.cursor()
+
+cursor.execute("""
+    CALL paradedb.create_bm25_test_table(
+      schema_name => 'public',
+      table_name  => 'mock_items'
+    );
+""")
+
+cursor.execute("""
+    INSERT INTO public.mock_items_django
+    SELECT * FROM public.mock_items;
+""")
+
+cursor.close()
+```
+
+### Text Search
+
 Search with a simple query:
 
 ```python
 from paradedb.search import ParadeDB, Fuzzy
 
 # Single term
-Product.objects.filter(description=ParadeDB('shoes'))
+MockItemDjango.objects.filter(description=ParadeDB('shoes'))
 
 # Multiple terms (AND by default)
-Product.objects.filter(description=ParadeDB('running', 'shoes'))
+MockItemDjango.objects.filter(description=ParadeDB('running', 'shoes'))
 
 # OR across terms
-Product.objects.filter(description=ParadeDB('shoes', 'boots', operator='OR'))
+MockItemDjango.objects.filter(description=ParadeDB('running', 'shoes', operator='OR'))
 
 # Fuzzy search (typo tolerance)
-Product.objects.filter(description=ParadeDB(Fuzzy('shoez')))
+MockItemDjango.objects.filter(description=ParadeDB(Fuzzy('shoez')))
 ```
 
 Annotate with BM25 relevance score and sort by it:
@@ -85,44 +134,34 @@ Annotate with BM25 relevance score and sort by it:
 ```python
 from paradedb.functions import Score
 
-Product.objects.filter(
+MockItemDjango.objects.filter(
     description=ParadeDB('shoes')
 ).annotate(
     score=Score()
 ).order_by('-score')
 ```
 
-## Django ORM Integration
+## Django ORM Compatibility
 
-django-paradedb works seamlessly with Django's ORM features:
+`django-paradedb` works seamlessly with Django's ORM features:
 
 ```python
 from django.db.models import Q
 from paradedb.search import ParadeDB
 
 # Combine with Q objects
-Product.objects.filter(
+MockItemDjango.objects.filter(
     Q(description=ParadeDB('shoes')) & Q(rating__gte=4)
 )
 
 # Chain with standard filters
-Product.objects.filter(
+MockItemDjango.objects.filter(
     description=ParadeDB('shoes')
 ).filter(
     category='footwear'
 ).exclude(
     rating__lt=3
 )
-
-# Select related
-Product.objects.filter(
-    description=ParadeDB('shoes')
-).select_related('brand')
-
-# Prefetch related
-Product.objects.filter(
-    description=ParadeDB('shoes')
-).prefetch_related('reviews')
 ```
 
 ## Custom Manager
@@ -138,7 +177,7 @@ class CustomManager(models.Manager):
 
 CustomManagerWithParadeDB = CustomManager.from_queryset(ParadeDBQuerySet)
 
-class Product(models.Model):
+class MockItemDjango(models.Model):
     objects = CustomManagerWithParadeDB()
 ```
 
@@ -148,10 +187,10 @@ class Product(models.Model):
 
 ```python
 # ❌ Missing ParadeDB filter
-Product.objects.filter(price__lt=100).order_by('id')[:10].facets('category')
+MockItemDjango.objects.filter(price__lt=100).order_by('id')[:10].facets('category')
 
 # ✅ Add a ParadeDB search filter
-Product.objects.filter(
+MockItemDjango.objects.filter(
     price__lt=100,
     description=ParadeDB('shoes')
 ).order_by('id')[:10].facets('category')
@@ -161,14 +200,14 @@ Product.objects.filter(
 
 ```python
 # ❌ Missing ordering or limit
-Product.objects.filter(description=ParadeDB('shoes'))[:10].facets('category')
-Product.objects.filter(description=ParadeDB('shoes')).order_by('id').facets('category')
+MockItemDjango.objects.filter(description=ParadeDB('shoes'))[:10].facets('category')
+MockItemDjango.objects.filter(description=ParadeDB('shoes')).order_by('id').facets('category')
 
 # ✅ Both ordering and limit
-Product.objects.filter(description=ParadeDB('shoes')).order_by('id')[:10].facets('category')
+MockItemDjango.objects.filter(description=ParadeDB('shoes')).order_by('id')[:10].facets('category')
 
 # ✅ Or skip rows entirely
-Product.objects.filter(description=ParadeDB('shoes')).facets('category', include_rows=False)
+MockItemDjango.objects.filter(description=ParadeDB('shoes')).facets('category', include_rows=False)
 ```
 
 ## Security

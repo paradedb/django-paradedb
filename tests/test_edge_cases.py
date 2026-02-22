@@ -189,11 +189,11 @@ class TestDistanceValidation:
         assert match.distance == 0
 
     def test_match_negative_distance_raises(self) -> None:
-        with pytest.raises(ValueError, match="zero or positive"):
+        with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
             Match("test", operator="AND", distance=-1)
 
     def test_match_large_distance_raises(self) -> None:
-        with pytest.raises(ValueError, match="<= 2"):
+        with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
             Match("test", operator="AND", distance=10)
 
     def test_term_distance_validation(self) -> None:

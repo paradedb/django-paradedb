@@ -15,7 +15,7 @@ from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
     PQ,
-    Fuzzy,
+    Match,
     MoreLikeThis,
     ParadeDB,
     Parse,
@@ -35,37 +35,49 @@ class TestSpecialCharacterEscaping:
 
     def test_single_quote_in_search_term(self) -> None:
         """Single quotes are escaped to prevent SQL injection."""
-        queryset = Product.objects.filter(description=ParadeDB("it's"))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("it's", operator="AND"))
+        )
         sql = str(queryset.query)
         assert "it''s" in sql
 
     def test_double_single_quotes(self) -> None:
         """Multiple single quotes are all escaped."""
-        queryset = Product.objects.filter(description=ParadeDB("don''t"))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("don''t", operator="AND"))
+        )
         sql = str(queryset.query)
         assert "don''''t" in sql
 
     def test_backslash_in_search_term(self) -> None:
         """Backslashes are preserved in search terms."""
-        queryset = Product.objects.filter(description=ParadeDB("path\\to\\file"))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("path\\to\\file", operator="AND"))
+        )
         sql = str(queryset.query)
         assert "path\\to\\file" in sql
 
     def test_unicode_characters(self) -> None:
         """Unicode characters work in search terms."""
-        queryset = Product.objects.filter(description=ParadeDB("日本語"))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("日本語", operator="AND"))
+        )
         sql = str(queryset.query)
         assert "日本語" in sql
 
     def test_emoji_in_search(self) -> None:
         """Emoji characters work in search terms."""
-        queryset = Product.objects.filter(description=ParadeDB("👟 shoes"))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("👟 shoes", operator="AND"))
+        )
         sql = str(queryset.query)
         assert "👟 shoes" in sql
 
     def test_special_sql_keywords(self) -> None:
         """SQL keywords in search terms are quoted safely."""
-        queryset = Product.objects.filter(description=ParadeDB("SELECT * FROM"))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("SELECT * FROM", operator="AND"))
+        )
         sql = str(queryset.query)
         assert "'SELECT * FROM'" in sql
 
@@ -96,7 +108,7 @@ class TestParadeDBValidation:
 
     def test_pq_must_be_sole_input(self) -> None:
         """PQ mixed with other terms raises ValueError on SQL generation."""
-        pdb = ParadeDB(PQ("a") | PQ("b"), "extra")
+        pdb = ParadeDB(PQ("a") | PQ("b"), Phrase("extra"))
         queryset = Product.objects.filter(description=pdb)
         with pytest.raises(ValueError, match="sole ParadeDB input"):
             str(queryset.query)
@@ -122,24 +134,19 @@ class TestParadeDBValidation:
         with pytest.raises(ValueError, match="single term"):
             str(queryset.query)
 
-    def test_phrase_cannot_mix_with_string(self) -> None:
-        """Phrase mixed with string raises TypeError on SQL generation."""
-        pdb = ParadeDB(Phrase("a"), "b")
+    def test_phrase_cannot_mix_with_match(self) -> None:
+        """Phrase mixed with Match raises TypeError on SQL generation."""
+        pdb = ParadeDB(Phrase("a"), Match("b", operator="AND"))
         queryset = Product.objects.filter(description=pdb)
-        with pytest.raises(TypeError, match="only accept Phrase"):
-            str(queryset.query)
-
-    def test_fuzzy_cannot_mix_with_string(self) -> None:
-        """Fuzzy mixed with string raises TypeError on SQL generation."""
-        pdb = ParadeDB(Fuzzy("a"), "b")
-        queryset = Product.objects.filter(description=pdb)
-        with pytest.raises(TypeError, match="only accept Fuzzy"):
+        with pytest.raises(ValueError, match="Match queries must be a single term"):
             str(queryset.query)
 
     def test_paradedb_invalid_tokenizer_deferred_to_database(self) -> None:
         """Tokenizer names are quoted in SQL; validity is deferred to database execution."""
         queryset = Product.objects.filter(
-            description=ParadeDB("shoes", tokenizer="bad-tokenizer;")
+            description=ParadeDB(
+                Match("shoes", operator="AND", tokenizer="bad-tokenizer;")
+            )
         )
         assert '::pdb."bad-tokenizer;"' in str(queryset.query)
 
@@ -170,39 +177,28 @@ class TestPhraseValidation:
         assert '::pdb."bad tokenizer"' in str(queryset.query)
 
 
-class TestFuzzyValidation:
-    """Test Fuzzy dataclass validation."""
+class TestDistanceValidation:
+    """Test distance validation on Match and Term."""
 
-    def test_fuzzy_default_distance(self) -> None:
-        """Default distance is 1."""
-        fuzzy = Fuzzy("test")
-        assert fuzzy.distance == 1
+    def test_match_default_distance(self) -> None:
+        match = Match("test", operator="AND")
+        assert match.distance is None
 
-    def test_fuzzy_distance_zero_is_valid(self) -> None:
-        """Distance of 0 is valid (exact match)."""
-        fuzzy = Fuzzy("test", distance=0)
-        assert fuzzy.distance == 0
+    def test_match_distance_zero_is_valid(self) -> None:
+        match = Match("test", operator="AND", distance=0)
+        assert match.distance == 0
 
-    def test_fuzzy_negative_distance_raises(self) -> None:
-        """Negative distance raises ValueError."""
+    def test_match_negative_distance_raises(self) -> None:
         with pytest.raises(ValueError, match="zero or positive"):
-            Fuzzy("test", distance=-1)
+            Match("test", operator="AND", distance=-1)
 
-    def test_fuzzy_large_distance(self) -> None:
-        """Distance values > 2 raise ValueError."""
+    def test_match_large_distance_raises(self) -> None:
         with pytest.raises(ValueError, match="<= 2"):
-            Fuzzy("test", distance=10)
+            Match("test", operator="AND", distance=10)
 
-    def test_fuzzy_invalid_operator_raises(self) -> None:
-        """Invalid fuzzy operators raise ValueError."""
-        with pytest.raises(ValueError, match="must be one of"):
-            Fuzzy("test", operator="BAD")  # type: ignore[arg-type]
-
-    def test_fuzzy_boost_and_const_deferred_to_database(self) -> None:
-        """Fuzzy accepts boost+const; invalid cast is deferred to database execution."""
-        fuzzy = Fuzzy("test", boost=1.0, const=1.0)
-        assert fuzzy.boost == 1.0
-        assert fuzzy.const == 1.0
+    def test_term_distance_validation(self) -> None:
+        term = Term("test", distance=1)
+        assert term.distance == 1
 
 
 class TestExpressionValidation:
@@ -432,7 +428,9 @@ class TestScoreEdgeCases:
 
     def test_score_default_uses_pk(self) -> None:
         """Score defaults to pk field."""
-        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             s=Score()
         )
         sql = str(queryset.query)
@@ -444,7 +442,9 @@ class TestSnippetEdgeCases:
 
     def test_snippet_partial_formatting(self) -> None:
         """Snippet with only start_sel."""
-        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             s=Snippet("description", start_sel="<b>")
         )
         sql = str(queryset.query)
@@ -452,7 +452,9 @@ class TestSnippetEdgeCases:
 
     def test_snippet_only_max_chars(self) -> None:
         """Snippet with only max_num_chars."""
-        queryset = Product.objects.filter(description=ParadeDB("shoes")).annotate(
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             s=Snippet("description", max_num_chars=50)
         )
         sql = str(queryset.query)
@@ -530,13 +532,15 @@ class TestEmptyAndWhitespaceInputs:
 
     def test_empty_string_search(self) -> None:
         """Empty string search term works (ParadeDB handles it)."""
-        queryset = Product.objects.filter(description=ParadeDB(""))
+        queryset = Product.objects.filter(description=ParadeDB(Match("", operator="AND")))
         sql = str(queryset.query)
         assert "&&& ''" in sql
 
     def test_whitespace_only_search(self) -> None:
         """Whitespace-only search term works."""
-        queryset = Product.objects.filter(description=ParadeDB("   "))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("   ", operator="AND"))
+        )
         sql = str(queryset.query)
         assert "'   '" in sql
 
@@ -546,9 +550,11 @@ class TestEmptyAndWhitespaceInputs:
         sql = str(queryset.query)
         assert "### ''" in sql
 
-    def test_fuzzy_empty_string(self) -> None:
-        """Fuzzy with empty string works."""
-        queryset = Product.objects.filter(description=ParadeDB(Fuzzy("")))
+    def test_match_distance_empty_string(self) -> None:
+        """Match with distance and empty string works."""
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("", operator="OR", distance=1))
+        )
         sql = str(queryset.query)
         assert "''::pdb.fuzzy" in sql
 
@@ -559,7 +565,9 @@ class TestLongInputs:
     def test_very_long_search_term(self) -> None:
         """Very long search term is handled."""
         long_term = "a" * 10000
-        queryset = Product.objects.filter(description=ParadeDB(long_term))
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match(long_term, operator="AND"))
+        )
         sql = str(queryset.query)
         assert long_term in sql
 
@@ -576,7 +584,9 @@ class TestLongInputs:
     def test_many_and_terms(self) -> None:
         """Many AND terms work."""
         queryset = Product.objects.filter(
-            description=ParadeDB(*[f"term{i}" for i in range(100)])
+            description=ParadeDB(
+                Match(*[f"term{i}" for i in range(100)], operator="AND")
+            )
         )
         sql = str(queryset.query)
         assert "term99" in sql

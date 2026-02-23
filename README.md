@@ -186,6 +186,44 @@ class MockItemDjango(models.Model):
     objects = CustomManagerWithParadeDB()
 ```
 
+## Diagnostics Helpers and Commands
+
+`django-paradedb` includes helper functions for ParadeDB diagnostic table functions and
+optional Django management commands:
+
+- `paradedb_indexes()`
+- `paradedb_index_segments()`
+- `paradedb_verify_index()`
+- `paradedb_verify_all_indexes()`
+
+Python helper example:
+
+```python
+from paradedb.functions import paradedb_indexes, paradedb_verify_index
+
+# Uses Django's default DB alias ("default")
+rows = paradedb_indexes()
+
+# Multi-DB: run against a specific database alias
+checks = paradedb_verify_index("search_idx", using="search")
+```
+
+Management command examples:
+
+```bash
+# Uses Django's default DB alias ("default")
+python manage.py paradedb_indexes
+
+# Multi-DB: target a specific database alias
+python manage.py paradedb_verify_index search_idx --database search
+```
+
+Notes:
+
+- Management commands are discovered by Django only when `"paradedb"` is in `INSTALLED_APPS`.
+- The selected database must have ParadeDB (`pg_search`) installed, and the target BM25 index must exist there.
+- Some diagnostics functions may not be available on older `pg_search` versions.
+
 ## Common Errors
 
 ### "facets() requires a ParadeDB operator in the WHERE clause"

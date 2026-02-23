@@ -13,7 +13,7 @@ from django.db.models.functions import RowNumber
 from tests.models import MockItem
 
 from paradedb.functions import Score
-from paradedb.search import PQ, Match, ParadeDB, Phrase
+from paradedb.search import Match, ParadeDB, Phrase
 
 pytestmark = [
     pytest.mark.integration,
@@ -66,6 +66,54 @@ class TestQObjectIntegration:
                 "wireless" in item.description.lower() and item.in_stock
             )
             assert is_shoes_high_rated or is_wireless_in_stock
+
+    @pytest.mark.parametrize("lhs_operator", ["AND", "OR"])
+    @pytest.mark.parametrize("rhs_operator", ["AND", "OR"])
+    @pytest.mark.parametrize("combiner", ["AND", "OR"])
+    def test_same_column_mixed_boolean_matrix(
+        self,
+        lhs_operator: str,
+        rhs_operator: str,
+        combiner: str,
+    ) -> None:
+        """Mixed boolean logic on the same column works via Q composition."""
+        lhs_q = Q(
+            description=ParadeDB(Match("running", "shoes", operator=lhs_operator))
+        )
+        rhs_q = Q(
+            description=ParadeDB(Match("wireless", "keyboard", operator=rhs_operator))
+        )
+
+        lhs_ids = _ids(MockItem.objects.filter(lhs_q))
+        rhs_ids = _ids(MockItem.objects.filter(rhs_q))
+
+        if combiner == "AND":
+            combined_q = lhs_q & rhs_q
+            expected = lhs_ids & rhs_ids
+        else:
+            combined_q = lhs_q | rhs_q
+            expected = lhs_ids | rhs_ids
+
+        actual = _ids(MockItem.objects.filter(combined_q))
+        assert actual == expected
+
+    def test_same_column_nested_grouped_boolean(self) -> None:
+        """Grouped mixed boolean logic can reuse the same field with multiple Match clauses."""
+        running_or_wireless = Q(
+            description=ParadeDB(Match("running", "wireless", operator="OR"))
+        )
+        shoes = Q(description=ParadeDB(Match("shoes", operator="AND")))
+        boots = Q(description=ParadeDB(Match("boots", operator="AND")))
+
+        actual = _ids(MockItem.objects.filter((running_or_wireless & shoes) | boots))
+
+        expected = (
+            _ids(MockItem.objects.filter(running_or_wireless))
+            & _ids(MockItem.objects.filter(shoes))
+        ) | _ids(MockItem.objects.filter(boots))
+
+        assert actual == expected
+        assert actual == {3, 13}
 
 
 class TestNegationIntegration:
@@ -341,28 +389,3 @@ class TestPhraseSearchIntegration:
         )
         for item in queryset:
             assert item.in_stock is True
-
-
-class TestPQCombinationsIntegration:
-    """Test PQ object combinations with Django ORM features."""
-
-    def test_pq_or_with_standard_filter(self) -> None:
-        """PQ OR combined with standard filter."""
-        queryset = MockItem.objects.filter(
-            description=ParadeDB(PQ("running") | PQ("wireless")),
-            in_stock=True,
-        )
-        for item in queryset:
-            assert item.in_stock is True
-
-    def test_pq_and_with_annotation(self) -> None:
-        """PQ AND combined with Score annotation."""
-        queryset = (
-            MockItem.objects.filter(description=ParadeDB(PQ("running") & PQ("shoes")))
-            .annotate(search_score=Score())
-            .order_by("-search_score")
-        )
-        results = list(queryset)
-        assert len(results) > 0
-        for item in results:
-            assert item.search_score > 0

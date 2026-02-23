@@ -8,7 +8,6 @@ from tests.models import MockItem
 
 from paradedb.functions import Snippet
 from paradedb.search import (
-    PQ,
     Fuzzy,
     Match,
     MoreLikeThis,
@@ -45,20 +44,6 @@ def _raw_ids(sql: str) -> set[int]:
 def _where_sql(lhs_sql: str, expr: ParadeDB) -> str:
     sql, _ = expr.as_sql(None, connection, lhs_sql)  # type: ignore[arg-type]
     return sql
-
-
-def test_pq_or_semantics() -> None:
-    ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(PQ("running") | PQ("wireless")))
-    )
-    assert ids == {3, 12}
-
-
-def test_pq_and_semantics() -> None:
-    ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(PQ("running") & PQ("shoes")))
-    )
-    assert ids == {3}
 
 
 def test_multi_term_and() -> None:

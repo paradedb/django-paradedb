@@ -14,7 +14,6 @@ from django.db.models import Value
 from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
-    PQ,
     Fuzzy,
     Match,
     MoreLikeThis,
@@ -106,13 +105,6 @@ class TestParadeDBValidation:
         """ParadeDB with no terms raises ValueError."""
         with pytest.raises(ValueError, match="requires at least one"):
             ParadeDB()
-
-    def test_pq_must_be_sole_input(self) -> None:
-        """PQ mixed with other terms raises ValueError on SQL generation."""
-        pdb = ParadeDB(PQ("a") | PQ("b"), Phrase("extra"))
-        queryset = Product.objects.filter(description=pdb)
-        with pytest.raises(ValueError, match="sole ParadeDB input"):
-            str(queryset.query)
 
     def test_parse_must_be_single(self) -> None:
         """Multiple Parse objects raise ValueError on SQL generation."""
@@ -263,40 +255,6 @@ class TestExpressionValidation:
         )
         assert proximity_array.boost == 1.0
         assert proximity_array.const == 1.0
-
-
-class TestPQValidation:
-    """Test PQ object validation and operations."""
-
-    def test_pq_combine_with_non_pq_raises(self) -> None:
-        """Combining PQ with non-PQ raises TypeError."""
-        pq = PQ("test")
-        with pytest.raises(TypeError, match="PQ instances"):
-            pq | "string"  # type: ignore[operator]
-
-    def test_pq_mixed_operators_raises(self) -> None:
-        """Mixing AND and OR operators raises ValueError."""
-        pq_or = PQ("a") | PQ("b")
-        with pytest.raises(ValueError, match="Mixed PQ operators"):
-            pq_or & PQ("c")
-
-    def test_pq_single_term_no_operator(self) -> None:
-        """Single PQ has no operator."""
-        pq = PQ("test")
-        assert pq.operator is None
-        assert pq.terms == ("test",)
-
-    def test_pq_chained_or(self) -> None:
-        """Chained OR preserves all terms."""
-        pq = PQ("a") | PQ("b") | PQ("c") | PQ("d")
-        assert pq.terms == ("a", "b", "c", "d")
-        assert pq.operator == "OR"
-
-    def test_pq_chained_and(self) -> None:
-        """Chained AND preserves all terms."""
-        pq = PQ("a") & PQ("b") & PQ("c")
-        assert pq.terms == ("a", "b", "c")
-        assert pq.operator == "AND"
 
 
 class TestMoreLikeThisValidation:
@@ -572,10 +530,11 @@ class TestLongInputs:
 
     def test_many_or_terms(self) -> None:
         """Many OR terms work."""
-        pq = PQ("term1")
-        for i in range(2, 101):
-            pq = pq | PQ(f"term{i}")
-        queryset = Product.objects.filter(description=ParadeDB(pq))
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Match(*[f"term{i}" for i in range(1, 101)], operator="OR")
+            )
+        )
         sql = str(queryset.query)
         assert "term100" in sql
         assert "|||" in sql

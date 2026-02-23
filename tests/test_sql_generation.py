@@ -14,7 +14,6 @@ from django.db.models.functions import Concat, RowNumber
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
-    PQ,
     Fuzzy,
     Match,
     MoreLikeThis,
@@ -125,13 +124,6 @@ class TestExactLiteralDisjunction:
         ):
             _ = ParadeDB("a", "b")
 
-    def test_operator_invalid_with_pq(self) -> None:
-        with pytest.raises(
-            ValueError,
-            match=r"ParadeDB operator keyword is only supported via Match\(\.\.\., operator=\.\.\.\)\.",
-        ):
-            _ = ParadeDB(PQ("a") | PQ("b"), operator="OR")
-
     def test_operator_invalid_with_phrase(self) -> None:
         with pytest.raises(
             ValueError,
@@ -162,40 +154,6 @@ class TestExactLiteralDisjunction:
         )
         with pytest.raises(ValueError, match=r"Match queries must be a single term\."):
             _ = str(queryset.query)
-
-
-class TestPQObject:
-    """Test PQ SQL generation."""
-
-    def test_or_search(self) -> None:
-        """PQ OR generates: WHERE description ||| ARRAY[...]"""
-        queryset = Product.objects.filter(
-            description=ParadeDB(PQ("wireless") | PQ("bluetooth"))
-        )
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'wireless\', \'bluetooth\']'
-        )
-
-    def test_or_search_chained(self) -> None:
-        """Edge case: chaining multiple OR terms."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(PQ("wireless") | PQ("bluetooth") | PQ("speaker"))
-        )
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'wireless\', \'bluetooth\', \'speaker\']'
-        )
-
-    def test_pq_and_search(self) -> None:
-        """PQ AND generates: WHERE description &&& ARRAY[...]"""
-        queryset = Product.objects.filter(
-            description=ParadeDB(PQ("shoes") & PQ("sandals"))
-        )
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'shoes\', \'sandals\']'
-        )
 
 
 class TestPhraseSearch:
@@ -390,13 +348,6 @@ class TestTokenizerOverride:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.whitespace::pdb.boost(2.0)'
         )
-
-    def test_tokenizer_invalid_with_pq(self) -> None:
-        with pytest.raises(
-            ValueError,
-            match=r"ParadeDB tokenizer is only supported with plain string terms\.",
-        ):
-            _ = ParadeDB(PQ("a") | PQ("b"), tokenizer="whitespace")
 
     def test_tokenizer_invalid_with_term(self) -> None:
         with pytest.raises(
@@ -810,7 +761,7 @@ class TestSnippetAnnotation:
     def test_snippet_annotation(self) -> None:
         """Snippet generates: pdb.snippet(description) AS snippet."""
         queryset = Product.objects.filter(
-            description=ParadeDB(PQ("wireless") | PQ("bluetooth"))
+            description=ParadeDB(Match("wireless", "bluetooth", operator="OR"))
         ).annotate(snippet=Snippet("description"))
         assert (
             str(queryset.query)

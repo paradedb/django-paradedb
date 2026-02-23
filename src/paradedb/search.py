@@ -26,7 +26,6 @@ from django.db.models.expressions import Expression
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
 
-PQOperator = Literal["OR", "AND"]
 ParadeOperator = Literal["OR", "AND"]
 _DEFAULT_OPERATOR = object()
 
@@ -571,43 +570,6 @@ class MoreLikeThis(Expression):
         return ", " + ", ".join(rendered), params
 
 
-@dataclass(frozen=True)
-class PQ:
-    """Query object for ParadeDB boolean logic."""
-
-    terms: tuple[str, ...]
-    operator: PQOperator | None = None
-
-    def __init__(self, term: str) -> None:
-        object.__setattr__(self, "terms", (term,))
-        object.__setattr__(self, "operator", None)
-
-    def __or__(self, other: PQ) -> PQ:
-        return self._combine("OR", other)
-
-    def __and__(self, other: PQ) -> PQ:
-        return self._combine("AND", other)
-
-    def _combine(self, operator: PQOperator, other: PQ) -> PQ:
-        if not isinstance(other, PQ):
-            raise TypeError("PQ objects can only be combined with PQ instances.")
-
-        if self.operator not in (None, operator):
-            raise ValueError("Mixed PQ operators are not supported yet.")
-        if other.operator not in (None, operator):
-            raise ValueError("Mixed PQ operators are not supported yet.")
-
-        terms = (*self.terms, *other.terms)
-        return PQ._from_terms(terms, operator)
-
-    @classmethod
-    def _from_terms(cls, terms: Iterable[str], operator: PQOperator) -> PQ:
-        instance = cls.__new__(cls)
-        object.__setattr__(instance, "terms", tuple(terms))
-        object.__setattr__(instance, "operator", operator)
-        return instance
-
-
 class ParadeDB:
     """Wrapper for ParadeDB search terms.
 
@@ -615,9 +577,8 @@ class ParadeDB:
         # Explicit literal match query
         ParadeDB(Match('running', 'shoes', operator='AND'))
 
-        # Boolean logic (PQ must be SOLE argument)
-        ParadeDB(PQ('shoes') | PQ('boots'))  # ✅ Valid
-        ParadeDB(PQ('a'), 'b')               # ❌ Error - PQ must be alone
+        # Complex mixed AND/OR logic is expressed by combining multiple
+        # ParadeDB(Match(...)) clauses with Django Q objects.
 
         # Query expressions (SINGLE expression only)
         ParadeDB(Parse('query'))             # ✅ Valid
@@ -628,16 +589,9 @@ class ParadeDB:
         ParadeDB(Phrase('a'), Phrase('b'))   # ✅ Valid
         ParadeDB(Phrase('a'), 'b')           # ❌ Error - no mixing
 
-        # Important: Match(..., operator='OR') and PQ(... | ...) are not equivalent.
-        # Match(..., operator='OR') sends the raw string to ParadeDB
-        # (e.g. ||| 'running shoes'),
-        # which is tokenized using the column's configured tokenizer.
-        # PQ('running') | PQ('shoes') emits ||| ARRAY['running', 'shoes'],
-        # which bypasses tokenizer-based splitting.
-
     Raises:
-        ValueError: If PQ is mixed with other terms, or Parse/Term/Regex/All
-            is not provided as a single term, or operator is passed with
+        ValueError: If Parse/Term/Regex/All is not provided as a single term,
+            or operator is passed with
             non-string query expressions
         TypeError: If query term types are mixed
     """
@@ -649,11 +603,6 @@ class ParadeDB:
     @overload
     def __init__(self, __match: Match, *, operator: object = _DEFAULT_OPERATOR) -> None:
         """Explicit literal search with required Match operator."""
-        ...
-
-    @overload
-    def __init__(self, __pq: PQ, *, operator: None = None) -> None:
-        """Boolean logic with PQ object (must be sole argument)."""
         ...
 
     @overload
@@ -692,7 +641,6 @@ class ParadeDB:
         self,
         *terms: str
         | Match
-        | PQ
         | Phrase
         | Proximity
         | Parse
@@ -730,8 +678,7 @@ class ParadeDB:
         if self._tokenizer is not None and any(
             isinstance(
                 term,
-                PQ
-                | Phrase
+                Phrase
                 | Proximity
                 | Parse
                 | PhrasePrefix
@@ -751,8 +698,7 @@ class ParadeDB:
         if self._boost is not None and any(
             isinstance(
                 term,
-                PQ
-                | Phrase
+                Phrase
                 | Proximity
                 | Parse
                 | PhrasePrefix
@@ -772,8 +718,7 @@ class ParadeDB:
         if self._const is not None and any(
             isinstance(
                 term,
-                PQ
-                | Phrase
+                Phrase
                 | Proximity
                 | Parse
                 | PhrasePrefix
@@ -850,14 +795,6 @@ class ParadeDB:
             ...,
         ],
     ]:
-        if len(self._terms) == 1 and isinstance(self._terms[0], PQ):
-            pq = self._terms[0]
-            operator = "|||" if pq.operator == "OR" else "&&&"
-            return operator, pq.terms
-
-        if any(isinstance(term, PQ) for term in self._terms):
-            raise ValueError("PQ objects must be provided as the sole ParadeDB input.")
-
         if any(
             isinstance(
                 term,
@@ -1147,7 +1084,6 @@ BigAutoField.register_lookup(ParadeDBExact)
 UUIDField.register_lookup(ParadeDBExact)
 
 __all__ = [
-    "PQ",
     "All",
     "Fuzzy",
     "Match",

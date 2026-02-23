@@ -22,7 +22,7 @@ from django.db.models.functions import (
 from tests.models import MockItem
 
 from paradedb.functions import Score, Snippet
-from paradedb.search import ParadeDB, Phrase
+from paradedb.search import Match, ParadeDB, Phrase
 
 pytestmark = [
     pytest.mark.integration,
@@ -37,7 +37,9 @@ class TestRowNumberWindow:
     def test_row_number_no_partition(self) -> None:
         """ROW_NUMBER() OVER (ORDER BY score DESC)."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 row_num=Window(
@@ -54,7 +56,9 @@ class TestRowNumberWindow:
 
     def test_row_number_partition_by_in_stock(self) -> None:
         """ROW_NUMBER() OVER (PARTITION BY in_stock ORDER BY rating DESC)."""
-        queryset = MockItem.objects.filter(description=ParadeDB("shoes")).annotate(
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             row_in_stock=Window(
                 expression=RowNumber(),
                 partition_by=[F("in_stock")],
@@ -83,7 +87,9 @@ class TestRankingWindows:
     def test_rank_by_score(self) -> None:
         """RANK() OVER (ORDER BY score DESC)."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 score_rank=Window(
@@ -99,7 +105,9 @@ class TestRankingWindows:
 
     def test_dense_rank_by_rating(self) -> None:
         """DENSE_RANK() OVER (ORDER BY rating DESC)."""
-        queryset = MockItem.objects.filter(description=ParadeDB("shoes")).annotate(
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             rating_dense_rank=Window(
                 expression=DenseRank(),
                 order_by=F("rating").desc(),
@@ -113,7 +121,9 @@ class TestRankingWindows:
     def test_percent_rank(self) -> None:
         """PERCENT_RANK() OVER (ORDER BY score)."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 pct_rank=Window(
@@ -134,7 +144,9 @@ class TestValueAccessWindows:
     def test_first_value(self) -> None:
         """FIRST_VALUE(rating) OVER (ORDER BY score DESC)."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 top_rating=Window(
@@ -152,7 +164,9 @@ class TestValueAccessWindows:
     def test_lag_previous_score(self) -> None:
         """LAG(score, 1) - get previous row's score."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 prev_score=Window(
@@ -169,7 +183,9 @@ class TestValueAccessWindows:
     def test_lead_next_rating(self) -> None:
         """LEAD(rating, 1) - get next row's rating."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(
                 next_rating=Window(
                     expression=Lead("rating", offset=1),
@@ -185,7 +201,9 @@ class TestValueAccessWindows:
     def test_nth_value(self) -> None:
         """NTH_VALUE(id, 2) - get 2nd row's id."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 second_id=Window(
@@ -207,7 +225,9 @@ class TestAggregateWindows:
     def test_running_count(self) -> None:
         """COUNT(*) OVER (ORDER BY score) - cumulative count."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 running_count=Window(
@@ -228,7 +248,9 @@ class TestAggregateWindows:
     def test_running_avg(self) -> None:
         """AVG(rating) OVER (ORDER BY score) - running average."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 running_avg=Window(
@@ -244,7 +266,9 @@ class TestAggregateWindows:
 
     def test_partition_sum(self) -> None:
         """SUM(rating) OVER (PARTITION BY category)."""
-        queryset = MockItem.objects.filter(description=ParadeDB("shoes")).annotate(
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             category_total=Window(
                 expression=Sum("rating"),
                 partition_by=[F("category")],
@@ -257,7 +281,9 @@ class TestAggregateWindows:
 
     def test_partition_min_max(self) -> None:
         """MIN/MAX OVER (PARTITION BY in_stock)."""
-        queryset = MockItem.objects.filter(description=ParadeDB("shoes")).annotate(
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(
             min_in_group=Window(
                 expression=Min("rating"),
                 partition_by=[F("in_stock")],
@@ -279,7 +305,9 @@ class TestComplexAnnotationChains:
     def test_score_rank_combined(self) -> None:
         """Score + Rank in single query (Snippet excluded - unsupported with windows)."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 score_rank=Window(
@@ -298,7 +326,9 @@ class TestComplexAnnotationChains:
     def test_snippet_without_window_works(self) -> None:
         """Snippet works without window functions."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(
                 search_score=Score(),
                 snippet=Snippet("description"),
@@ -314,7 +344,9 @@ class TestComplexAnnotationChains:
     def test_multiple_window_functions(self) -> None:
         """Multiple window functions in same query."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 global_rank=Window(
@@ -342,7 +374,9 @@ class TestComplexAnnotationChains:
     def test_window_with_filters_and_ordering(self) -> None:
         """Window function with additional filters and ordering."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 rank=Window(
@@ -360,7 +394,9 @@ class TestComplexAnnotationChains:
     def test_window_in_subquery_style(self) -> None:
         """Window function result used in further filtering (Python-side)."""
         base_queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 row_num=Window(
@@ -378,7 +414,9 @@ class TestComplexAnnotationChains:
     def test_annotation_with_coalesce_and_window(self) -> None:
         """Coalesce + Window function combination."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 prev_score=Window(
@@ -421,7 +459,9 @@ class TestWindowWithPhraseAndComplexSearch:
     def test_combined_search_with_partitioned_window(self) -> None:
         """Combined search with partitioned window function."""
         queryset = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(search_score=Score())
             .annotate(
                 rank_in_category=Window(

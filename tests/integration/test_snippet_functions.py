@@ -2,7 +2,7 @@ import pytest
 from tests.models import MockItem
 
 from paradedb.functions import SnippetPositions, Snippets
-from paradedb.search import ParadeDB
+from paradedb.search import Match, ParadeDB
 
 pytestmark = [
     pytest.mark.integration,
@@ -17,7 +17,9 @@ class TestSnippetsIntegration:
     def test_snippets_basic(self) -> None:
         """Verify pdb.snippets returns fragments for multiple rows."""
         qs = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .annotate(fragments=Snippets("description"))
             .order_by("id")
         )
@@ -33,9 +35,9 @@ class TestSnippetsIntegration:
         """Verify snippets max_num_chars parameter constrains fragment length."""
         # Using ID 4: "White jogging shoes"
         # max_num_chars=10 produces an exact short fragment
-        qs = MockItem.objects.filter(id=4, description=ParadeDB("shoes")).annotate(
-            fragments=Snippets("description", max_num_chars=10)
-        )
+        qs = MockItem.objects.filter(
+            id=4, description=ParadeDB(Match("shoes", operator="AND"))
+        ).annotate(fragments=Snippets("description", max_num_chars=10))
         item = qs.get()
         assert item.fragments == ["<b>shoes</b>"]
 
@@ -46,7 +48,7 @@ class TestSnippetsIntegration:
 
         # 1. Limit=1, Offset=0 -> Should get just the first fragment
         qs0 = MockItem.objects.filter(
-            id=4, description=ParadeDB("White shoes")
+            id=4, description=ParadeDB(Match("White shoes", operator="AND"))
         ).annotate(
             fragments=Snippets("description", max_num_chars=10, limit=1, offset=0)
         )
@@ -54,7 +56,7 @@ class TestSnippetsIntegration:
 
         # 2. Limit=1, Offset=1 -> Should get just the second fragment
         qs1 = MockItem.objects.filter(
-            id=4, description=ParadeDB("White shoes")
+            id=4, description=ParadeDB(Match("White shoes", operator="AND"))
         ).annotate(
             fragments=Snippets("description", max_num_chars=10, limit=1, offset=1)
         )
@@ -62,7 +64,9 @@ class TestSnippetsIntegration:
 
     def test_snippets_custom_tags(self) -> None:
         """Verify custom start/end tags work on multi-row results."""
-        qs = MockItem.objects.filter(description=ParadeDB("Generic")).annotate(
+        qs = MockItem.objects.filter(
+            description=ParadeDB(Match("Generic", operator="AND"))
+        ).annotate(
             fragments=Snippets("description", start_tag="<mark>", end_tag="</mark>")
         )
         item = qs.get(id=5)  # ID 5: "Generic shoes"
@@ -71,7 +75,7 @@ class TestSnippetsIntegration:
     def test_snippets_sort_by_score_and_position(self) -> None:
         """Verify score and position sorting return different fragment orderings."""
         qs = MockItem.objects.filter(
-            id=22, description=ParadeDB("charging power bank")
+            id=22, description=ParadeDB(Match("charging power bank", operator="AND"))
         ).annotate(
             by_score=Snippets("description", max_num_chars=12, sort_by="score"),
             by_position=Snippets("description", max_num_chars=12, sort_by="position"),
@@ -89,9 +93,9 @@ class TestSnippetPositionsIntegration:
 
     def test_snippet_positions_basic(self) -> None:
         """Verify pdb.snippet_positions returns byte offset pairs."""
-        qs = MockItem.objects.filter(description=ParadeDB("wireless")).annotate(
-            positions=SnippetPositions("description")
-        )
+        qs = MockItem.objects.filter(
+            description=ParadeDB(Match("wireless", operator="AND"))
+        ).annotate(positions=SnippetPositions("description"))
         # "Innovative wireless earbuds" -> "wireless" starts at 11, ends at 19
         item = qs.get(id=12)
         assert item.positions == [[11, 19]]
@@ -99,9 +103,9 @@ class TestSnippetPositionsIntegration:
     def test_snippet_positions_multiple_matches(self) -> None:
         """Verify multiple matches return multiple position pairs."""
         # Searching for "white shoes" to get multiple matches in a single record
-        qs = MockItem.objects.filter(description=ParadeDB("white shoes")).annotate(
-            positions=SnippetPositions("description")
-        )
+        qs = MockItem.objects.filter(
+            description=ParadeDB(Match("white shoes", operator="AND"))
+        ).annotate(positions=SnippetPositions("description"))
         item = qs.get(id=4)
         # "White jogging shoes" -> "White" at [0, 5], "shoes" at [14, 19]
         assert item.positions == [[0, 5], [14, 19]]
@@ -109,8 +113,8 @@ class TestSnippetPositionsIntegration:
     def test_snippet_positions_no_match(self) -> None:
         """Verify no match returns empty list."""
         # Ensure row is returned but no snippet is matched
-        qs = MockItem.objects.filter(description=ParadeDB("wireless")).annotate(
-            positions=SnippetPositions("category")
-        )
+        qs = MockItem.objects.filter(
+            description=ParadeDB(Match("wireless", operator="AND"))
+        ).annotate(positions=SnippetPositions("category"))
         item = qs.get(id=12)
         assert item.positions is None or item.positions == []

@@ -119,7 +119,7 @@ cursor.close()
 Search with a simple query:
 
 ```python
-from paradedb.search import ParadeDB, Match
+from paradedb.search import Fuzzy, ParadeDB, Match
 
 # Single term
 MockItemDjango.objects.filter(description=ParadeDB(Match('shoes', operator='AND')))
@@ -131,7 +131,7 @@ MockItemDjango.objects.filter(description=ParadeDB(Match('running', 'shoes', ope
 MockItemDjango.objects.filter(description=ParadeDB(Match('shoes', 'boots', operator='OR')))
 
 # Fuzzy search (typo tolerance via distance)
-MockItemDjango.objects.filter(description=ParadeDB(Match('shoez', operator='OR', distance=1)))
+MockItemDjango.objects.filter(description=ParadeDB(Match('shoez', operator='OR', fuzzy=Fuzzy(distance=1))))
 ```
 
 Annotate with BM25 relevance score and sort by it:
@@ -152,7 +152,7 @@ MockItemDjango.objects.filter(
 
 ```python
 from django.db.models import Q
-from paradedb.search import ParadeDB, Match
+from paradedb.search import Fuzzy, ParadeDB, Match
 
 # Combine with Q objects
 MockItemDjango.objects.filter(

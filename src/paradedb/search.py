@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
-from functools import wraps
-from typing import Any, Literal, TypeVar, cast, overload
+from typing import Any, Literal, overload
 
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import (
@@ -30,7 +29,6 @@ from django.db.models.sql.compiler import SQLCompiler
 PQOperator = Literal["OR", "AND"]
 ParadeOperator = Literal["OR", "AND"]
 _DEFAULT_OPERATOR = object()
-F = TypeVar("F", bound=Callable[..., Any])
 
 
 # Regex to detect simple PostgreSQL identifiers (no quoting needed) vs complex ones.
@@ -48,20 +46,17 @@ def _tokenizer_cast(name: str) -> str:
     return f'pdb."{escaped}"'
 
 
-def validate_distance(method: F) -> F:
-    """Validate a `distance` attribute after init/post-init hooks run."""
+@dataclass(frozen=True)
+class Fuzzy:
+    """Fuzzy options for Match/Term queries."""
 
-    @wraps(method)
-    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        result = method(self, *args, **kwargs)
-        distance = getattr(self, "distance", None)
-        if distance is None:
-            return result
-        if distance < 0 or distance > 2:
+    distance: int = 1
+    prefix: bool = False
+    transposition_cost_one: bool = False
+
+    def __post_init__(self) -> None:
+        if self.distance < 0 or self.distance > 2:
             raise ValueError("Distance must be between 0 and 2, inclusive.")
-        return result
-
-    return cast(F, wrapper)
 
 
 @dataclass(frozen=True)
@@ -277,13 +272,9 @@ class Term:
     """Term query expression."""
 
     text: str
-    distance: int | None = None
+    fuzzy: Fuzzy | None = None
     boost: float | None = None
     const: float | None = None
-
-    @validate_distance
-    def __post_init__(self) -> None:
-        pass
 
 
 @dataclass(frozen=True)
@@ -307,17 +298,16 @@ class Match:
     terms: tuple[str, ...]
     operator: ParadeOperator
     tokenizer: str | None = None
-    distance: int | None = None
+    fuzzy: Fuzzy | None = None
     boost: float | None = None
     const: float | None = None
 
-    @validate_distance
     def __init__(
         self,
         *terms: str,
         operator: ParadeOperator,
         tokenizer: str | None = None,
-        distance: int | None = None,
+        fuzzy: Fuzzy | None = None,
         boost: float | None = None,
         const: float | None = None,
     ) -> None:
@@ -328,7 +318,7 @@ class Match:
         object.__setattr__(self, "terms", tuple(terms))
         object.__setattr__(self, "operator", operator)
         object.__setattr__(self, "tokenizer", tokenizer)
-        object.__setattr__(self, "distance", distance)
+        object.__setattr__(self, "fuzzy", fuzzy)
         object.__setattr__(self, "boost", boost)
         object.__setattr__(self, "const", const)
 
@@ -723,7 +713,7 @@ class ParadeDB:
             raise ValueError("ParadeDB requires at least one search term.")
         self._terms = terms
         self._tokenizer = tokenizer
-        self._distance: int | None = None
+        self._fuzzy: Fuzzy | None = None
         self._boost = boost
         self._const = const
         self._operator: ParadeOperator = "AND"
@@ -916,7 +906,7 @@ class ParadeDB:
             else:
                 raise ValueError("Match operator must be 'AND' or 'OR'.")
             self._tokenizer = term.tokenizer
-            self._distance = term.distance
+            self._fuzzy = term.fuzzy
             self._boost = term.boost
             self._const = term.const
             return operator, term.terms
@@ -973,6 +963,17 @@ class ParadeDB:
         if const is not None:
             sql = f"{sql}::pdb.const({const})"
         return sql
+
+    @staticmethod
+    def _append_fuzzy(sql: str, fuzzy: Fuzzy | None) -> str:
+        if fuzzy is None:
+            return sql
+        fuzzy_args: list[str] = [str(fuzzy.distance)]
+        if fuzzy.transposition_cost_one:
+            fuzzy_args.extend(["t" if fuzzy.prefix else "f", "t"])
+        elif fuzzy.prefix:
+            fuzzy_args.append("t")
+        return f"{sql}::pdb.fuzzy({', '.join(fuzzy_args)})"
 
     def _render_term(
         self,
@@ -1071,8 +1072,10 @@ class ParadeDB:
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Term):
             rendered = f"pdb.term({self._quote_term(term.text)})"
-            if term.distance is not None:
-                rendered = f"{rendered}::pdb.fuzzy({term.distance})"
+            rendered = self._append_fuzzy(rendered, term.fuzzy)
+            if term.fuzzy is not None and term.const is not None:
+                # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
+                rendered = f"{rendered}::pdb.query"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Regex):
             rendered = f"pdb.regex({self._quote_term(term.pattern)})"
@@ -1080,8 +1083,10 @@ class ParadeDB:
         if isinstance(term, All):
             return "pdb.all()"
         rendered = self._quote_term(term)
-        if self._distance is not None:
-            rendered = f"{rendered}::pdb.fuzzy({self._distance})"
+        rendered = self._append_fuzzy(rendered, self._fuzzy)
+        if self._fuzzy is not None and self._const is not None:
+            # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
+            rendered = f"{rendered}::pdb.query"
         if self._tokenizer is not None:
             rendered = f"{rendered}::{_tokenizer_cast(self._tokenizer)}"
         # Scoring is NOT applied here for plain strings: as_sql applies self._boost/self._const
@@ -1142,6 +1147,7 @@ UUIDField.register_lookup(ParadeDBExact)
 __all__ = [
     "PQ",
     "All",
+    "Fuzzy",
     "Match",
     "MoreLikeThis",
     "ParadeDB",

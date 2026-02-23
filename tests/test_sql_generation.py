@@ -14,6 +14,7 @@ from django.db.models.functions import Concat, RowNumber
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
+    Fuzzy,
     PQ,
     Match,
     MoreLikeThis,
@@ -302,7 +303,7 @@ class TestProximitySearch:
 class TestDistanceOption:
     def test_match_distance_single(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("sheos", operator="OR", distance=1))
+            description=ParadeDB(Match("sheos", operator="OR", fuzzy=Fuzzy(distance=1)))
         )
         assert (
             str(queryset.query)
@@ -311,7 +312,9 @@ class TestDistanceOption:
 
     def test_match_distance_multiple_terms(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("runnning", "shoez", operator="OR", distance=1))
+            description=ParadeDB(
+                Match("runnning", "shoez", operator="OR", fuzzy=Fuzzy(distance=1))
+            )
         )
         assert (
             str(queryset.query)
@@ -320,7 +323,7 @@ class TestDistanceOption:
 
     def test_term_distance(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Term("shose", distance=2))
+            description=ParadeDB(Term("shose", fuzzy=Fuzzy(distance=2)))
         )
         assert (
             str(queryset.query)
@@ -331,7 +334,7 @@ class TestDistanceOption:
         with pytest.raises(
             ValueError, match=r"Distance must be between 0 and 2, inclusive\."
         ):
-            Match("x", operator="AND", distance=3)
+            Match("x", operator="AND", fuzzy=Fuzzy(distance=3))
 
 
 class TestTokenizerOverride:
@@ -605,7 +608,9 @@ class TestBoosting:
 
     def test_boost_match_distance(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shose", operator="OR", distance=2, boost=2.0))
+            description=ParadeDB(
+                Match("shose", operator="OR", fuzzy=Fuzzy(distance=2), boost=2.0)
+            )
         )
         assert (
             str(queryset.query)
@@ -669,11 +674,13 @@ class TestConstantScoring:
 
     def test_const_match_distance(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shose", operator="OR", distance=2, const=5.0))
+            description=ParadeDB(
+                Match("shose", operator="OR", fuzzy=Fuzzy(distance=2), const=5.0)
+            )
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'shose\'::pdb.fuzzy(2)::pdb.const(5.0)'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'shose\'::pdb.fuzzy(2)::pdb.query::pdb.const(5.0)'
         )
 
     def test_const_phrase(self) -> None:

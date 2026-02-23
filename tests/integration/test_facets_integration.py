@@ -6,7 +6,7 @@ import pytest
 from django.db import utils as db_utils
 from tests.models import MockItem
 
-from paradedb.search import ParadeDB
+from paradedb.search import Match, ParadeDB
 
 pytestmark = [
     pytest.mark.integration,
@@ -20,7 +20,9 @@ class TestFacetsIntegration:
 
     def test_facets_only(self) -> None:
         """Aggregate-only facets return a dict payload."""
-        facets = MockItem.objects.filter(description=ParadeDB("shoes")).facets(
+        facets = MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).facets(
             "rating",
             include_rows=False,
         )
@@ -30,7 +32,9 @@ class TestFacetsIntegration:
     def test_facets_with_rows(self) -> None:
         """Windowed facets return both rows and facets."""
         rows, facets = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .order_by("rating")[:3]
             .facets("rating")
         )
@@ -43,7 +47,9 @@ class TestFacetsIntegration:
     def test_facets_multiple_fields(self) -> None:
         """Multiple field facets return aggregations for each field."""
         rows, facets = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .order_by("rating")[:3]
             .facets("rating", "in_stock")
         )
@@ -57,7 +63,9 @@ class TestFacetsIntegration:
     def test_facets_json_alias_fields(self) -> None:
         """JSON field facets must use bm25 alias names."""
         rows, facets = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .order_by("rating")[:3]
             .facets("metadata_color", "metadata_location")
         )
@@ -79,16 +87,18 @@ class TestFacetsIntegration:
     )
     def test_facets_rejects_json_path_syntax(self, field: str) -> None:
         """JSON path-like field syntax is not supported by ParadeDB facets."""
-        queryset = MockItem.objects.filter(description=ParadeDB("shoes")).order_by(
-            "rating"
-        )[:3]
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).order_by("rating")[:3]
         with pytest.raises(db_utils.InternalError, match="invalid field"):
             queryset.facets(field)
 
     def test_facets_alias_with_keyword_suffix(self) -> None:
         """Alias + .keyword is accepted but yields empty buckets."""
         rows, facets = (
-            MockItem.objects.filter(description=ParadeDB("shoes"))
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="AND"))
+            )
             .order_by("rating")[:3]
             .facets("metadata_color.keyword")
         )

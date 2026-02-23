@@ -357,26 +357,6 @@ class Match:
 
         _validate_fuzzy_distance(distance)
 
-        fuzzy_enabled = _is_fuzzy_enabled(
-            distance=distance,
-            prefix=prefix,
-            transposition_cost_one=transposition_cost_one,
-        )
-
-        if tokenizer is not None and fuzzy_enabled:
-            raise ValueError(
-                "Match tokenizer cannot be combined with fuzzy options (distance/prefix/transposition_cost_one)."
-            )
-
-        if (
-            len(terms) > 1
-            and fuzzy_enabled
-            and (boost is not None or const is not None)
-        ):
-            raise ValueError(
-                "Match does not support boost/const with multi-term fuzzy queries."
-            )
-
         object.__setattr__(self, "terms", tuple(terms))
         object.__setattr__(self, "operator", operator)
         object.__setattr__(self, "tokenizer", tokenizer)

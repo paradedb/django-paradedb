@@ -291,31 +291,35 @@ class TestDistanceOption:
         ):
             Match("x", operator="AND", distance=3)
 
-    def test_match_tokenizer_and_distance_rejected(self) -> None:
-        with pytest.raises(
-            ValueError,
-            match=r"cannot be combined with fuzzy options",
-        ):
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="whitespace",
-                distance=1,
+    def test_match_tokenizer_and_distance_sql_generated(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Match(
+                    "running shoes",
+                    operator="AND",
+                    tokenizer="whitespace",
+                    distance=1,
+                )
             )
+        )
+        assert "::pdb.fuzzy(1)::pdb.whitespace" in str(queryset.query)
 
-    def test_multi_term_fuzzy_boost_rejected(self) -> None:
-        with pytest.raises(
-            ValueError,
-            match=r"multi-term fuzzy queries",
-        ):
-            Match("a", "b", operator="OR", distance=1, boost=2.0)
+    def test_multi_term_fuzzy_boost_sql_generated(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("a", "b", operator="OR", distance=1, boost=2.0))
+        )
+        assert "ARRAY['a'::pdb.fuzzy(1), 'b'::pdb.fuzzy(1)]::pdb.boost(2.0)" in str(
+            queryset.query
+        )
 
-    def test_multi_term_fuzzy_const_rejected(self) -> None:
-        with pytest.raises(
-            ValueError,
-            match=r"multi-term fuzzy queries",
-        ):
-            Match("a", "b", operator="OR", distance=1, const=1.0)
+    def test_multi_term_fuzzy_const_sql_generated(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("a", "b", operator="OR", distance=1, const=1.0))
+        )
+        assert (
+            "ARRAY['a'::pdb.fuzzy(1)::pdb.query, 'b'::pdb.fuzzy(1)::pdb.query]::pdb.const(1.0)"
+            in str(queryset.query)
+        )
 
 
 class TestTokenizerOverride:

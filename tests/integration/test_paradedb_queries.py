@@ -375,6 +375,37 @@ def test_const_multi_term_or_query() -> None:
     assert len(ids) > 0
 
 
+def test_match_tokenizer_and_distance_error_deferred_to_database() -> None:
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Match(
+                "running shoes",
+                operator="AND",
+                tokenizer="whitespace",
+                distance=1,
+            )
+        )
+    )
+    with pytest.raises(DatabaseError):
+        list(queryset)
+
+
+def test_multi_term_fuzzy_boost_error_deferred_to_database() -> None:
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("a", "b", operator="OR", distance=1, boost=2.0))
+    )
+    with pytest.raises(DatabaseError):
+        list(queryset)
+
+
+def test_multi_term_fuzzy_const_error_deferred_to_database() -> None:
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("a", "b", operator="OR", distance=1, const=1.0))
+    )
+    with pytest.raises(DatabaseError):
+        list(queryset)
+
+
 def test_boost_and_const_error_deferred_to_database() -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(Match("shoes", operator="AND", boost=2.0, const=1.0))

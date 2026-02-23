@@ -899,6 +899,8 @@ class ParadeDB:
             if len(self._terms) != 1:
                 raise ValueError("Match queries must be a single term.")
             term = self._terms[0]
+            if not isinstance(term, Match):
+                raise TypeError("Match queries cannot be mixed with other terms.")
             if term.operator == "OR":
                 operator = "|||"
             elif term.operator == "AND":

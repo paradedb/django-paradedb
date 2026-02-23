@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import MockItem, setup_mock_items
 
-from paradedb.search import ParadeDB
+from paradedb.search import Match, ParadeDB
 
 try:
     from paradedb.queryset import ParadeDBQuerySet
@@ -23,9 +23,9 @@ except Exception:  # pragma: no cover - runtime fallback for type checking
 def demo_facets_with_rows(query: str) -> None:
     """Fetch Top-N rows with facet buckets using a window aggregation."""
     print("\n--- Facets + Rows (Top-N) ---")
-    queryset = MockItem.objects.filter(description=ParadeDB(query)).order_by("-rating")[
-        :5
-    ]
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match(query, operator="AND"))
+    ).order_by("-rating")[:5]
     rows, facets = queryset.facets(  # type: ignore[attr-defined]
         "category", "rating", "metadata_color", include_rows=True
     )

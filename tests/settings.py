@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",
+    "paradedb",
     "tests",
 ]
 

@@ -44,6 +44,20 @@ class TestFacetsIntegration:
         for row in rows:
             assert not hasattr(row, "_paradedb_facets")
 
+    @pytest.mark.parametrize("exact", [None, True, False])
+    def test_facets_exact_toggle(self, exact: bool | None) -> None:
+        """Facets allow exact defaults, explicit true, and explicit false."""
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).order_by("rating")[:3]
+        if exact is None:
+            rows, facets = queryset.facets("rating")
+        else:
+            rows, facets = queryset.facets("rating", exact=exact)
+        assert isinstance(facets, dict)
+        assert "buckets" in facets
+        assert len(rows) <= 3
+
     def test_facets_multiple_fields(self) -> None:
         """Multiple field facets return aggregations for each field."""
         rows, facets = (

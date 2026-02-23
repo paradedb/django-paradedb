@@ -1,0 +1,1 @@
+"""ParadeDB management commands."""

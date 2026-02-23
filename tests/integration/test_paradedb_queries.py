@@ -8,7 +8,6 @@ from tests.models import MockItem
 
 from paradedb.functions import Snippet
 from paradedb.search import (
-    Fuzzy,
     Match,
     MoreLikeThis,
     ParadeDB,
@@ -159,9 +158,7 @@ def test_proximity_array_query() -> None:
 def test_fuzzy_distance() -> None:
     ids = _ids(
         MockItem.objects.filter(
-            description=ParadeDB(
-                Match("runnning", operator="OR", fuzzy=Fuzzy(distance=1))
-            )
+            description=ParadeDB(Match("runnning", operator="OR", distance=1))
         )
     )
     assert ids == {3}
@@ -170,27 +167,21 @@ def test_fuzzy_distance() -> None:
 def test_fuzzy_conjunction() -> None:
     ids = _ids(
         MockItem.objects.filter(
-            description=ParadeDB(
-                Match("runnning shose", operator="AND", fuzzy=Fuzzy(distance=2))
-            )
+            description=ParadeDB(Match("runnning shose", operator="AND", distance=2))
         )
     )
     assert 3 in ids
 
 
 def test_fuzzy_term_form() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Term("shose", fuzzy=Fuzzy(distance=2)))
-        )
-    )
+    ids = _ids(MockItem.objects.filter(description=ParadeDB(Term("shose", distance=2))))
     assert len(ids) > 0
 
 
 def test_fuzzy_prefix() -> None:
     ids = _ids(
         MockItem.objects.filter(
-            description=ParadeDB(Term("runn", fuzzy=Fuzzy(distance=0, prefix=True)))
+            description=ParadeDB(Term("runn", distance=0, prefix=True))
         )
     )
     assert 3 in ids
@@ -199,9 +190,7 @@ def test_fuzzy_prefix() -> None:
 def test_fuzzy_transposition_cost_one() -> None:
     ids = _ids(
         MockItem.objects.filter(
-            description=ParadeDB(
-                Term("shose", fuzzy=Fuzzy(distance=1, transposition_cost_one=True))
-            )
+            description=ParadeDB(Term("shose", distance=1, transposition_cost_one=True))
         )
     )
     assert len(ids) > 0
@@ -225,6 +214,67 @@ def test_tokenizer_override_phrase() -> None:
         )
     )
     assert 3 in ids
+
+
+def test_tokenizer_override_match_with_args_sql() -> None:
+    where_sql = _where_sql(
+        '"description"',
+        ParadeDB(
+            Match(
+                "running shoes",
+                operator="AND",
+                tokenizer="whitespace('lowercase=false')",
+            )
+        ),
+    )
+    assert (
+        where_sql
+        == "\"description\" &&& 'running shoes'::pdb.whitespace('lowercase=false')"
+    )
+
+
+def test_tokenizer_override_or_with_args_sql() -> None:
+    where_sql = _where_sql(
+        '"description"',
+        ParadeDB(
+            Match(
+                "wireless keyboard",
+                operator="OR",
+                tokenizer="simple('lowercase=false')",
+            )
+        ),
+    )
+    assert (
+        where_sql
+        == "\"description\" ||| 'wireless keyboard'::pdb.simple('lowercase=false')"
+    )
+
+
+def test_tokenizer_override_phrase_with_args_sql() -> None:
+    where_sql = _where_sql(
+        '"description"',
+        ParadeDB(Phrase("running shoes", tokenizer="raw('lowercase=false')")),
+    )
+    assert (
+        where_sql == "\"description\" ### 'running shoes'::pdb.raw('lowercase=false')"
+    )
+
+
+def test_tokenizer_override_phrase_with_multi_args_sql() -> None:
+    where_sql = _where_sql(
+        '"description"',
+        ParadeDB(
+            Phrase(
+                "wireless mouse",
+                slop=2,
+                tokenizer="ngram('min_gram=3', 'max_gram=8')",
+            )
+        ),
+    )
+    assert (
+        where_sql
+        == "\"description\" ### 'wireless mouse'::pdb.slop(2)::pdb.ngram('min_gram=3', 'max_gram=8')"
+    )
 
 
 def test_tokenizer_override_invalid_identifier() -> None:
@@ -259,7 +309,7 @@ def test_boost_with_fuzzy_integration() -> None:
     ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(
-                Match("runnning", operator="OR", fuzzy=Fuzzy(distance=1), boost=2.0)
+                Match("runnning", operator="OR", distance=1, boost=2.0)
             )
         )
     )
@@ -269,14 +319,12 @@ def test_boost_with_fuzzy_integration() -> None:
 def test_const_with_fuzzy_integration() -> None:
     baseline_ids = _ids(
         MockItem.objects.filter(
-            description=ParadeDB(Match("shose", operator="OR", fuzzy=Fuzzy(distance=2)))
+            description=ParadeDB(Match("shose", operator="OR", distance=2))
         )
     )
     const_ids = _ids(
         MockItem.objects.filter(
-            description=ParadeDB(
-                Match("shose", operator="OR", fuzzy=Fuzzy(distance=2), const=1.0)
-            )
+            description=ParadeDB(Match("shose", operator="OR", distance=2, const=1.0))
         )
     )
     assert const_ids == baseline_ids

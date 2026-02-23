@@ -14,7 +14,6 @@ from django.db.models import Value
 from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
-    Fuzzy,
     Match,
     MoreLikeThis,
     ParadeDB,
@@ -175,25 +174,47 @@ class TestDistanceValidation:
 
     def test_match_default_distance(self) -> None:
         match = Match("test", operator="AND")
-        assert match.fuzzy is None
+        assert match.distance is None
 
     def test_match_distance_zero_is_valid(self) -> None:
-        match = Match("test", operator="AND", fuzzy=Fuzzy(distance=0))
-        assert match.fuzzy is not None
-        assert match.fuzzy.distance == 0
+        match = Match("test", operator="AND", distance=0)
+        assert match.distance == 0
 
     def test_match_negative_distance_raises(self) -> None:
         with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
-            Match("test", operator="AND", fuzzy=Fuzzy(distance=-1))
+            Match("test", operator="AND", distance=-1)
 
     def test_match_large_distance_raises(self) -> None:
         with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
-            Match("test", operator="AND", fuzzy=Fuzzy(distance=10))
+            Match("test", operator="AND", distance=10)
 
     def test_term_distance_validation(self) -> None:
-        term = Term("test", fuzzy=Fuzzy(distance=1))
-        assert term.fuzzy is not None
-        assert term.fuzzy.distance == 1
+        term = Term("test", distance=1)
+        assert term.distance == 1
+
+    def test_match_tokenizer_and_fuzzy_options_rejected(self) -> None:
+        with pytest.raises(ValueError, match="cannot be combined with fuzzy options"):
+            Match("test", operator="AND", tokenizer="whitespace", distance=1)
+
+    def test_match_multi_term_fuzzy_with_boost_rejected(self) -> None:
+        with pytest.raises(ValueError, match="multi-term fuzzy queries"):
+            Match("a", "b", operator="OR", distance=1, boost=2.0)
+
+    def test_match_multi_term_fuzzy_with_const_rejected(self) -> None:
+        with pytest.raises(ValueError, match="multi-term fuzzy queries"):
+            Match("a", "b", operator="OR", distance=1, const=1.0)
+
+    def test_term_non_string_rejected(self) -> None:
+        with pytest.raises(TypeError, match="Term text must be a string"):
+            Term(123)  # type: ignore[arg-type]
+
+    def test_match_non_string_terms_rejected(self) -> None:
+        with pytest.raises(TypeError, match="Match terms must be strings"):
+            Match("ok", 123, operator="AND")  # type: ignore[arg-type]
+
+    def test_match_non_string_tokenizer_rejected(self) -> None:
+        with pytest.raises(TypeError, match="Match tokenizer must be a string"):
+            Match("ok", operator="AND", tokenizer=123)  # type: ignore[arg-type]
 
 
 class TestExpressionValidation:
@@ -510,7 +531,7 @@ class TestEmptyAndWhitespaceInputs:
     def test_match_distance_empty_string(self) -> None:
         """Match with distance and empty string works."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("", operator="OR", fuzzy=Fuzzy(distance=1)))
+            description=ParadeDB(Match("", operator="OR", distance=1))
         )
         sql = str(queryset.query)
         assert "''::pdb.fuzzy" in sql

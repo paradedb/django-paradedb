@@ -14,7 +14,6 @@ from django.db.models.functions import Concat, RowNumber
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
-    Fuzzy,
     Match,
     MoreLikeThis,
     ParadeDB,
@@ -261,7 +260,7 @@ class TestProximitySearch:
 class TestDistanceOption:
     def test_match_distance_single(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("sheos", operator="OR", fuzzy=Fuzzy(distance=1)))
+            description=ParadeDB(Match("sheos", operator="OR", distance=1))
         )
         assert (
             str(queryset.query)
@@ -270,9 +269,7 @@ class TestDistanceOption:
 
     def test_match_distance_multiple_terms(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("runnning", "shoez", operator="OR", fuzzy=Fuzzy(distance=1))
-            )
+            description=ParadeDB(Match("runnning", "shoez", operator="OR", distance=1))
         )
         assert (
             str(queryset.query)
@@ -281,7 +278,7 @@ class TestDistanceOption:
 
     def test_term_distance(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Term("shose", fuzzy=Fuzzy(distance=2)))
+            description=ParadeDB(Term("shose", distance=2))
         )
         assert (
             str(queryset.query)
@@ -292,7 +289,33 @@ class TestDistanceOption:
         with pytest.raises(
             ValueError, match=r"Distance must be between 0 and 2, inclusive\."
         ):
-            Match("x", operator="AND", fuzzy=Fuzzy(distance=3))
+            Match("x", operator="AND", distance=3)
+
+    def test_match_tokenizer_and_distance_rejected(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"cannot be combined with fuzzy options",
+        ):
+            Match(
+                "running shoes",
+                operator="AND",
+                tokenizer="whitespace",
+                distance=1,
+            )
+
+    def test_multi_term_fuzzy_boost_rejected(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"multi-term fuzzy queries",
+        ):
+            Match("a", "b", operator="OR", distance=1, boost=2.0)
+
+    def test_multi_term_fuzzy_const_rejected(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"multi-term fuzzy queries",
+        ):
+            Match("a", "b", operator="OR", distance=1, const=1.0)
 
 
 class TestTokenizerOverride:
@@ -336,6 +359,62 @@ class TestTokenizerOverride:
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.slop(2)::pdb.whitespace'
+        )
+
+    def test_match_with_tokenizer_args(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Match(
+                    "running shoes",
+                    operator="AND",
+                    tokenizer="whitespace('lowercase=false')",
+                )
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'running shoes\'::pdb.whitespace(\'lowercase=false\')'
+        )
+
+    def test_match_with_tokenizer_multi_args(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Match(
+                    "wireless keyboard",
+                    operator="OR",
+                    tokenizer="simple('lowercase=false', 'remove_long=20')",
+                )
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'wireless keyboard\'::pdb.simple(\'lowercase=false\', \'remove_long=20\')'
+        )
+
+    def test_phrase_with_tokenizer_args(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Phrase("running shoes", tokenizer="raw('lowercase=false')")
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.raw(\'lowercase=false\')'
+        )
+
+    def test_phrase_with_slop_and_tokenizer_multi_args(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Phrase(
+                    "wireless mouse",
+                    slop=2,
+                    tokenizer="ngram('min_gram=3', 'max_gram=8')",
+                )
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'wireless mouse\'::pdb.slop(2)::pdb.ngram(\'min_gram=3\', \'max_gram=8\')'
         )
 
     def test_tokenizer_with_boost(self) -> None:
@@ -559,9 +638,7 @@ class TestBoosting:
 
     def test_boost_match_distance(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shose", operator="OR", fuzzy=Fuzzy(distance=2), boost=2.0)
-            )
+            description=ParadeDB(Match("shose", operator="OR", distance=2, boost=2.0))
         )
         assert (
             str(queryset.query)
@@ -625,9 +702,7 @@ class TestConstantScoring:
 
     def test_const_match_distance(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shose", operator="OR", fuzzy=Fuzzy(distance=2), const=5.0)
-            )
+            description=ParadeDB(Match("shose", operator="OR", distance=2, const=5.0))
         )
         assert (
             str(queryset.query)

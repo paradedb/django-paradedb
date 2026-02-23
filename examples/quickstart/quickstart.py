@@ -9,13 +9,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from common import MockItem, setup_mock_items
 
 from paradedb.functions import Score, Snippet
-from paradedb.search import ParadeDB, Phrase
+from paradedb.search import Match, ParadeDB, Phrase
 
 
 def demo_basic_search() -> None:
     """Basic keyword search."""
     print("\n--- Basic Search: 'shoes' ---")
-    for item in MockItem.objects.filter(description=ParadeDB("shoes"))[:5]:
+    for item in MockItem.objects.filter(
+        description=ParadeDB(Match("shoes", operator="AND"))
+    )[:5]:
         print(f"  • {item.description[:60]}...")
 
 
@@ -23,7 +25,7 @@ def demo_scored_search() -> None:
     """Search with BM25 scores."""
     print("\n--- Scored Search: 'running' ---")
     results = (
-        MockItem.objects.filter(description=ParadeDB("running"))
+        MockItem.objects.filter(description=ParadeDB(Match("running", operator="AND")))
         .annotate(score=Score())
         .order_by("-score")[:5]
     )
@@ -47,7 +49,7 @@ def demo_snippet_highlighting() -> None:
     """Snippet highlighting."""
     print("\n--- Snippet Highlighting: 'shoes' ---")
     results = (
-        MockItem.objects.filter(description=ParadeDB("shoes"))
+        MockItem.objects.filter(description=ParadeDB(Match("shoes", operator="AND")))
         .annotate(
             score=Score(),
             snippet=Snippet("description", start_sel="<b>", stop_sel="</b>"),
@@ -63,7 +65,7 @@ def demo_filtered_search() -> None:
     print("\n--- Filtered Search: 'shoes' + in_stock + rating >= 4 ---")
     results = (
         MockItem.objects.filter(
-            description=ParadeDB("shoes"),
+            description=ParadeDB(Match("shoes", operator="AND")),
             in_stock=True,
             rating__gte=4,
         )

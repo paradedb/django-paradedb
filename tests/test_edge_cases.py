@@ -14,8 +14,8 @@ from django.db.models import Value
 from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
-    Fuzzy,
     PQ,
+    Fuzzy,
     Match,
     MoreLikeThis,
     ParadeDB,

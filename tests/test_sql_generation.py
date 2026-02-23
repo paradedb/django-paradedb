@@ -14,8 +14,8 @@ from django.db.models.functions import Concat, RowNumber
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
-    Fuzzy,
     PQ,
+    Fuzzy,
     Match,
     MoreLikeThis,
     ParadeDB,

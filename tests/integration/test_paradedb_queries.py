@@ -8,8 +8,8 @@ from tests.models import MockItem
 
 from paradedb.functions import Snippet
 from paradedb.search import (
-    Fuzzy,
     PQ,
+    Fuzzy,
     Match,
     MoreLikeThis,
     ParadeDB,

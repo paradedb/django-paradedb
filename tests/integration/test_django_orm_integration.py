@@ -13,7 +13,7 @@ from django.db.models.functions import RowNumber
 from tests.models import MockItem
 
 from paradedb.functions import Score
-from paradedb.search import Match, PQ, ParadeDB, Phrase
+from paradedb.search import PQ, Match, ParadeDB, Phrase
 
 pytestmark = [
     pytest.mark.integration,

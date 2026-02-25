@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import pytest
+from django.contrib.postgres.operations import (
+    AddIndexConcurrently,
+    RemoveIndexConcurrently,
+)
 from django.db import connection, migrations, models
 from django.db.migrations.state import ProjectState
+from django.db.models import Q
 
 from paradedb.indexes import BM25Index
 
@@ -355,6 +360,222 @@ def test_multiple_tokenizers_with_ngram_options_migration() -> None:
 
         # Query semantics for ngram aliases are operator-specific and validated
         # in dedicated search-query tests. This migration test verifies DDL only.
+
+    finally:
+        if forward_applied and _table_exists(table_name):
+            with connection.schema_editor(atomic=True) as editor:
+                create_model.database_backwards(app_label, editor, to_state, from_state)
+        else:
+            _drop_table_if_exists(table_name)
+            connection.commit()
+        assert not _table_exists(table_name)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_add_index_concurrently() -> None:
+    """AddIndexConcurrently creates a BM25 index without holding table locks."""
+    app_label = "migtests"
+    table_name = "migtests_concurrent"
+    index_name = "migtests_concurrent_bm25_idx"
+
+    _drop_table_if_exists(table_name)
+    connection.commit()
+
+    bm25_index = BM25Index(
+        fields={
+            "id": {},
+            "title": {"tokenizer": "unicode_words"},
+        },
+        key_field="id",
+        name=index_name,
+    )
+
+    # Step 1: Create the table without the index.
+    create_model = migrations.CreateModel(
+        name="ConcurrentItem",
+        fields=[
+            ("id", models.AutoField(primary_key=True)),
+            ("title", models.TextField()),
+        ],
+        options={"db_table": table_name},
+    )
+
+    from_state = ProjectState()
+    to_state = from_state.clone()
+    create_model.state_forwards(app_label, to_state)
+
+    with connection.schema_editor(atomic=True) as editor:
+        create_model.database_forwards(app_label, editor, from_state, to_state)
+
+    try:
+        assert _table_exists(table_name)
+        assert _fetch_index_definition(table_name, index_name) is None
+
+        # Step 2: Add the BM25 index concurrently.
+        add_index_op = AddIndexConcurrently(
+            model_name="concurrentitem",
+            index=bm25_index,
+        )
+
+        before_state = to_state.clone()
+        after_state = before_state.clone()
+        add_index_op.state_forwards(app_label, after_state)
+
+        # CONCURRENTLY cannot run inside a transaction.
+        with connection.schema_editor(atomic=False) as editor:
+            add_index_op.database_forwards(app_label, editor, before_state, after_state)
+
+        index_def = _fetch_index_definition(table_name, index_name)
+        assert index_def is not None, "Index was not created"
+        assert "USING bm25" in index_def
+
+        # Step 3: Verify the index is functional.
+        quoted_table = connection.ops.quote_name(table_name)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"INSERT INTO {quoted_table} (title) VALUES "
+                f"('test document'), ('another test'), ('sample text');"
+            )
+        connection.commit()
+
+        assert _verify_index_usage(table_name, index_name)
+
+    finally:
+        _drop_table_if_exists(table_name)
+        connection.commit()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_remove_index_concurrently() -> None:
+    """RemoveIndexConcurrently drops a BM25 index without holding table locks."""
+    app_label = "migtests"
+    table_name = "migtests_concurrent_rm"
+    index_name = "migtests_concurrent_rm_bm25_idx"
+
+    _drop_table_if_exists(table_name)
+    connection.commit()
+
+    bm25_index = BM25Index(
+        fields={
+            "id": {},
+            "title": {"tokenizer": "unicode_words"},
+        },
+        key_field="id",
+        name=index_name,
+    )
+
+    # Create table with the index.
+    create_model = migrations.CreateModel(
+        name="ConcurrentRmItem",
+        fields=[
+            ("id", models.AutoField(primary_key=True)),
+            ("title", models.TextField()),
+        ],
+        options={
+            "db_table": table_name,
+            "indexes": [bm25_index],
+        },
+    )
+
+    from_state = ProjectState()
+    to_state = from_state.clone()
+    create_model.state_forwards(app_label, to_state)
+
+    with connection.schema_editor(atomic=True) as editor:
+        create_model.database_forwards(app_label, editor, from_state, to_state)
+
+    try:
+        assert _fetch_index_definition(table_name, index_name) is not None
+
+        # Remove the index concurrently.
+        remove_op = RemoveIndexConcurrently(
+            model_name="concurrentrmitem",
+            name=index_name,
+        )
+
+        before_state = to_state.clone()
+        after_state = before_state.clone()
+        remove_op.state_forwards(app_label, after_state)
+
+        with connection.schema_editor(atomic=False) as editor:
+            remove_op.database_forwards(app_label, editor, before_state, after_state)
+
+        assert _fetch_index_definition(table_name, index_name) is None, (
+            "Index was not dropped"
+        )
+
+    finally:
+        _drop_table_if_exists(table_name)
+        connection.commit()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_add_partial_index() -> None:
+    """BM25Index with condition creates a partial index with a WHERE clause."""
+    app_label = "migtests"
+    table_name = "migtests_partial"
+    index_name = "migtests_partial_bm25_idx"
+
+    _drop_table_if_exists(table_name)
+    connection.commit()
+
+    bm25_index = BM25Index(
+        fields={
+            "id": {},
+            "title": {"tokenizer": "unicode_words"},
+        },
+        key_field="id",
+        name=index_name,
+        condition=Q(is_active=True),
+    )
+
+    create_model = migrations.CreateModel(
+        name="PartialItem",
+        fields=[
+            ("id", models.AutoField(primary_key=True)),
+            ("title", models.TextField()),
+            ("is_active", models.BooleanField(default=True)),
+        ],
+        options={
+            "db_table": table_name,
+            "indexes": [bm25_index],
+        },
+    )
+
+    from_state = ProjectState()
+    to_state = from_state.clone()
+    create_model.state_forwards(app_label, to_state)
+
+    forward_applied = False
+    with connection.schema_editor(atomic=True) as editor:
+        create_model.database_forwards(app_label, editor, from_state, to_state)
+        forward_applied = True
+
+    try:
+        assert _table_exists(table_name)
+        index_def = _fetch_index_definition(table_name, index_name)
+        assert index_def is not None, "Index was not created"
+        assert "USING bm25" in index_def
+        assert "WHERE" in index_def
+
+        # Insert test data and verify the index is functional
+        quoted_table = connection.ops.quote_name(table_name)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"INSERT INTO {quoted_table} (title, is_active) VALUES "
+                f"('test document', true), ('inactive doc', false), "
+                f"('another test', true);"
+            )
+        connection.commit()
+
+        # Verify the partial index is queryable
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT COUNT(*) FROM {quoted_table} WHERE title &&& 'test';"
+            )
+            (count,) = cursor.fetchone()
+        # Only active rows are indexed; 'test document' and 'another test'
+        assert count == 2
 
     finally:
         if forward_applied and _table_exists(table_name):

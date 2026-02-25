@@ -100,10 +100,11 @@ class BM25Index(models.Index):
         fields: dict[str, dict[str, Any]],
         key_field: str,
         name: str,
+        condition: models.Q | None = None,
     ) -> None:
         self.fields_config = fields
         self.key_field = key_field
-        super().__init__(name=name, fields=list(fields.keys()))
+        super().__init__(name=name, fields=list(fields.keys()), condition=condition)
 
     def deconstruct(self) -> tuple[str, Any, dict[str, Any]]:
         path, args, kwargs = super().deconstruct()
@@ -136,6 +137,11 @@ class BM25Index(models.Index):
             ")\n"
             "WITH (key_field=%(key_field)s)"
         )
+
+        condition_sql = self._get_condition_sql(model, schema_editor)  # type: ignore[attr-defined]
+        if condition_sql:
+            template += f"\nWHERE {condition_sql}"
+
         return Statement(
             template,
             name=index_name,

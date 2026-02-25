@@ -1296,6 +1296,50 @@ class TestBM25Index:
         assert sql.startswith('CREATE INDEX "product_search_idx"')
         assert "CONCURRENTLY" not in sql
 
+    def test_create_sql_with_condition(self) -> None:
+        """create_sql with condition appends a WHERE clause."""
+        index = BM25Index(
+            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            key_field="id",
+            name="product_search_idx",
+            condition=Q(description__isnull=False),
+        )
+        schema_editor = DummySchemaEditor()
+        # Mock _get_condition_sql to avoid needing a real DB connection
+        index._get_condition_sql = Mock(return_value='"description" IS NOT NULL')
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert sql.endswith('WHERE "description" IS NOT NULL')
+        assert "USING bm25" in sql
+
+    def test_create_sql_with_condition_and_concurrently(self) -> None:
+        """create_sql with both condition and concurrently emits both."""
+        index = BM25Index(
+            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            key_field="id",
+            name="product_search_idx",
+            condition=Q(description__isnull=False),
+        )
+        schema_editor = DummySchemaEditor()
+        index._get_condition_sql = Mock(return_value='"description" IS NOT NULL')
+        sql = str(
+            index.create_sql(
+                model=Product, schema_editor=schema_editor, concurrently=True
+            )
+        )
+        assert sql.startswith('CREATE INDEX CONCURRENTLY "product_search_idx"')
+        assert sql.endswith('WHERE "description" IS NOT NULL')
+
+    def test_create_sql_without_condition_no_where(self) -> None:
+        """create_sql without condition does not append WHERE clause."""
+        index = BM25Index(
+            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert "WHERE" not in sql
+
 
 class TestMoreLikeThis:
     """Test MoreLikeThis SQL generation."""

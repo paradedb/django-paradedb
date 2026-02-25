@@ -9,6 +9,7 @@ from django.contrib.postgres.operations import (
 )
 from django.db import connection, migrations, models
 from django.db.migrations.state import ProjectState
+from django.db.models import Q
 
 from paradedb.indexes import BM25Index
 
@@ -506,3 +507,81 @@ def test_remove_index_concurrently() -> None:
     finally:
         _drop_table_if_exists(table_name)
         connection.commit()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_add_partial_index() -> None:
+    """BM25Index with condition creates a partial index with a WHERE clause."""
+    app_label = "migtests"
+    table_name = "migtests_partial"
+    index_name = "migtests_partial_bm25_idx"
+
+    _drop_table_if_exists(table_name)
+    connection.commit()
+
+    bm25_index = BM25Index(
+        fields={
+            "id": {},
+            "title": {"tokenizer": "unicode_words"},
+        },
+        key_field="id",
+        name=index_name,
+        condition=Q(is_active=True),
+    )
+
+    create_model = migrations.CreateModel(
+        name="PartialItem",
+        fields=[
+            ("id", models.AutoField(primary_key=True)),
+            ("title", models.TextField()),
+            ("is_active", models.BooleanField(default=True)),
+        ],
+        options={
+            "db_table": table_name,
+            "indexes": [bm25_index],
+        },
+    )
+
+    from_state = ProjectState()
+    to_state = from_state.clone()
+    create_model.state_forwards(app_label, to_state)
+
+    forward_applied = False
+    with connection.schema_editor(atomic=True) as editor:
+        create_model.database_forwards(app_label, editor, from_state, to_state)
+        forward_applied = True
+
+    try:
+        assert _table_exists(table_name)
+        index_def = _fetch_index_definition(table_name, index_name)
+        assert index_def is not None, "Index was not created"
+        assert "USING bm25" in index_def
+        assert "WHERE" in index_def
+
+        # Insert test data and verify the index is functional
+        quoted_table = connection.ops.quote_name(table_name)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"INSERT INTO {quoted_table} (title, is_active) VALUES "
+                f"('test document', true), ('inactive doc', false), "
+                f"('another test', true);"
+            )
+        connection.commit()
+
+        # Verify the partial index is queryable
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"SELECT COUNT(*) FROM {quoted_table} WHERE title &&& 'test';"
+            )
+            (count,) = cursor.fetchone()
+        # Only active rows are indexed; 'test document' and 'another test'
+        assert count == 2
+
+    finally:
+        if forward_applied and _table_exists(table_name):
+            with connection.schema_editor(atomic=True) as editor:
+                create_model.database_backwards(app_label, editor, to_state, from_state)
+        else:
+            _drop_table_if_exists(table_name)
+            connection.commit()
+        assert not _table_exists(table_name)

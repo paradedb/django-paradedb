@@ -117,16 +117,18 @@ class BM25Index(models.Index):
         model: type[models.Model],
         schema_editor: BaseDatabaseSchemaEditor,
         using: str = "",  # noqa: ARG002
-        **kwargs: Any,  # noqa: ARG002
+        **kwargs: Any,
     ) -> Statement:
+        concurrently = kwargs.get("concurrently", False)
         table = schema_editor.quote_name(model._meta.db_table)
         index_name = schema_editor.quote_name(self.name)
 
         expressions = self._build_index_expressions(model, schema_editor)
         expr_sql = ",\n    ".join(expressions)
 
+        create_stmt = "CREATE INDEX CONCURRENTLY" if concurrently else "CREATE INDEX"
         template = (
-            "CREATE INDEX %(name)s ON %(table)s\n"
+            f"{create_stmt} %(name)s ON %(table)s\n"
             "USING bm25 (\n"
             "    %(expressions)s\n"
             ")\n"

@@ -1268,6 +1268,34 @@ class TestBM25Index:
         with pytest.raises(ValueError, match="deprecated 'options'"):
             index.create_sql(model=Product, schema_editor=schema_editor)
 
+    def test_create_sql_concurrently(self) -> None:
+        """create_sql with concurrently=True emits CREATE INDEX CONCURRENTLY."""
+        index = BM25Index(
+            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(
+            index.create_sql(
+                model=Product, schema_editor=schema_editor, concurrently=True
+            )
+        )
+        assert sql.startswith('CREATE INDEX CONCURRENTLY "product_search_idx"')
+        assert "USING bm25" in sql
+
+    def test_create_sql_without_concurrently(self) -> None:
+        """create_sql without concurrently does not emit CONCURRENTLY."""
+        index = BM25Index(
+            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert sql.startswith('CREATE INDEX "product_search_idx"')
+        assert "CONCURRENTLY" not in sql
+
 
 class TestMoreLikeThis:
     """Test MoreLikeThis SQL generation."""

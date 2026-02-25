@@ -126,7 +126,9 @@ class BM25Index(models.Index):
         expressions = self._build_index_expressions(model, schema_editor)
         expr_sql = ",\n    ".join(expressions)
 
-        create_stmt = "CREATE INDEX CONCURRENTLY" if concurrently else "CREATE INDEX"
+        create_stmt = "CREATE INDEX"
+        if concurrently:
+            create_stmt += " CONCURRENTLY"
         template = (
             f"{create_stmt} %(name)s ON %(table)s\n"
             "USING bm25 (\n"

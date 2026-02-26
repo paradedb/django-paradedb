@@ -56,9 +56,8 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
             "category, "
             "rating, "
             "in_stock, "
-            "((metadata->>'color')::pdb.literal('alias=metadata_color')), "
-            "((metadata->>'location')::pdb.literal('alias=metadata_location'))"
-            ") WITH (key_field='id');"
+            "metadata"
+            ") WITH (key_field='id', json_fields='{\"metadata\":{\"fast\":true}}');"
         )
         cursor.execute(
             "SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'mock_items_bm25_idx';"

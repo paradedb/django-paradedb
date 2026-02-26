@@ -271,9 +271,10 @@ class TestDistanceOption:
         queryset = Product.objects.filter(
             description=ParadeDB(Match("runnning", "shoez", operator="OR", distance=1))
         )
+        # Fuzzy is applied to the whole array, not per-element
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'runnning\'::pdb.fuzzy(1), \'shoez\'::pdb.fuzzy(1)]'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'runnning\', \'shoez\']::pdb.fuzzy(1)'
         )
 
     def test_term_distance(self) -> None:
@@ -302,23 +303,23 @@ class TestDistanceOption:
                 )
             )
         )
-        assert "::pdb.fuzzy(1)::pdb.whitespace" in str(queryset.query)
+        # Tokenizer is per-term, fuzzy is on the whole array: 'running shoes'::pdb.whitespace::pdb.fuzzy(1)
+        assert "::pdb.whitespace::pdb.fuzzy(1)" in str(queryset.query)
 
     def test_multi_term_fuzzy_boost_sql_generated(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(Match("a", "b", operator="OR", distance=1, boost=2.0))
         )
-        assert "ARRAY['a'::pdb.fuzzy(1), 'b'::pdb.fuzzy(1)]::pdb.boost(2.0)" in str(
-            queryset.query
-        )
+        # Fuzzy applied to whole array, then boost: ARRAY['a', 'b']::pdb.fuzzy(1)::pdb.boost(2.0)
+        assert "ARRAY['a', 'b']::pdb.fuzzy(1)::pdb.boost(2.0)" in str(queryset.query)
 
     def test_multi_term_fuzzy_const_sql_generated(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(Match("a", "b", operator="OR", distance=1, const=1.0))
         )
-        assert (
-            "ARRAY['a'::pdb.fuzzy(1)::pdb.query, 'b'::pdb.fuzzy(1)::pdb.query]::pdb.const(1.0)"
-            in str(queryset.query)
+        # Fuzzy applied to whole array, then query bridge for const: ARRAY['a', 'b']::pdb.fuzzy(1)::pdb.query::pdb.const(1.0)
+        assert "ARRAY['a', 'b']::pdb.fuzzy(1)::pdb.query::pdb.const(1.0)" in str(
+            queryset.query
         )
 
 

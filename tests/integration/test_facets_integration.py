@@ -74,47 +74,45 @@ class TestFacetsIntegration:
         assert "buckets" in facets["in_stock_terms"]
         assert len(rows) <= 3
 
-    def test_facets_json_alias_fields(self) -> None:
-        """JSON field facets must use bm25 alias names."""
+    def test_facets_json_fields(self) -> None:
+        """JSON field facets use json_fields configuration."""
         rows, facets = (
             MockItem.objects.filter(
                 description=ParadeDB(Match("shoes", operator="AND"))
             )
             .order_by("rating")[:3]
-            .facets("metadata_color", "metadata_location")
+            .facets("metadata.color", "metadata.location")
         )
         assert len(rows) <= 3
-        assert "metadata_color_terms" in facets
-        assert "metadata_location_terms" in facets
-        assert "buckets" in facets["metadata_color_terms"]
-        assert "buckets" in facets["metadata_location_terms"]
+        assert "metadata.color_terms" in facets
+        assert "metadata.location_terms" in facets
+        assert "buckets" in facets["metadata.color_terms"]
+        assert "buckets" in facets["metadata.location_terms"]
 
     @pytest.mark.parametrize(
         "field",
         [
-            "metadata.color",
             "metadata->color",
             "metadata->'color'",
             "metadata->>'color'",
-            "metadata.color.keyword",
         ],
     )
-    def test_facets_rejects_json_path_syntax(self, field: str) -> None:
-        """JSON path-like field syntax is not supported by ParadeDB facets."""
+    def test_facets_rejects_json_operator_syntax(self, field: str) -> None:
+        """JSON operator syntax (->, ->>) is not supported by ParadeDB facets."""
         queryset = MockItem.objects.filter(
             description=ParadeDB(Match("shoes", operator="AND"))
         ).order_by("rating")[:3]
         with pytest.raises(db_utils.InternalError, match="invalid field"):
             queryset.facets(field)
 
-    def test_facets_alias_with_keyword_suffix(self) -> None:
-        """Alias + .keyword is accepted but yields empty buckets."""
+    def test_facets_json_with_keyword_suffix(self) -> None:
+        """JSON field + .keyword is accepted but yields empty buckets."""
         rows, facets = (
             MockItem.objects.filter(
                 description=ParadeDB(Match("shoes", operator="AND"))
             )
             .order_by("rating")[:3]
-            .facets("metadata_color.keyword")
+            .facets("metadata.color.keyword")
         )
         assert len(rows) <= 3
         assert "buckets" in facets

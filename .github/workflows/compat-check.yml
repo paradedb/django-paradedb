@@ -1,0 +1,136 @@
+name: ParadeDB Compatibility Check
+
+# Triggered automatically by publish-pg_search-schema.yml in the paradedb repo after each
+# release, or manually to test against a specific version. Downloads the generated
+# pg_search.schema.sql from the release, checks that all SQL symbols django-paradedb
+# depends on are still present, then runs the full integration test suite against the
+# new ParadeDB version. Opens a GitHub issue if either check fails.
+
+on:
+  repository_dispatch:
+    types: [paradedb-release]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "ParadeDB version to test against (e.g. 0.22.0). Defaults to the latest release."
+        required: false
+        default: ""
+
+concurrency:
+  group: compat-check-${{ github.event.client_payload.version || inputs.version || 'latest' }}
+  cancel-in-progress: true
+
+jobs:
+  compat-check:
+    name: Check Compatibility with ParadeDB ${{ github.event.client_payload.version || inputs.version || 'latest' }}
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      PYTHONPATH: ${{ github.workspace }}/src
+
+    steps:
+      - name: Resolve Version
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ github.event.client_payload.version || inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(gh release view --repo paradedb/paradedb --json tagName -q .tagName | sed 's/^v//')
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Testing compatibility with ParadeDB $VERSION"
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "Django~=5.2.0"
+          pip install \
+            pytest \
+            pytest-django \
+            "psycopg[binary]" \
+            psycopg2-binary \
+            django-cte \
+            httpx \
+            pgvector \
+            python-dotenv
+
+      - name: Download pg_search Schema
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v${{ steps.ver.outputs.version }} \
+            --repo paradedb/paradedb \
+            --pattern "pg_search.schema.sql" \
+            --output pg_search.schema.sql
+
+      - name: Check SQL API Compatibility
+        run: |
+          python scripts/check_schema_compat.py pg_search.schema.sql src/paradedb/api.py
+
+      - name: Start ParadeDB ${{ steps.ver.outputs.version }}
+        run: |
+          docker run -d --name paradedb \
+            -p 5432:5432 \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=postgres \
+            paradedb/paradedb:${{ steps.ver.outputs.version }}-pg18
+          echo "Waiting for ParadeDB to be ready..."
+          for i in $(seq 1 30); do
+            docker exec paradedb pg_isready -U postgres && break
+            echo "  ($i/30) not ready yet, sleeping 5s..."
+            sleep 5
+          done
+          docker exec paradedb pg_isready -U postgres
+
+      - name: Run Integration Tests
+        env:
+          PARADEDB_INTEGRATION: "1"
+          PARADEDB_TEST_DSN: postgresql://postgres@localhost:5432/postgres
+          PGPASSWORD: postgres
+          DATABASE_URL: postgresql://postgres@localhost:5432/postgres
+        run: pytest -m integration --tb=short -q
+
+      - name: Open Tracking Issue on Failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Create the label if it doesn't exist yet
+          gh label create "compatibility" \
+            --color "e4e669" \
+            --description "ParadeDB version compatibility issue" \
+            2>/dev/null || true
+
+          # Avoid duplicate issues for the same version
+          EXISTING=$(gh issue list \
+            --label "compatibility" \
+            --state open \
+            --json title,number \
+            --jq ".[] | select(.title | contains(\"${VERSION}\")) | .number" \
+            | head -1)
+
+          if [ -n "$EXISTING" ]; then
+            echo "Issue #$EXISTING already open for ParadeDB ${VERSION} — adding a comment."
+            gh issue comment "$EXISTING" \
+              --body "Re-triggered by [workflow run]($RUN_URL)."
+          else
+            gh issue create \
+              --title "Compatibility break with paradedb ${VERSION}" \
+              --body "The schema compatibility check and/or integration tests failed against \`paradedb ${VERSION}\`. See the [workflow run]($RUN_URL) for details." \
+              --label "compatibility"
+          fi

@@ -1358,30 +1358,6 @@ class ParadeDB:
             return ParadeDB._quote_term(value)
         raise TypeError("Unsupported option value type.")
 
-    @staticmethod
-    def _render_term_set_array(
-        terms: tuple[str | int | float | bool | date | datetime, ...]
-    ) -> str:
-        """Render a TermSet terms tuple as a typed SQL ARRAY literal.
-
-        The first term's Python type determines the PostgreSQL element type.
-        bool is checked before int (bool subclasses int).
-        datetime is checked before date (datetime subclasses date).
-        """
-        first = terms[0]
-        if isinstance(first, bool):
-            return f"ARRAY[{', '.join('true' if t else 'false' for t in terms)}]::boolean[]"
-        if isinstance(first, int):
-            return f"ARRAY[{', '.join(str(t) for t in terms)}]::bigint[]"
-        if isinstance(first, float):
-            return f"ARRAY[{', '.join(str(t) for t in terms)}]::float8[]"
-        if isinstance(first, datetime):
-            dts = [t for t in terms if isinstance(t, datetime)]
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(t.isoformat()) for t in dts)}]::timestamptz[]"
-        if isinstance(first, date):
-            ds = [t for t in terms if isinstance(t, date)]
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(t.isoformat()) for t in ds)}]::date[]"
-        return f"ARRAY[{', '.join(ParadeDB._quote_term(str(t)) for t in terms)}]::text[]"
 
 
 class ParadeDBExact(Exact):  # type: ignore[type-arg]

@@ -26,6 +26,31 @@ from django.db.models.expressions import Expression
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
 
+from paradedb.api import (
+    FN_ALL,
+    FN_MORE_LIKE_THIS,
+    FN_PARSE,
+    FN_PHRASE_PREFIX,
+    FN_PROX_ARRAY,
+    FN_PROX_REGEX,
+    FN_PROXIMITY,
+    FN_RANGE_TERM,
+    FN_REGEX,
+    FN_REGEX_PHRASE,
+    FN_TERM,
+    OP_AND,
+    OP_OR,
+    OP_PHRASE,
+    OP_PROXIMITY,
+    OP_PROXIMITY_ORD,
+    OP_SEARCH,
+    PDB_PDB_TYPE_BOOST,
+    PDB_PDB_TYPE_CONST,
+    PDB_PDB_TYPE_FUZZY,
+    PDB_PDB_TYPE_QUERY,
+    PDB_PDB_TYPE_SLOP,
+)
+
 ParadeOperator = Literal["OR", "AND"]
 _DEFAULT_OPERATOR = object()
 
@@ -501,7 +526,7 @@ class MoreLikeThis(Expression):
             expressions = []
             for value in self.product_ids:
                 mlt_sql, mlt_params = self._render_mlt_call(value)
-                expressions.append(f"{pk_sql} @@@ {mlt_sql}")
+                expressions.append(f"{pk_sql} {OP_SEARCH} {mlt_sql}")
                 params.extend(mlt_params)
             joined = " OR ".join(expressions)
             return f"({joined})", params
@@ -509,11 +534,11 @@ class MoreLikeThis(Expression):
         if self.product_id is not None:
             mlt_sql, mlt_params = self._render_mlt_call(self.product_id)
             params.extend(mlt_params)
-            return f"{pk_sql} @@@ {mlt_sql}", params
+            return f"{pk_sql} {OP_SEARCH} {mlt_sql}", params
 
         mlt_sql, mlt_params = self._render_mlt_call(self.document)
         params.extend(mlt_params)
-        return f"{pk_sql} @@@ {mlt_sql}", params
+        return f"{pk_sql} {OP_SEARCH} {mlt_sql}", params
 
     def _pk_sql(self, compiler: SQLCompiler, connection: BaseDatabaseWrapper) -> str:
         query = compiler.query
@@ -579,7 +604,7 @@ class MoreLikeThis(Expression):
             }
         )
         params.extend(option_params)
-        return f"pdb.more_like_this({', '.join(args)}{options})", params
+        return f"{FN_MORE_LIKE_THIS}({', '.join(args)}{options})", params
 
     @staticmethod
     def _quote_term(value: str) -> str:
@@ -910,7 +935,7 @@ class ParadeDB:
                 raise TypeError(
                     "Parse/PhrasePrefix/RegexPhrase/ProximityRegex/ProximityArray/RangeTerm/Term/Regex/All cannot be mixed with other terms."
                 )
-            return "@@@", (term,)
+            return OP_SEARCH, (term,)
 
         if any(isinstance(term, Match) for term in self._terms):
             if len(self._terms) != 1:
@@ -919,9 +944,9 @@ class ParadeDB:
             if not isinstance(term, Match):
                 raise TypeError("Match queries cannot be mixed with other terms.")
             if term.operator == "OR":
-                operator = "|||"
+                operator = OP_OR
             elif term.operator == "AND":
-                operator = "&&&"
+                operator = OP_AND
             else:
                 raise ValueError("Match operator must be 'AND' or 'OR'.")
             self._tokenizer = term.tokenizer
@@ -938,7 +963,7 @@ class ParadeDB:
                 if not isinstance(term, Phrase):
                     raise TypeError("Phrase searches only accept Phrase terms.")
                 phrases.append(term)
-            return "###", tuple(phrases)
+            return OP_PHRASE, tuple(phrases)
 
         if any(isinstance(term, Proximity) for term in self._terms):
             if len(self._terms) != 1:
@@ -948,7 +973,7 @@ class ParadeDB:
             term = self._terms[0]
             if not isinstance(term, Proximity):
                 raise TypeError("Proximity cannot be mixed with other terms.")
-            return "@@@", (term,)
+            return OP_SEARCH, (term,)
 
         terms: list[str] = []
         for term in self._terms:
@@ -956,9 +981,9 @@ class ParadeDB:
                 raise TypeError("ParadeDB terms must be strings.")
             terms.append(term)
 
-        operator = "&&&"
+        operator = OP_AND
         if self._operator == "OR":
-            operator = "|||"
+            operator = OP_OR
         return operator, tuple(terms)
 
     @staticmethod
@@ -980,9 +1005,9 @@ class ParadeDB:
     @staticmethod
     def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
         if boost is not None:
-            sql = f"{sql}::pdb.boost({boost})"
+            sql = f"{sql}::{PDB_TYPE_BOOST}({boost})"
         if const is not None:
-            sql = f"{sql}::pdb.const({const})"
+            sql = f"{sql}::{PDB_TYPE_CONST}({const})"
         return sql
 
     @staticmethod
@@ -1006,7 +1031,7 @@ class ParadeDB:
             fuzzy_args.extend(["t" if prefix else "f", "t"])
         elif prefix:
             fuzzy_args.append("t")
-        return f"{sql}::pdb.fuzzy({', '.join(fuzzy_args)})"
+        return f"{sql}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
 
     def _render_term(
         self,
@@ -1026,10 +1051,10 @@ class ParadeDB:
         if isinstance(term, Phrase):
             literal = self._quote_term(term.text)
             if term.slop is not None:
-                literal = f"{literal}::pdb.slop({term.slop})"
+                literal = f"{literal}::{PDB_TYPE_SLOP}({term.slop})"
                 # pdb.slop has no direct cast to pdb.const; bridge via pdb.query.
                 if term.const is not None:
-                    literal = f"{literal}::pdb.query"
+                    literal = f"{literal}::{PDB_TYPE_QUERY}"
             if term.tokenizer is not None:
                 literal = f"{literal}::{_tokenizer_cast(term.tokenizer)}"
             return self._append_scoring(literal, boost=term.boost, const=term.const)
@@ -1039,41 +1064,41 @@ class ParadeDB:
                 raise ValueError(
                     "Proximity text must include at least two whitespace-separated terms."
                 )
-            operator = "##>" if term.ordered else "##"
+            operator = OP_PROXIMITY_ORD if term.ordered else OP_PROXIMITY
             clause_sql = self._quote_term(words[0])
             for word in words[1:]:
                 clause_sql = (
                     f"{clause_sql} {operator} {term.distance} {operator} "
                     f"{self._quote_term(word)}"
                 )
-            rendered = f"pdb.proximity({clause_sql})"
+            rendered = f"{FN_PROXIMITY}({clause_sql})"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Parse):
             rendered = (
-                f"pdb.parse({self._quote_term(term.query)}"
+                f"{FN_PARSE}({self._quote_term(term.query)}"
                 f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, PhrasePrefix):
             phrases_sql = ", ".join(self._quote_term(phrase) for phrase in term.phrases)
             rendered = (
-                f"pdb.phrase_prefix(ARRAY[{phrases_sql}]"
+                f"{FN_PHRASE_PREFIX}(ARRAY[{phrases_sql}]"
                 f"{self._render_options({'max_expansion': term.max_expansion})})"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, RegexPhrase):
             regex_sql = ", ".join(self._quote_term(regex) for regex in term.regexes)
             rendered = (
-                f"pdb.regex_phrase(ARRAY[{regex_sql}]"
+                f"{FN_REGEX_PHRASE}(ARRAY[{regex_sql}]"
                 f"{self._render_options({'slop': term.slop, 'max_expansions': term.max_expansions})})"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, ProximityRegex):
-            operator = "##>" if term.ordered else "##"
+            operator = OP_PROXIMITY_ORD if term.ordered else OP_PROXIMITY
             rendered = (
-                "pdb.proximity("
+                f"{FN_PROXIMITY}("
                 f"{self._quote_term(term.left_term)} {operator} {term.distance} {operator} "
-                f"pdb.prox_regex({self._quote_term(term.pattern)}, {term.max_expansions})"
+                f"{FN_PROX_REGEX}({self._quote_term(term.pattern)}, {term.max_expansions})"
                 ")"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
@@ -1081,30 +1106,30 @@ class ParadeDB:
             left_sql = ", ".join(
                 self._quote_term(left_term) for left_term in term.left_terms
             )
-            operator = "##>" if term.ordered else "##"
+            operator = OP_PROXIMITY_ORD if term.ordered else OP_PROXIMITY
             right_sql = self._quote_term(term.right_term)
             if term.right_pattern is not None:
-                right_sql = f"pdb.prox_regex({self._quote_term(term.right_pattern)}, {term.max_expansions})"
+                right_sql = f"{FN_PROX_REGEX}({self._quote_term(term.right_pattern)}, {term.max_expansions})"
             rendered = (
-                "pdb.proximity("
-                f"pdb.prox_array({left_sql}) {operator} {term.distance} {operator} {right_sql}"
+                f"{FN_PROXIMITY}("
+                f"{FN_PROX_ARRAY}({left_sql}) {operator} {term.distance} {operator} {right_sql}"
                 ")"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, RangeTerm):
             if term.relation is None:
-                rendered = f"pdb.range_term({self._render_value(term.value)})"
+                rendered = f"{FN_RANGE_TERM}({self._render_value(term.value)})"
             else:
                 assert term.range_type is not None
                 rendered = (
-                    "pdb.range_term("
+                    f"{FN_RANGE_TERM}("
                     f"{self._quote_range_literal(term.value, term.range_type)}, "
                     f"{self._quote_term(term.relation)}"
                     ")"
                 )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Term):
-            rendered = f"pdb.term({self._quote_term(term.text)})"
+            rendered = f"{FN_TERM}({self._quote_term(term.text)})"
             rendered = self._append_fuzzy(
                 rendered,
                 distance=term.distance,
@@ -1120,13 +1145,13 @@ class ParadeDB:
                 and term.const is not None
             ):
                 # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
-                rendered = f"{rendered}::pdb.query"
+                rendered = f"{rendered}::{PDB_TYPE_QUERY}"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Regex):
-            rendered = f"pdb.regex({self._quote_term(term.pattern)})"
+            rendered = f"{FN_REGEX}({self._quote_term(term.pattern)})"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, All):
-            return "pdb.all()"
+            return f"{FN_ALL}()"
         # For plain strings, return bare quoted term.
         # Fuzzy and scoring are applied at the as_sql level for proper SQL generation.
         # Tokenizer is applied here since it should be per-term.

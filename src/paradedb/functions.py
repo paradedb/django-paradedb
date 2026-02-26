@@ -11,6 +11,18 @@ from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import CharField, F, FloatField, Func, IntegerField, JSONField
 from django.db.models.sql.compiler import SQLCompiler
 
+from paradedb.api import (
+    FN_AGG,
+    FN_INDEXES,
+    FN_INDEX_SEGMENTS,
+    FN_SCORE,
+    FN_SNIPPET,
+    FN_SNIPPET_POSITIONS,
+    FN_SNIPPETS,
+    FN_VERIFY_ALL_INDEXES,
+    FN_VERIFY_INDEX,
+)
+
 
 def _quote_term(value: str) -> str:
     escaped = value.replace("'", "''")
@@ -20,7 +32,7 @@ def _quote_term(value: str) -> str:
 class Score(Func):
     """BM25 score annotation."""
 
-    function = "pdb.score"
+    function = FN_SCORE
     output_field = FloatField()
 
     def __init__(self, key_field: str | None = None) -> None:
@@ -31,7 +43,7 @@ class Score(Func):
 class Snippet(Func):
     """Snippet annotation."""
 
-    function = "pdb.snippet"
+    function = FN_SNIPPET
     output_field = CharField()
 
     def __init__(
@@ -77,7 +89,7 @@ class Snippets(Func):
     See: https://docs.paradedb.com/documentation/full-text/highlight#multiple-snippets
     """
 
-    function = "pdb.snippets"
+    function = FN_SNIPPETS
     output_field = ArrayField(base_field=CharField())
 
     _VALID_SORT_BY = ("score", "position")
@@ -142,7 +154,7 @@ class SnippetPositions(Func):
     See: https://docs.paradedb.com/documentation/full-text/highlight#byte-offsets
     """
 
-    function = "pdb.snippet_positions"
+    function = FN_SNIPPET_POSITIONS
     output_field = ArrayField(base_field=ArrayField(base_field=IntegerField()))
 
     def __init__(self, field: str) -> None:
@@ -165,7 +177,7 @@ class SnippetPositions(Func):
 class Agg(Func):
     """Aggregate annotation for ParadeDB facets."""
 
-    function = "pdb.agg"
+    function = FN_AGG
     output_field = JSONField()
     contains_aggregate = True
     window_compatible = True
@@ -208,7 +220,7 @@ def _execute_table_function(
 
 def paradedb_indexes(*, using: str = DEFAULT_DB_ALIAS) -> list[dict[str, Any]]:
     """Return metadata for all BM25 indexes from ``pdb.indexes()``."""
-    return _execute_table_function("SELECT * FROM pdb.indexes()", (), using=using)
+    return _execute_table_function(f"SELECT * FROM {FN_INDEXES}()", (), using=using)
 
 
 def paradedb_index_segments(
@@ -216,7 +228,7 @@ def paradedb_index_segments(
 ) -> list[dict[str, Any]]:
     """Return segment metadata for a BM25 index from ``pdb.index_segments()``."""
     return _execute_table_function(
-        "SELECT * FROM pdb.index_segments(%s::regclass)", (index,), using=using
+        f"SELECT * FROM {FN_INDEX_SEGMENTS}(%s::regclass)", (index,), using=using
     )
 
 
@@ -232,7 +244,7 @@ def paradedb_verify_index(
     using: str = DEFAULT_DB_ALIAS,
 ) -> list[dict[str, Any]]:
     """Run ``pdb.verify_index()`` for one BM25 index."""
-    sql = ["SELECT * FROM pdb.verify_index(%s::regclass"]
+    sql = [f"SELECT * FROM {FN_VERIFY_INDEX}(%s::regclass"]
     params: list[Any] = [index]
     if heapallindexed:
         sql.append(", heapallindexed => %s::boolean")
@@ -267,7 +279,7 @@ def paradedb_verify_all_indexes(
     using: str = DEFAULT_DB_ALIAS,
 ) -> list[dict[str, Any]]:
     """Run ``pdb.verify_all_indexes()`` across BM25 indexes."""
-    sql = ["SELECT * FROM pdb.verify_all_indexes("]
+    sql = [f"SELECT * FROM {FN_VERIFY_ALL_INDEXES}("]
     params: list[Any] = []
     named_params: list[tuple[str, str, Any]] = []
     if schema_pattern is not None:

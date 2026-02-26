@@ -1,5 +1,7 @@
 {
-  "_comment": "Symbols present in the pg_search schema that django-paradedb intentionally does not wrap. Remove an entry here when you add it to api.py.",
+  "_comment": "Symbols present in the pg_search schema that django-paradedb intentionally does not wrap. Remove an entry here when you add it to api.json.",
+
+  "operators": [],
 
   "functions": [
     "pdb.agg_fn",
@@ -194,8 +196,6 @@
     "pdb.tokenize_unicode_words",
     "pdb.tokenize_whitespace"
   ],
-
-  "operators": [],
 
   "types": [
     "pdb.proximityclause"

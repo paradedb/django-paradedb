@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
 """
-Check compatibility between api.py and a pg_search schema file in both directions.
+Check compatibility between api.json and a pg_search schema file in both directions.
 
 The schema is generated in the paradedb repo via:
     cargo pgrx schema -p pg_search pg18 > pg_search.schema.sql
 
-The symbols are read directly from src/paradedb/api.py using the OP_/FN_/PDB_TYPE_
-naming convention — no intermediate JSON or extraction step needed.
-
 Two checks are performed:
 
-  Forward:  every symbol in api.py is present in the schema (detects removals/renames).
-  Reverse:  every pdb.* symbol in the schema is either in api.py or in compat_ignore.json
+  Forward:  every symbol in api.json is present in the schema (detects removals/renames).
+  Reverse:  every pdb.* symbol in the schema is either in api.json or in apiignore.json
             (surfaces new paradedb APIs that haven't been wrapped yet).
 
 Usage:
-    python scripts/check_schema_compat.py <schema.sql> <api.py>
+    python scripts/check_schema_compat.py <schema.sql> <api.json>
 
-The ignore list is read automatically from scripts/compat_ignore.json (sibling of this
-script) if it exists.
+The ignore list is read automatically from apiignore.json (repo root) if it exists.
 """
 
 import json
@@ -26,7 +22,7 @@ import re
 import sys
 from pathlib import Path
 
-_IGNORE_FILE = Path(__file__).parent / "compat_ignore.json"
+_IGNORE_FILE = Path(__file__).parent.parent / "apiignore.json"
 
 
 def normalize(sql: str) -> str:
@@ -35,21 +31,12 @@ def normalize(sql: str) -> str:
 
 
 def extract_from_api(path: Path) -> dict:
-    """Read OP_/FN_/PDB_TYPE_ constants from api.py and return a deps dict."""
-    source = path.read_text()
-
-    def _values(prefix: str) -> list[str]:
-        return sorted({
-            m
-            for m in re.findall(
-                rf"^{prefix}_\w+\s*=\s*[\"']([^\"']+)[\"']", source, re.MULTILINE
-            )
-        })
-
+    """Read api.json and return {functions: [...], operators: [...], types: [...]}."""
+    data = json.loads(path.read_text())
     return {
-        "functions": _values("FN"),
-        "operators": _values("OP"),
-        "types": _values("PDB_TYPE"),
+        "functions": sorted(set(data["functions"].values())),
+        "operators": sorted(set(data["operators"].values())),
+        "types": sorted(set(data["types"].values())),
     }
 
 
@@ -98,7 +85,7 @@ def check_type(schema: str, qualified_name: str) -> bool:
 
 def main() -> int:
     if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <schema.sql> <api.py>", file=sys.stderr)
+        print(f"Usage: {sys.argv[0]} <schema.sql> <api.json>", file=sys.stderr)
         return 1
 
     schema_path = Path(sys.argv[1])
@@ -108,7 +95,7 @@ def main() -> int:
         print(f"❌ Schema file not found: {schema_path}", file=sys.stderr)
         return 1
     if not api_path.exists():
-        print(f"❌ api.py not found: {api_path}", file=sys.stderr)
+        print(f"❌ api.json not found: {api_path}", file=sys.stderr)
         return 1
 
     schema = normalize(schema_path.read_text())
@@ -118,7 +105,7 @@ def main() -> int:
     rc = 0
 
     # ------------------------------------------------------------------
-    # Forward check: every symbol in api.py must exist in the schema.
+    # Forward check: every symbol in api.json must exist in the schema.
     # ------------------------------------------------------------------
     missing: list[tuple[str, str]] = []
     for fn in deps.get("functions", []):
@@ -133,20 +120,20 @@ def main() -> int:
 
     total_api = sum(len(v) for v in deps.values() if isinstance(v, list))
     if missing:
-        print(f"❌ Forward check: {len(missing)}/{total_api} api.py symbols missing from schema:")
+        print(f"❌ Forward check: {len(missing)}/{total_api} api.json symbols missing from schema:")
         for kind, name in missing:
             print(f"   {kind}: {name}")
         print(
             "\nThese symbols were removed or renamed in this version of pg_search.\n"
-            "Update django-paradedb to handle the API change, then update api.py."
+            "Update django-paradedb to handle the API change, then update api.json."
         )
         rc = 1
     else:
-        print(f"✅ Forward check: all {total_api} api.py symbols present in schema.")
+        print(f"✅ Forward check: all {total_api} api.json symbols present in schema.")
 
     # ------------------------------------------------------------------
-    # Reverse check: every pdb.* symbol in the schema must be in api.py
-    # or explicitly ignored in compat_ignore.json.
+    # Reverse check: every pdb.* symbol in the schema must be in api.json
+    # or explicitly ignored in apiignore.json.
     # ------------------------------------------------------------------
     schema_symbols = scan_schema_symbols(schema)
     uncovered: list[tuple[str, str]] = []
@@ -160,13 +147,13 @@ def main() -> int:
     total_schema = sum(len(v) for v in schema_symbols.values())
     if uncovered:
         print(
-            f"\n⚠️  Reverse check: {len(uncovered)} schema symbols not covered by api.py:"
+            f"\n⚠️  Reverse check: {len(uncovered)} schema symbols not covered by api.json:"
         )
         for kind, name in uncovered:
             print(f"   {kind}: {name}")
         print(
             "\nThese are paradedb APIs not yet wrapped by django-paradedb.\n"
-            "Either add them to api.py or add them to scripts/compat_ignore.json."
+            "Either add them to api.json or add them to apiignore.json."
         )
         rc = 1
     else:

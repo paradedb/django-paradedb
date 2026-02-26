@@ -334,3 +334,28 @@ class TestAggregationEdgeCases:
         agg_value = json.loads(row[0])
         # Percentiles return values as key-value pairs
         assert "values" in agg_value or isinstance(agg_value, dict)
+
+
+class TestJSONFieldAggregations:
+    """Test aggregations on JSON subfields (require fast field configuration)."""
+
+    def test_metadata_color_terms_aggregation(self) -> None:
+        """AGG-4: Terms aggregation on JSON metadata.color subfield.
+
+        This requires the metadata field to be configured as a fast field
+        in the BM25 index using json_fields parameter.
+        """
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'SELECT pdb.agg(\'{"terms": {"field": "metadata.color"}}\') FROM mock_items WHERE id @@@ pdb.all()'
+            )
+            row = cursor.fetchone()
+
+        assert row is not None
+        agg_value = json.loads(row[0])
+        assert "buckets" in agg_value
+        # Should have buckets for different colors
+        colors = {bucket["key"] for bucket in agg_value["buckets"]}
+        assert len(colors) > 0

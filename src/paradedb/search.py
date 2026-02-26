@@ -806,10 +806,26 @@ class ParadeDB:
         literals = [self._render_term(term) for term in terms]
 
         if len(literals) == 1:
-            # For plain strings, _render_term returns bare literals; scoring is applied here.
+            # For plain strings, apply fuzzy and scoring here.
             # For structured types, _render_term already bakes in term-level scoring.
+            rendered = self._append_fuzzy(
+                literals[0],
+                distance=self._distance,
+                prefix=self._prefix,
+                transposition_cost_one=self._transposition_cost_one,
+            )
+            if (
+                _is_fuzzy_enabled(
+                    distance=self._distance,
+                    prefix=self._prefix,
+                    transposition_cost_one=self._transposition_cost_one,
+                )
+                and self._const is not None
+            ):
+                # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
+                rendered = f"{rendered}::pdb.query"
             scored = self._append_scoring(
-                literals[0], boost=self._boost, const=self._const
+                rendered, boost=self._boost, const=self._const
             )
             return f"{lhs_sql} {operator} {scored}", []
 
@@ -817,6 +833,23 @@ class ParadeDB:
         # Per-element casts (e.g. ARRAY['a'::pdb.boost(2), 'b'::pdb.boost(2)]) produce
         # pdb.boost[] which has no matching operator. text[]::pdb.boost(N) is correct.
         array_sql = f"ARRAY[{', '.join(literals)}]"
+        # Apply fuzzy to the whole array for multi-term queries.
+        array_sql = self._append_fuzzy(
+            array_sql,
+            distance=self._distance,
+            prefix=self._prefix,
+            transposition_cost_one=self._transposition_cost_one,
+        )
+        if (
+            _is_fuzzy_enabled(
+                distance=self._distance,
+                prefix=self._prefix,
+                transposition_cost_one=self._transposition_cost_one,
+            )
+            and self._const is not None
+        ):
+            # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
+            array_sql = f"{array_sql}::pdb.query"
         array_sql = self._append_scoring(
             array_sql, boost=self._boost, const=self._const
         )
@@ -1094,27 +1127,12 @@ class ParadeDB:
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, All):
             return "pdb.all()"
+        # For plain strings, return bare quoted term.
+        # Fuzzy and scoring are applied at the as_sql level for proper SQL generation.
+        # Tokenizer is applied here since it should be per-term.
         rendered = self._quote_term(term)
-        rendered = self._append_fuzzy(
-            rendered,
-            distance=self._distance,
-            prefix=self._prefix,
-            transposition_cost_one=self._transposition_cost_one,
-        )
-        if (
-            _is_fuzzy_enabled(
-                distance=self._distance,
-                prefix=self._prefix,
-                transposition_cost_one=self._transposition_cost_one,
-            )
-            and self._const is not None
-        ):
-            # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
-            rendered = f"{rendered}::pdb.query"
         if self._tokenizer is not None:
             rendered = f"{rendered}::{_tokenizer_cast(self._tokenizer)}"
-        # Scoring is NOT applied here for plain strings: as_sql applies self._boost/self._const
-        # at the right level (to the single literal or to the ARRAY as a whole).
         return rendered
 
     @staticmethod

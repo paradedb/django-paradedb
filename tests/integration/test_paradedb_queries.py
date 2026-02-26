@@ -911,3 +911,40 @@ def test_more_like_this_word_length_min_greater_than_max() -> None:
 
     assert "min_word_length => 10" in sql
     assert "max_word_length => 5" in sql
+
+
+def test_multi_term_fuzzy_match_or() -> None:
+    """FUZZY-1: Match with multiple terms and OR operator uses fuzzy on array."""
+    # This should generate: ARRAY['runing', 'shose']::pdb.fuzzy(2)
+    # NOT: ARRAY['runing'::pdb.fuzzy(2), 'shose'::pdb.fuzzy(2)]
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Match("runing", "shose", operator="OR", distance=2))
+        )
+    )
+    # Should match item 3 (running shoes) with fuzzy distance 2
+    assert 3 in ids
+
+
+def test_multi_term_fuzzy_match_and() -> None:
+    """FUZZY-2: Match with multiple terms and AND operator uses fuzzy on array."""
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Match("runing", "shose", operator="AND", distance=2))
+        )
+    )
+    # Should match item 3 (running shoes) with fuzzy distance 2
+    assert 3 in ids
+
+
+def test_multi_term_fuzzy_match_and_prefix() -> None:
+    """FUZZY-5: Match with multiple terms, AND operator, distance=1, and prefix."""
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                Match("slee", "rann", operator="AND", distance=1, prefix=True)
+            )
+        )
+    )
+    # Should match item 3 (sleek running) with prefix fuzzy
+    assert 3 in ids

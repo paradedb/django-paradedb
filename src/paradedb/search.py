@@ -28,7 +28,13 @@ from django.db.models.sql.compiler import SQLCompiler
 
 from paradedb.api import (
     FN_ALL,
+    FN_EMPTY,
+    FN_EXISTS,
+    FN_FUZZY_TERM,
     FN_MORE_LIKE_THIS,
+    FN_PARSE_WITH_FIELD,
+    FN_RANGE,
+    FN_TERM_SET,
     FN_PARSE,
     FN_PHRASE_PREFIX,
     FN_PROX_ARRAY,
@@ -44,11 +50,24 @@ from paradedb.api import (
     OP_PROXIMITY,
     OP_PROXIMITY_ORD,
     OP_SEARCH,
-    PDB_PDB_TYPE_BOOST,
-    PDB_PDB_TYPE_CONST,
-    PDB_PDB_TYPE_FUZZY,
-    PDB_PDB_TYPE_QUERY,
-    PDB_PDB_TYPE_SLOP,
+    PDB_TYPE_BOOST,
+    PDB_TYPE_CONST,
+    PDB_TYPE_FUZZY,
+    PDB_TYPE_QUERY,
+    PDB_TYPE_SLOP,
+    PDB_TYPE_TOKENIZER_ALIAS,
+    PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE,
+    PDB_TYPE_TOKENIZER_ICU,
+    PDB_TYPE_TOKENIZER_JIEBA,
+    PDB_TYPE_TOKENIZER_LINDERA,
+    PDB_TYPE_TOKENIZER_LITERAL,
+    PDB_TYPE_TOKENIZER_LITERAL_NORMALIZED,
+    PDB_TYPE_TOKENIZER_NGRAM,
+    PDB_TYPE_TOKENIZER_REGEX,
+    PDB_TYPE_TOKENIZER_SIMPLE,
+    PDB_TYPE_TOKENIZER_SOURCE_CODE,
+    PDB_TYPE_TOKENIZER_UNICODE_WORDS,
+    PDB_TYPE_TOKENIZER_WHITESPACE,
 )
 
 ParadeOperator = Literal["OR", "AND"]
@@ -67,6 +86,27 @@ _TOKENIZER_CALL_ARGS_RE = re.compile(
     r"^\s*(?:'(?:[^']|'')*'\s*(?:,\s*'(?:[^']|'')*'\s*)*)?$"
 )
 
+# Maps the bare tokenizer name (e.g. "whitespace") to its qualified pdb type constant.
+# Built from the PDB_TYPE_TOKENIZER_* constants so the lookup is tied to api.py.
+_KNOWN_TOKENIZERS: dict[str, str] = {
+    t[len("pdb."):]: t
+    for t in (
+        PDB_TYPE_TOKENIZER_ALIAS,
+        PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE,
+        PDB_TYPE_TOKENIZER_ICU,
+        PDB_TYPE_TOKENIZER_JIEBA,
+        PDB_TYPE_TOKENIZER_LINDERA,
+        PDB_TYPE_TOKENIZER_LITERAL,
+        PDB_TYPE_TOKENIZER_LITERAL_NORMALIZED,
+        PDB_TYPE_TOKENIZER_NGRAM,
+        PDB_TYPE_TOKENIZER_REGEX,
+        PDB_TYPE_TOKENIZER_SIMPLE,
+        PDB_TYPE_TOKENIZER_SOURCE_CODE,
+        PDB_TYPE_TOKENIZER_UNICODE_WORDS,
+        PDB_TYPE_TOKENIZER_WHITESPACE,
+    )
+}
+
 
 def _tokenizer_cast(name: str) -> str:
     """Return safe ``pdb.<tokenizer>`` SQL for tokenizer casts.
@@ -79,14 +119,15 @@ def _tokenizer_cast(name: str) -> str:
     Any other form is treated as an identifier and quoted to avoid injection.
     """
     if _SIMPLE_IDENTIFIER_RE.match(name):
-        return f"pdb.{name}"
+        return _KNOWN_TOKENIZERS.get(name, f"pdb.{name}")
 
     tokenizer_call = _TOKENIZER_CALL_RE.match(name)
     if tokenizer_call is not None:
         tokenizer_name = tokenizer_call.group("name")
         tokenizer_args = tokenizer_call.group("args")
         if _TOKENIZER_CALL_ARGS_RE.match(tokenizer_args):
-            return f"pdb.{tokenizer_name}({tokenizer_args.strip()})"
+            qualified = _KNOWN_TOKENIZERS.get(tokenizer_name, f"pdb.{tokenizer_name}")
+            return f"{qualified}({tokenizer_args.strip()})"
 
     escaped = name.replace('"', '""')
     return f'pdb."{escaped}"'
@@ -345,6 +386,92 @@ class Regex:
 @dataclass(frozen=True)
 class All:
     """Match-all query expression."""
+
+
+@dataclass(frozen=True)
+class Empty:
+    """Match-nothing query expression (opposite of All)."""
+
+    boost: float | None = None
+    const: float | None = None
+
+
+@dataclass(frozen=True)
+class Exists:
+    """Field existence check — matches documents where the LHS field has any indexed value."""
+
+    boost: float | None = None
+    const: float | None = None
+
+
+@dataclass(frozen=True)
+class FuzzyTerm:
+    """Fuzzy term search against the LHS field."""
+
+    value: str | None = None
+    distance: int | None = None
+    transposition_cost_one: bool | None = None
+    prefix: bool | None = None
+    boost: float | None = None
+    const: float | None = None
+
+    def __post_init__(self) -> None:
+        _validate_fuzzy_distance(self.distance)
+
+
+@dataclass(frozen=True)
+class ParseWithField:
+    """Query string parser scoped to the LHS field."""
+
+    query: str
+    lenient: bool | None = None
+    conjunction_mode: bool | None = None
+    boost: float | None = None
+    const: float | None = None
+
+
+@dataclass(frozen=True)
+class Range:
+    """Range query against the LHS field.
+
+    ``range`` is a PostgreSQL range literal (e.g. ``'[1, 10]'``) and
+    ``range_type`` is one of the supported PostgreSQL range types
+    (``int4range``, ``int8range``, ``numrange``, ``daterange``, ``tsrange``,
+    ``tstzrange``).
+    """
+
+    range: str
+    range_type: RangeType
+    boost: float | None = None
+    const: float | None = None
+
+    def __post_init__(self) -> None:
+        _validate_range_type(self.range_type)
+
+
+@dataclass(frozen=True)
+class TermSet:
+    """Match any term from a set against the LHS field.
+
+    Terms must all be the same Python type (str, int, float, bool, date, or
+    datetime). The type is used to pick the correct PostgreSQL array cast.
+    """
+
+    terms: tuple[str | int | float | bool | date | datetime, ...]
+    boost: float | None = None
+    const: float | None = None
+
+    def __init__(
+        self,
+        *terms: str | int | float | bool | date | datetime,
+        boost: float | None = None,
+        const: float | None = None,
+    ) -> None:
+        if not terms:
+            raise ValueError("TermSet requires at least one term.")
+        object.__setattr__(self, "terms", tuple(terms))
+        object.__setattr__(self, "boost", boost)
+        object.__setattr__(self, "const", const)
 
 
 @dataclass(frozen=True)
@@ -678,7 +805,13 @@ class ParadeDB:
     @overload
     def __init__(
         self,
-        __expr: Parse
+        __expr: Empty
+        | Exists
+        | FuzzyTerm
+        | ParseWithField
+        | Range
+        | TermSet
+        | Parse
         | PhrasePrefix
         | RegexPhrase
         | ProximityRegex
@@ -713,6 +846,12 @@ class ParadeDB:
         | Match
         | Phrase
         | Proximity
+        | Empty
+        | Exists
+        | FuzzyTerm
+        | ParseWithField
+        | Range
+        | TermSet
         | Parse
         | PhrasePrefix
         | RegexPhrase
@@ -750,7 +889,13 @@ class ParadeDB:
         if self._tokenizer is not None and any(
             isinstance(
                 term,
-                Phrase
+                Empty
+                | Exists
+                | FuzzyTerm
+                | ParseWithField
+                | Range
+                | TermSet
+                | Phrase
                 | Proximity
                 | Parse
                 | PhrasePrefix
@@ -770,7 +915,13 @@ class ParadeDB:
         if self._boost is not None and any(
             isinstance(
                 term,
-                Phrase
+                Empty
+                | Exists
+                | FuzzyTerm
+                | ParseWithField
+                | Range
+                | TermSet
+                | Phrase
                 | Proximity
                 | Parse
                 | PhrasePrefix
@@ -790,7 +941,13 @@ class ParadeDB:
         if self._const is not None and any(
             isinstance(
                 term,
-                Phrase
+                Empty
+                | Exists
+                | FuzzyTerm
+                | ParseWithField
+                | Range
+                | TermSet
+                | Phrase
                 | Proximity
                 | Parse
                 | PhrasePrefix
@@ -886,6 +1043,12 @@ class ParadeDB:
         str,
         tuple[
             str
+            | Empty
+            | Exists
+            | FuzzyTerm
+            | ParseWithField
+            | Range
+            | TermSet
             | Phrase
             | Proximity
             | Parse
@@ -903,7 +1066,13 @@ class ParadeDB:
         if any(
             isinstance(
                 term,
-                Parse
+                Empty
+                | Exists
+                | FuzzyTerm
+                | ParseWithField
+                | Range
+                | TermSet
+                | Parse
                 | PhrasePrefix
                 | RegexPhrase
                 | ProximityRegex
@@ -917,7 +1086,7 @@ class ParadeDB:
         ):
             if len(self._terms) != 1:
                 raise ValueError(
-                    "Parse/PhrasePrefix/RegexPhrase/ProximityRegex/ProximityArray/RangeTerm/Term/Regex/All queries must be a single term."
+                    "Empty/Exists/FuzzyTerm/ParseWithField/Range/TermSet/Parse/PhrasePrefix/RegexPhrase/ProximityRegex/ProximityArray/RangeTerm/Term/Regex/All queries must be a single term."
                 )
             term = self._terms[0]
             if not isinstance(
@@ -933,7 +1102,7 @@ class ParadeDB:
                 | All,
             ):
                 raise TypeError(
-                    "Parse/PhrasePrefix/RegexPhrase/ProximityRegex/ProximityArray/RangeTerm/Term/Regex/All cannot be mixed with other terms."
+                    "Empty/Exists/FuzzyTerm/ParseWithField/Range/TermSet/Parse/PhrasePrefix/RegexPhrase/ProximityRegex/ProximityArray/RangeTerm/Term/Regex/All cannot be mixed with other terms."
                 )
             return OP_SEARCH, (term,)
 
@@ -1036,6 +1205,12 @@ class ParadeDB:
     def _render_term(
         self,
         term: str
+        | Empty
+        | Exists
+        | FuzzyTerm
+        | ParseWithField
+        | Range
+        | TermSet
         | Phrase
         | Proximity
         | Parse
@@ -1183,6 +1358,31 @@ class ParadeDB:
             return ParadeDB._quote_term(value)
         raise TypeError("Unsupported option value type.")
 
+    @staticmethod
+    def _render_term_set_array(
+        terms: tuple[str | int | float | bool | date | datetime, ...]
+    ) -> str:
+        """Render a TermSet terms tuple as a typed SQL ARRAY literal.
+
+        The first term's Python type determines the PostgreSQL element type.
+        bool is checked before int (bool subclasses int).
+        datetime is checked before date (datetime subclasses date).
+        """
+        first = terms[0]
+        if isinstance(first, bool):
+            return f"ARRAY[{', '.join('true' if t else 'false' for t in terms)}]::boolean[]"
+        if isinstance(first, int):
+            return f"ARRAY[{', '.join(str(t) for t in terms)}]::bigint[]"
+        if isinstance(first, float):
+            return f"ARRAY[{', '.join(str(t) for t in terms)}]::float8[]"
+        if isinstance(first, datetime):
+            dts = [t for t in terms if isinstance(t, datetime)]
+            return f"ARRAY[{', '.join(ParadeDB._quote_term(t.isoformat()) for t in dts)}]::timestamptz[]"
+        if isinstance(first, date):
+            ds = [t for t in terms if isinstance(t, date)]
+            return f"ARRAY[{', '.join(ParadeDB._quote_term(t.isoformat()) for t in ds)}]::date[]"
+        return f"ARRAY[{', '.join(ParadeDB._quote_term(str(t)) for t in terms)}]::text[]"
+
 
 class ParadeDBExact(Exact):  # type: ignore[type-arg]
     """Exact lookup override to emit ParadeDB operators."""
@@ -1213,20 +1413,26 @@ UUIDField.register_lookup(ParadeDBExact)
 
 __all__ = [
     "All",
+    "Empty",
+    "Exists",
+    "FuzzyTerm",
     "Match",
     "MoreLikeThis",
     "ParadeDB",
     "ParadeOperator",
     "Parse",
+    "ParseWithField",
     "Phrase",
     "PhrasePrefix",
     "Proximity",
     "ProximityArray",
     "ProximityRegex",
+    "Range",
     "RangeRelation",
     "RangeTerm",
     "RangeType",
     "Regex",
     "RegexPhrase",
     "Term",
+    "TermSet",
 ]

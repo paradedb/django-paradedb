@@ -26,6 +26,7 @@ OP_OR = "|||"            # OR match (Match with operator='OR')
 OP_PHRASE = "###"        # Phrase search
 OP_PROXIMITY = "##"      # Proximity search (unordered)
 OP_PROXIMITY_ORD = "##>" # Proximity search (ordered)
+OP_TERM = "==="          # Term search (field === 'term' shorthand, any column type)
 
 # ---------------------------------------------------------------------------
 # Query builder functions
@@ -42,6 +43,12 @@ FN_PROXIMITY = "pdb.proximity"
 FN_PROX_REGEX = "pdb.prox_regex"
 FN_PROX_ARRAY = "pdb.prox_array"
 FN_MORE_LIKE_THIS = "pdb.more_like_this"
+FN_EMPTY = "pdb.empty"
+FN_EXISTS = "pdb.exists"
+FN_FUZZY_TERM = "pdb.fuzzy_term"
+FN_PARSE_WITH_FIELD = "pdb.parse_with_field"
+FN_RANGE = "pdb.range"
+FN_TERM_SET = "pdb.term_set"
 
 # ---------------------------------------------------------------------------
 # Annotation functions
@@ -63,7 +70,7 @@ FN_VERIFY_INDEX = "pdb.verify_index"
 FN_VERIFY_ALL_INDEXES = "pdb.verify_all_indexes"
 
 # ---------------------------------------------------------------------------
-# Type casts
+# Type casts — scoring and matching modifiers
 # ---------------------------------------------------------------------------
 
 PDB_TYPE_BOOST = "pdb.boost"   # Relevance score multiplier
@@ -71,3 +78,21 @@ PDB_TYPE_CONST = "pdb.const"   # Constant relevance contribution
 PDB_TYPE_FUZZY = "pdb.fuzzy"   # Fuzzy matching
 PDB_TYPE_SLOP = "pdb.slop"     # Phrase slop
 PDB_TYPE_QUERY = "pdb.query"   # Bridge type for chaining (e.g. fuzzy/slop → const)
+
+# ---------------------------------------------------------------------------
+# Type casts — tokenizers (used in field::pdb.<tokenizer> syntax)
+# ---------------------------------------------------------------------------
+
+PDB_TYPE_TOKENIZER_ALIAS = "pdb.alias"
+PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE = "pdb.chinese_compatible"
+PDB_TYPE_TOKENIZER_ICU = "pdb.icu"
+PDB_TYPE_TOKENIZER_JIEBA = "pdb.jieba"
+PDB_TYPE_TOKENIZER_LINDERA = "pdb.lindera"
+PDB_TYPE_TOKENIZER_LITERAL = "pdb.literal"
+PDB_TYPE_TOKENIZER_LITERAL_NORMALIZED = "pdb.literal_normalized"
+PDB_TYPE_TOKENIZER_NGRAM = "pdb.ngram"
+PDB_TYPE_TOKENIZER_REGEX = "pdb.regex_pattern"
+PDB_TYPE_TOKENIZER_SIMPLE = "pdb.simple"
+PDB_TYPE_TOKENIZER_SOURCE_CODE = "pdb.source_code"
+PDB_TYPE_TOKENIZER_UNICODE_WORDS = "pdb.unicode_words"
+PDB_TYPE_TOKENIZER_WHITESPACE = "pdb.whitespace"

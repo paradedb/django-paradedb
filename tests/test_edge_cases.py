@@ -843,6 +843,47 @@ class TestTermSetExpression:
         assert isinstance(expr.terms, tuple)
 
 
+class TestNewQueryTypeValidation:
+    """Test that new query types pass through _resolve_terms without TypeError."""
+
+    def test_empty_does_not_raise_type_error(self) -> None:
+        """ParadeDB(Empty()) should not raise TypeError from _resolve_terms."""
+        queryset = Product.objects.filter(description=ParadeDB(Empty()))
+        sql = str(queryset.query)
+        assert "pdb.empty()" in sql
+
+    def test_exists_does_not_raise_type_error(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(Exists()))
+        sql = str(queryset.query)
+        assert "pdb.exists()" in sql
+
+    def test_fuzzy_term_does_not_raise_type_error(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(FuzzyTerm(value="test")))
+        sql = str(queryset.query)
+        assert "pdb.fuzzy_term" in sql
+
+    def test_parse_with_field_does_not_raise_type_error(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(ParseWithField(query="test"))
+        )
+        sql = str(queryset.query)
+        assert "pdb.parse_with_field" in sql
+
+    def test_range_does_not_raise_type_error(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Range(range="[1, 10]", range_type="int4range"))
+        )
+        sql = str(queryset.query)
+        assert "pdb.range" in sql
+
+    def test_term_set_does_not_raise_type_error(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(TermSet("a", "b"))
+        )
+        sql = str(queryset.query)
+        assert "pdb.term_set" in sql
+
+
 class TestSnippetsValidation:
     """Test validation specifically for Snippets function."""
 

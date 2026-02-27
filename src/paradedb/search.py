@@ -32,18 +32,18 @@ from paradedb.api import (
     FN_EXISTS,
     FN_FUZZY_TERM,
     FN_MORE_LIKE_THIS,
-    FN_PARSE_WITH_FIELD,
-    FN_RANGE,
-    FN_TERM_SET,
     FN_PARSE,
+    FN_PARSE_WITH_FIELD,
     FN_PHRASE_PREFIX,
     FN_PROX_ARRAY,
     FN_PROX_REGEX,
     FN_PROXIMITY,
+    FN_RANGE,
     FN_RANGE_TERM,
     FN_REGEX,
     FN_REGEX_PHRASE,
     FN_TERM,
+    FN_TERM_SET,
     OP_AND,
     OP_OR,
     OP_PHRASE,
@@ -1091,7 +1091,13 @@ class ParadeDB:
             term = self._terms[0]
             if not isinstance(
                 term,
-                Parse
+                Empty
+                | Exists
+                | FuzzyTerm
+                | ParseWithField
+                | Range
+                | TermSet
+                | Parse
                 | PhrasePrefix
                 | RegexPhrase
                 | ProximityRegex
@@ -1325,6 +1331,46 @@ class ParadeDB:
         if isinstance(term, Regex):
             rendered = f"{FN_REGEX}({self._quote_term(term.pattern)})"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
+        if isinstance(term, Empty):
+            rendered = f"{FN_EMPTY}()"
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+        if isinstance(term, Exists):
+            rendered = f"{FN_EXISTS}()"
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+        if isinstance(term, FuzzyTerm):
+            if term.value is not None:
+                rendered = f"{FN_FUZZY_TERM}({self._quote_term(term.value)})"
+            else:
+                rendered = f"{FN_FUZZY_TERM}()"
+            rendered = self._append_fuzzy(
+                rendered,
+                distance=term.distance,
+                prefix=term.prefix or False,
+                transposition_cost_one=term.transposition_cost_one or False,
+            )
+            if (
+                _is_fuzzy_enabled(
+                    distance=term.distance,
+                    prefix=term.prefix or False,
+                    transposition_cost_one=term.transposition_cost_one or False,
+                )
+                and term.const is not None
+            ):
+                rendered = f"{rendered}::{PDB_TYPE_QUERY}"
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+        if isinstance(term, ParseWithField):
+            rendered = (
+                f"{FN_PARSE_WITH_FIELD}({self._quote_term(term.query)}"
+                f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
+            )
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+        if isinstance(term, Range):
+            rendered = f"{FN_RANGE}({self._quote_range_literal(term.range, term.range_type)})"
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+        if isinstance(term, TermSet):
+            array_sql = self._render_term_set_array(term.terms)
+            rendered = f"{FN_TERM_SET}({array_sql})"
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, All):
             return f"{FN_ALL}()"
         # For plain strings, return bare quoted term.
@@ -1334,6 +1380,31 @@ class ParadeDB:
         if self._tokenizer is not None:
             rendered = f"{rendered}::{_tokenizer_cast(self._tokenizer)}"
         return rendered
+
+    @staticmethod
+    def _render_term_set_array(
+        terms: tuple[str | int | float | bool | date | datetime, ...],
+    ) -> str:
+        """Render a TermSet terms tuple as a typed SQL ARRAY literal.
+
+        The first term's Python type determines the PostgreSQL element type.
+        bool is checked before int (bool subclasses int).
+        datetime is checked before date (datetime subclasses date).
+        """
+        first = terms[0]
+        if isinstance(first, bool):
+            return f"ARRAY[{', '.join('true' if t else 'false' for t in terms)}]::boolean[]"
+        if isinstance(first, int):
+            return f"ARRAY[{', '.join(str(t) for t in terms)}]::bigint[]"
+        if isinstance(first, float):
+            return f"ARRAY[{', '.join(str(t) for t in terms)}]::float8[]"
+        if isinstance(first, datetime):
+            dts = [t for t in terms if isinstance(t, datetime)]
+            return f"ARRAY[{', '.join(ParadeDB._quote_term(t.isoformat()) for t in dts)}]::timestamptz[]"
+        if isinstance(first, date):
+            ds = [t for t in terms if isinstance(t, date)]
+            return f"ARRAY[{', '.join(ParadeDB._quote_term(t.isoformat()) for t in ds)}]::date[]"
+        return f"ARRAY[{', '.join(ParadeDB._quote_term(str(t)) for t in terms)}]::text[]"
 
     @staticmethod
     def _render_options(options: dict[str, object | None]) -> str:

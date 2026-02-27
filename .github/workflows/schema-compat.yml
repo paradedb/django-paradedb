@@ -2,8 +2,9 @@
 #
 # Schema Compatibility Check
 # Validates that the django-paradedb API wrapper stays in sync with the
-# ParadeDB SQL schema. Triggered automatically on each paradedb release
-# (via repository_dispatch) or manually via workflow_dispatch.
+# ParadeDB SQL schema and that integration tests pass against the new version.
+# Triggered automatically on each paradedb release (via repository_dispatch)
+# or manually via workflow_dispatch.
 
 name: Schema Compatibility Check
 
@@ -15,6 +16,9 @@ on:
       version:
         description: "ParadeDB version to check against (e.g. 0.21.8)"
         required: true
+
+env:
+  PARADEDB_VERSION: ${{ inputs.version || github.event.client_payload.version }}
 
 jobs:
   schema-compat:
@@ -29,22 +33,69 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Determine Version
-        id: version
-        run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "version=${{ github.event.client_payload.version }}" >> $GITHUB_OUTPUT
-          fi
-
       - name: Download pg_search.schema.sql
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download "v${{ steps.version.outputs.version }}" \
+          gh release download "v${{ env.PARADEDB_VERSION }}" \
             --repo paradedb/paradedb \
             --pattern pg_search.schema.sql
 
       - name: Run Schema Compatibility Check
         run: python scripts/check_schema_compat.py pg_search.schema.sql api.json
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    services:
+      paradedb:
+        image: paradedb/paradedb:${{ inputs.version || github.event.client_payload.version }}-pg18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      PARADEDB_INTEGRATION: "1"
+      PARADEDB_TEST_DSN: postgresql://postgres@localhost:5432/postgres
+      PGPASSWORD: postgres
+      DATABASE_URL: postgresql://postgres@localhost:5432/postgres
+      PYTHONPATH: ${{ github.workspace }}/src
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "Django~=6.0.0"
+          pip install \
+            pytest \
+            pytest-django \
+            pytest-cov \
+            "psycopg[binary]" \
+            psycopg2-binary \
+            django-cte \
+            httpx \
+            pgvector \
+            python-dotenv
+
+      - name: Run unit tests
+        run: pytest -m "not integration" --cov=paradedb
+
+      - name: Run integration tests
+        run: pytest -m integration --cov=paradedb --cov-append

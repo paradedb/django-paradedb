@@ -13,8 +13,8 @@ from django.db.models.sql.compiler import SQLCompiler
 
 from paradedb.api import (
     FN_AGG,
-    FN_INDEXES,
     FN_INDEX_SEGMENTS,
+    FN_INDEXES,
     FN_SCORE,
     FN_SNIPPET,
     FN_SNIPPET_POSITIONS,

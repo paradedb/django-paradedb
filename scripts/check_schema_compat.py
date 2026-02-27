@@ -50,10 +50,9 @@ def scan_schema_symbols(schema: str) -> dict:
         m.lower()
         for m in re.findall(r"TYPE\s+(pdb\.\w+)\b", schema, re.IGNORECASE)
     })
-    operators = sorted({
-        m
-        for m in re.findall(r"OPERATOR\s+(?:\w+\.)?([^\s(]+)\s*\(", schema, re.IGNORECASE)
-    })
+    operators = sorted(set(
+        re.findall(r"OPERATOR\s+(?:\w+\.)?([^\s(]+)\s*\(", schema, re.IGNORECASE)
+    ))
     return {"functions": functions, "operators": operators, "types": types}
 
 

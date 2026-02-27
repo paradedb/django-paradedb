@@ -89,7 +89,7 @@ _TOKENIZER_CALL_ARGS_RE = re.compile(
 # Maps the bare tokenizer name (e.g. "whitespace") to its qualified pdb type constant.
 # Built from the PDB_TYPE_TOKENIZER_* constants so the lookup is tied to api.py.
 _KNOWN_TOKENIZERS: dict[str, str] = {
-    t[len("pdb."):]: t
+    t[len("pdb.") :]: t
     for t in (
         PDB_TYPE_TOKENIZER_ALIAS,
         PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE,
@@ -1365,7 +1365,9 @@ class ParadeDB:
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Range):
-            rendered = f"{FN_RANGE}({self._quote_range_literal(term.range, term.range_type)})"
+            rendered = (
+                f"{FN_RANGE}({self._quote_range_literal(term.range, term.range_type)})"
+            )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, TermSet):
             array_sql = self._render_term_set_array(term.terms)
@@ -1404,7 +1406,9 @@ class ParadeDB:
         if isinstance(first, date):
             ds = [t for t in terms if isinstance(t, date)]
             return f"ARRAY[{', '.join(ParadeDB._quote_term(t.isoformat()) for t in ds)}]::date[]"
-        return f"ARRAY[{', '.join(ParadeDB._quote_term(str(t)) for t in terms)}]::text[]"
+        return (
+            f"ARRAY[{', '.join(ParadeDB._quote_term(str(t)) for t in terms)}]::text[]"
+        )
 
     @staticmethod
     def _render_options(options: dict[str, object | None]) -> str:
@@ -1428,7 +1432,6 @@ class ParadeDB:
         if isinstance(value, str):
             return ParadeDB._quote_term(value)
         raise TypeError("Unsupported option value type.")
-
 
 
 class ParadeDBExact(Exact):  # type: ignore[type-arg]

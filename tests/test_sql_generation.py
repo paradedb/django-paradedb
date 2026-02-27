@@ -1774,7 +1774,9 @@ class TestFuzzyTermQuery:
     """Test FuzzyTerm query SQL generation."""
 
     def test_fuzzy_term_with_value(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(FuzzyTerm(value="shoes")))
+        queryset = Product.objects.filter(
+            description=ParadeDB(FuzzyTerm(value="shoes"))
+        )
         assert "@@@ pdb.fuzzy_term('shoes')" in str(queryset.query)
 
     def test_fuzzy_term_no_value(self) -> None:
@@ -1797,8 +1799,9 @@ class TestFuzzyTermQuery:
         queryset = Product.objects.filter(
             description=ParadeDB(FuzzyTerm(value="shoes", distance=1, const=2.0))
         )
-        assert "@@@ pdb.fuzzy_term('shoes')::pdb.fuzzy(1)::pdb.query::pdb.const(2.0)" in str(
-            queryset.query
+        assert (
+            "@@@ pdb.fuzzy_term('shoes')::pdb.fuzzy(1)::pdb.query::pdb.const(2.0)"
+            in str(queryset.query)
         )
 
 
@@ -1815,7 +1818,9 @@ class TestParseWithFieldQuery:
         queryset = Product.objects.filter(
             description=ParadeDB(ParseWithField(query="shoes", lenient=True))
         )
-        assert "@@@ pdb.parse_with_field('shoes', lenient => true)" in str(queryset.query)
+        assert "@@@ pdb.parse_with_field('shoes', lenient => true)" in str(
+            queryset.query
+        )
 
     def test_parse_with_field_conjunction_mode(self) -> None:
         queryset = Product.objects.filter(
@@ -1829,7 +1834,9 @@ class TestParseWithFieldQuery:
         queryset = Product.objects.filter(
             description=ParadeDB(ParseWithField(query="shoes", boost=2.0))
         )
-        assert "@@@ pdb.parse_with_field('shoes')::pdb.boost(2.0)" in str(queryset.query)
+        assert "@@@ pdb.parse_with_field('shoes')::pdb.boost(2.0)" in str(
+            queryset.query
+        )
 
 
 class TestRangeQuery:
@@ -1853,7 +1860,9 @@ class TestRangeQuery:
                 Range(range="[1, 10]", range_type="int4range", boost=2.0)
             )
         )
-        assert "@@@ pdb.range('[1, 10]'::int4range)::pdb.boost(2.0)" in str(queryset.query)
+        assert "@@@ pdb.range('[1, 10]'::int4range)::pdb.boost(2.0)" in str(
+            queryset.query
+        )
 
 
 class TestTermSetQuery:
@@ -1863,24 +1872,20 @@ class TestTermSetQuery:
         queryset = Product.objects.filter(
             description=ParadeDB(TermSet("shoes", "boots"))
         )
-        assert "@@@ pdb.term_set(ARRAY['shoes', 'boots']::text[])" in str(queryset.query)
+        assert "@@@ pdb.term_set(ARRAY['shoes', 'boots']::text[])" in str(
+            queryset.query
+        )
 
     def test_term_set_integers(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(TermSet(1, 2, 3))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(TermSet(1, 2, 3)))
         assert "@@@ pdb.term_set(ARRAY[1, 2, 3]::bigint[])" in str(queryset.query)
 
     def test_term_set_floats(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(TermSet(1.0, 2.5))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(TermSet(1.0, 2.5)))
         assert "@@@ pdb.term_set(ARRAY[1.0, 2.5]::float8[])" in str(queryset.query)
 
     def test_term_set_booleans(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(TermSet(True, False))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(TermSet(True, False)))
         assert "@@@ pdb.term_set(ARRAY[true, false]::boolean[])" in str(queryset.query)
 
     def test_term_set_with_boost(self) -> None:

@@ -42,17 +42,20 @@ def extract_from_api(path: Path) -> dict:
 
 def scan_schema_symbols(schema: str) -> dict:
     """Extract all pdb.* functions/aggregates/types and all operators from the schema."""
-    functions = sorted({
-        m.lower()
-        for m in re.findall(r"(?:FUNCTION|AGGREGATE)\s+(pdb\.\w+)\s*\(", schema, re.IGNORECASE)
-    })
-    types = sorted({
-        m.lower()
-        for m in re.findall(r"TYPE\s+(pdb\.\w+)\b", schema, re.IGNORECASE)
-    })
-    operators = sorted(set(
-        re.findall(r"OPERATOR\s+(?:\w+\.)?([^\s(]+)\s*\(", schema, re.IGNORECASE)
-    ))
+    functions = sorted(
+        {
+            m.lower()
+            for m in re.findall(
+                r"(?:FUNCTION|AGGREGATE)\s+(pdb\.\w+)\s*\(", schema, re.IGNORECASE
+            )
+        }
+    )
+    types = sorted(
+        {m.lower() for m in re.findall(r"TYPE\s+(pdb\.\w+)\b", schema, re.IGNORECASE)}
+    )
+    operators = sorted(
+        set(re.findall(r"OPERATOR\s+(?:\w+\.)?([^\s(]+)\s*\(", schema, re.IGNORECASE))
+    )
     return {"functions": functions, "operators": operators, "types": types}
 
 
@@ -62,8 +65,8 @@ def check_function(schema: str, qualified_name: str) -> bool:
         name_pattern = re.escape(qualified_name)
         schema_pattern = r"\S+\."
     else:
-        name_pattern = re.escape(qualified_name[dot + 1:])
-        schema_pattern = re.escape(qualified_name[:dot + 1])
+        name_pattern = re.escape(qualified_name[dot + 1 :])
+        schema_pattern = re.escape(qualified_name[: dot + 1])
     pattern = rf"(?:FUNCTION|AGGREGATE)\s+{schema_pattern}{name_pattern}\s*\("
     return bool(re.search(pattern, schema, re.IGNORECASE))
 
@@ -119,7 +122,9 @@ def main() -> int:
 
     total_api = sum(len(v) for v in deps.values() if isinstance(v, list))
     if missing:
-        print(f"❌ Forward check: {len(missing)}/{total_api} api.json symbols missing from schema:")
+        print(
+            f"❌ Forward check: {len(missing)}/{total_api} api.json symbols missing from schema:"
+        )
         for kind, name in missing:
             print(f"   {kind}: {name}")
         print(

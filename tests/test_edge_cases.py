@@ -765,7 +765,14 @@ class TestRangeExpression:
         assert expr.const is None
 
     def test_range_all_valid_types(self) -> None:
-        for rt in ("int4range", "int8range", "numrange", "daterange", "tsrange", "tstzrange"):
+        for rt in (
+            "int4range",
+            "int8range",
+            "numrange",
+            "daterange",
+            "tsrange",
+            "tstzrange",
+        ):
             expr = Range(range="[1, 10]", range_type=rt)  # type: ignore[arg-type]
             assert expr.range_type == rt
 
@@ -877,9 +884,7 @@ class TestNewQueryTypeValidation:
         assert "pdb.range" in sql
 
     def test_term_set_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(TermSet("a", "b"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(TermSet("a", "b")))
         sql = str(queryset.query)
         assert "pdb.term_set" in sql
 

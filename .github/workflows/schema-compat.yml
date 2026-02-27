@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "ParadeDB version to check against (e.g. 0.21.8)"
+        description: "ParadeDB version to check against"
         required: true
 
 env:

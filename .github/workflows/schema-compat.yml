@@ -89,3 +89,32 @@ jobs:
 
       - name: Run integration tests
         run: pytest -m integration --cov=paradedb --cov-append
+
+  notify:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [schema-compat, integration-tests]
+    if: failure()
+    steps:
+      - name: Create GitHub Issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --repo ${{ github.repository }} \
+            --title "Schema compat failure for ParadeDB v${{ env.PARADEDB_VERSION }}" \
+            --body "$(cat <<EOF
+          The schema compatibility check or integration tests failed against ParadeDB **v${{ env.PARADEDB_VERSION }}**.
+
+          **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Please investigate and update django-paradedb as needed.
+          EOF
+          )" \
+            --label bug
+
+      - name: Notify Slack on Failure
+        run: |
+          GITHUB_RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MESSAGE="<!here> \`schema-compat\` workflow failed for ParadeDB v${{ env.PARADEDB_VERSION }} in \`${{ github.repository }}\` -- investigate immediately! GitHub Action Logs: ${GITHUB_RUN_URL}"
+          curl -X POST -H 'Content-type: application/json' -d "{\"text\": \"${MESSAGE}\"}" ${{ secrets.SLACK_GITHUB_CHANNEL_WEBHOOK_URL }}

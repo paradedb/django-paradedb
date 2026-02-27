@@ -1,0 +1,50 @@
+# workflows/schema-compat.yml
+#
+# Schema Compatibility Check
+# Validates that the django-paradedb API wrapper stays in sync with the
+# ParadeDB SQL schema. Triggered automatically on each paradedb release
+# (via repository_dispatch) or manually via workflow_dispatch.
+
+name: Schema Compatibility Check
+
+on:
+  repository_dispatch:
+    types: [paradedb-release]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "ParadeDB version to check against (e.g. 0.21.8)"
+        required: true
+
+jobs:
+  schema-compat:
+    name: Check Schema Compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Determine Version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.event.client_payload.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download pg_search.schema.sql
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "v${{ steps.version.outputs.version }}" \
+            --repo paradedb/paradedb \
+            --pattern pg_search.schema.sql
+
+      - name: Run Schema Compatibility Check
+        run: python scripts/check_schema_compat.py pg_search.schema.sql api.json

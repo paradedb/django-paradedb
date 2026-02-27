@@ -14,17 +14,23 @@ from django.db.models import Value
 from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
+    Empty,
+    Exists,
+    FuzzyTerm,
     Match,
     MoreLikeThis,
     ParadeDB,
     Parse,
+    ParseWithField,
     Phrase,
     Proximity,
     ProximityArray,
     ProximityRegex,
+    Range,
     Regex,
     RegexPhrase,
     Term,
+    TermSet,
 )
 from tests.models import Product
 
@@ -587,6 +593,254 @@ class TestParameterizedFieldValidation:
         compiler.compile.return_value = ("'parameterized'", ["parameterized"])
         with pytest.raises(ValueError, match="does not support parameterized fields"):
             instance.as_sql(compiler, Mock())
+
+
+class TestEmptyExpression:
+    """Test Empty dataclass construction."""
+
+    def test_empty_defaults(self) -> None:
+        expr = Empty()
+        assert expr.boost is None
+        assert expr.const is None
+
+    def test_empty_with_boost(self) -> None:
+        expr = Empty(boost=1.5)
+        assert expr.boost == 1.5
+
+    def test_empty_with_const(self) -> None:
+        expr = Empty(const=2.0)
+        assert expr.const == 2.0
+
+    def test_empty_with_boost_and_const(self) -> None:
+        expr = Empty(boost=1.5, const=2.0)
+        assert expr.boost == 1.5
+        assert expr.const == 2.0
+
+    def test_empty_is_frozen(self) -> None:
+        expr = Empty()
+        with pytest.raises(AttributeError):
+            expr.boost = 1.0  # type: ignore[misc]
+
+
+class TestExistsExpression:
+    """Test Exists dataclass construction."""
+
+    def test_exists_defaults(self) -> None:
+        expr = Exists()
+        assert expr.boost is None
+        assert expr.const is None
+
+    def test_exists_with_boost(self) -> None:
+        expr = Exists(boost=3.0)
+        assert expr.boost == 3.0
+
+    def test_exists_with_const(self) -> None:
+        expr = Exists(const=1.0)
+        assert expr.const == 1.0
+
+    def test_exists_with_boost_and_const(self) -> None:
+        expr = Exists(boost=3.0, const=1.0)
+        assert expr.boost == 3.0
+        assert expr.const == 1.0
+
+    def test_exists_is_frozen(self) -> None:
+        expr = Exists()
+        with pytest.raises(AttributeError):
+            expr.const = 1.0  # type: ignore[misc]
+
+
+class TestFuzzyTermExpression:
+    """Test FuzzyTerm dataclass construction and validation."""
+
+    def test_fuzzy_term_defaults(self) -> None:
+        expr = FuzzyTerm()
+        assert expr.value is None
+        assert expr.distance is None
+        assert expr.transposition_cost_one is None
+        assert expr.prefix is None
+        assert expr.boost is None
+        assert expr.const is None
+
+    def test_fuzzy_term_with_value(self) -> None:
+        expr = FuzzyTerm(value="shoes")
+        assert expr.value == "shoes"
+
+    def test_fuzzy_term_with_all_options(self) -> None:
+        expr = FuzzyTerm(
+            value="shoes",
+            distance=2,
+            transposition_cost_one=True,
+            prefix=True,
+            boost=1.5,
+            const=2.0,
+        )
+        assert expr.value == "shoes"
+        assert expr.distance == 2
+        assert expr.transposition_cost_one is True
+        assert expr.prefix is True
+        assert expr.boost == 1.5
+        assert expr.const == 2.0
+
+    def test_fuzzy_term_distance_zero_is_valid(self) -> None:
+        expr = FuzzyTerm(value="test", distance=0)
+        assert expr.distance == 0
+
+    def test_fuzzy_term_distance_one_is_valid(self) -> None:
+        expr = FuzzyTerm(value="test", distance=1)
+        assert expr.distance == 1
+
+    def test_fuzzy_term_distance_two_is_valid(self) -> None:
+        expr = FuzzyTerm(value="test", distance=2)
+        assert expr.distance == 2
+
+    def test_fuzzy_term_negative_distance_raises(self) -> None:
+        with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
+            FuzzyTerm(value="test", distance=-1)
+
+    def test_fuzzy_term_distance_three_raises(self) -> None:
+        with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
+            FuzzyTerm(value="test", distance=3)
+
+    def test_fuzzy_term_large_distance_raises(self) -> None:
+        with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
+            FuzzyTerm(value="test", distance=100)
+
+    def test_fuzzy_term_is_frozen(self) -> None:
+        expr = FuzzyTerm(value="shoes")
+        with pytest.raises(AttributeError):
+            expr.value = "boots"  # type: ignore[misc]
+
+
+class TestParseWithFieldExpression:
+    """Test ParseWithField dataclass construction."""
+
+    def test_parse_with_field_required_query(self) -> None:
+        expr = ParseWithField(query="running AND shoes")
+        assert expr.query == "running AND shoes"
+        assert expr.lenient is None
+        assert expr.conjunction_mode is None
+        assert expr.boost is None
+        assert expr.const is None
+
+    def test_parse_with_field_all_options(self) -> None:
+        expr = ParseWithField(
+            query="shoes",
+            lenient=True,
+            conjunction_mode=True,
+            boost=2.0,
+            const=1.0,
+        )
+        assert expr.query == "shoes"
+        assert expr.lenient is True
+        assert expr.conjunction_mode is True
+        assert expr.boost == 2.0
+        assert expr.const == 1.0
+
+    def test_parse_with_field_lenient_false(self) -> None:
+        expr = ParseWithField(query="test", lenient=False)
+        assert expr.lenient is False
+
+    def test_parse_with_field_conjunction_mode_false(self) -> None:
+        expr = ParseWithField(query="test", conjunction_mode=False)
+        assert expr.conjunction_mode is False
+
+    def test_parse_with_field_is_frozen(self) -> None:
+        expr = ParseWithField(query="test")
+        with pytest.raises(AttributeError):
+            expr.query = "other"  # type: ignore[misc]
+
+    def test_parse_with_field_missing_query_raises(self) -> None:
+        with pytest.raises(TypeError):
+            ParseWithField()  # type: ignore[call-arg]
+
+
+class TestRangeExpression:
+    """Test Range dataclass construction and validation."""
+
+    def test_range_int4range(self) -> None:
+        expr = Range(range="[1, 10]", range_type="int4range")
+        assert expr.range == "[1, 10]"
+        assert expr.range_type == "int4range"
+        assert expr.boost is None
+        assert expr.const is None
+
+    def test_range_all_valid_types(self) -> None:
+        for rt in ("int4range", "int8range", "numrange", "daterange", "tsrange", "tstzrange"):
+            expr = Range(range="[1, 10]", range_type=rt)  # type: ignore[arg-type]
+            assert expr.range_type == rt
+
+    def test_range_invalid_type_raises(self) -> None:
+        with pytest.raises(ValueError, match="Range type must be one of"):
+            Range(range="[1, 10]", range_type="badtype")  # type: ignore[arg-type]
+
+    def test_range_with_boost_and_const(self) -> None:
+        expr = Range(range="(0, 100)", range_type="numrange", boost=1.5, const=2.0)
+        assert expr.boost == 1.5
+        assert expr.const == 2.0
+
+    def test_range_is_frozen(self) -> None:
+        expr = Range(range="[1, 10]", range_type="int4range")
+        with pytest.raises(AttributeError):
+            expr.range = "[2, 20]"  # type: ignore[misc]
+
+    def test_range_missing_args_raises(self) -> None:
+        with pytest.raises(TypeError):
+            Range()  # type: ignore[call-arg]
+
+    def test_range_missing_range_type_raises(self) -> None:
+        with pytest.raises(TypeError):
+            Range(range="[1, 10]")  # type: ignore[call-arg]
+
+
+class TestTermSetExpression:
+    """Test TermSet dataclass construction and validation."""
+
+    def test_term_set_single_string(self) -> None:
+        expr = TermSet("shoes")
+        assert expr.terms == ("shoes",)
+
+    def test_term_set_multiple_strings(self) -> None:
+        expr = TermSet("shoes", "boots", "sandals")
+        assert expr.terms == ("shoes", "boots", "sandals")
+
+    def test_term_set_integers(self) -> None:
+        expr = TermSet(1, 2, 3)
+        assert expr.terms == (1, 2, 3)
+
+    def test_term_set_floats(self) -> None:
+        expr = TermSet(1.0, 2.5, 3.7)
+        assert expr.terms == (1.0, 2.5, 3.7)
+
+    def test_term_set_booleans(self) -> None:
+        expr = TermSet(True, False)
+        assert expr.terms == (True, False)
+
+    def test_term_set_empty_raises(self) -> None:
+        with pytest.raises(ValueError, match="requires at least one term"):
+            TermSet()
+
+    def test_term_set_with_boost(self) -> None:
+        expr = TermSet("a", "b", boost=2.0)
+        assert expr.boost == 2.0
+        assert expr.terms == ("a", "b")
+
+    def test_term_set_with_const(self) -> None:
+        expr = TermSet("a", const=1.0)
+        assert expr.const == 1.0
+
+    def test_term_set_with_boost_and_const(self) -> None:
+        expr = TermSet("a", "b", boost=2.0, const=1.0)
+        assert expr.boost == 2.0
+        assert expr.const == 1.0
+
+    def test_term_set_is_frozen(self) -> None:
+        expr = TermSet("a", "b")
+        with pytest.raises(AttributeError):
+            expr.terms = ("c",)  # type: ignore[misc]
+
+    def test_term_set_terms_is_tuple(self) -> None:
+        expr = TermSet("a", "b", "c")
+        assert isinstance(expr.terms, tuple)
 
 
 class TestSnippetsValidation:

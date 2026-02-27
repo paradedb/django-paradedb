@@ -57,6 +57,11 @@ dev = [
     "pytest-django>=4.9",
     "pytest-cov>=6.0",
     "psycopg[binary]>=3.1",
+    "psycopg2-binary>=2.9",
+    "django-cte>=1.3",
+    "httpx>=0.27",
+    "pgvector>=0.3",
+    "python-dotenv>=1.0",
 ]
 [project.urls]
 Homepage = "https://paradedb.com"

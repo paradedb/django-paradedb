@@ -26,6 +26,7 @@ from paradedb.search import (
     Proximity,
     ProximityArray,
     ProximityRegex,
+    ProxRegex,
     Range,
     Regex,
     RegexPhrase,
@@ -285,6 +286,24 @@ class TestExpressionValidation:
         )
         assert proximity_array.boost == 1.0
         assert proximity_array.const == 1.0
+
+    def test_proximity_array_accepts_prox_regex_items(self) -> None:
+        proximity_array = ProximityArray(
+            "chicken", ProxRegex("r..s"), right_term="delicious", distance=1
+        )
+        assert len(proximity_array.left_terms) == 2
+        assert proximity_array.left_terms[0] == "chicken"
+        assert isinstance(proximity_array.left_terms[1], ProxRegex)
+        assert proximity_array.left_terms[1].pattern == "r..s"
+
+    def test_prox_regex_negative_max_expansions_raises(self) -> None:
+        with pytest.raises(ValueError, match="max_expansions must be zero or positive"):
+            ProxRegex("pattern", max_expansions=-1)
+
+    def test_prox_regex_defaults(self) -> None:
+        prox_regex = ProxRegex("pattern")
+        assert prox_regex.pattern == "pattern"
+        assert prox_regex.max_expansions == 50
 
 
 class TestMoreLikeThisValidation:

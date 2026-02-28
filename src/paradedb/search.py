@@ -269,10 +269,26 @@ class ProximityRegex:
 
 
 @dataclass(frozen=True)
+class ProxRegex:
+    """Regex clause for use inside :class:`ProximityArray`.
+
+    Wraps ``pdb.prox_regex(pattern, max_expansions)`` so that regex items can
+    be mixed with plain-string terms inside a ``prox_array`` call.
+    """
+
+    pattern: str
+    max_expansions: int = 50
+
+    def __post_init__(self) -> None:
+        if self.max_expansions < 0:
+            raise ValueError("ProxRegex max_expansions must be zero or positive.")
+
+
+@dataclass(frozen=True)
 class ProximityArray:
     """Proximity array query expression."""
 
-    left_terms: tuple[str, ...]
+    left_terms: tuple[str | ProxRegex, ...]
     right_term: str
     distance: int
     ordered: bool = False
@@ -283,7 +299,7 @@ class ProximityArray:
 
     def __init__(
         self,
-        *left_terms: str,
+        *left_terms: str | ProxRegex,
         right_term: str,
         distance: int,
         ordered: bool = False,
@@ -1284,9 +1300,15 @@ class ParadeDB:
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, ProximityArray):
-            left_sql = ", ".join(
-                self._quote_term(left_term) for left_term in term.left_terms
-            )
+            left_parts: list[str] = []
+            for lt in term.left_terms:
+                if isinstance(lt, ProxRegex):
+                    left_parts.append(
+                        f"{FN_PROX_REGEX}({self._quote_term(lt.pattern)}, {lt.max_expansions})"
+                    )
+                else:
+                    left_parts.append(self._quote_term(lt))
+            left_sql = ", ".join(left_parts)
             operator = OP_PROXIMITY_ORD if term.ordered else OP_PROXIMITY
             right_sql = self._quote_term(term.right_term)
             if term.right_pattern is not None:
@@ -1474,6 +1496,7 @@ __all__ = [
     "ParseWithField",
     "Phrase",
     "PhrasePrefix",
+    "ProxRegex",
     "Proximity",
     "ProximityArray",
     "ProximityRegex",

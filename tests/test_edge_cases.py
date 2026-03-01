@@ -445,6 +445,18 @@ class TestSnippetEdgeCases:
         sql = str(queryset.query)
         assert "50" in sql
 
+    def test_snippet_max_num_chars_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="max_num_chars must be an integer"):
+            Snippet("description", max_num_chars="50")  # type: ignore[arg-type]
+
+    def test_snippets_limit_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="limit must be an integer"):
+            Snippets("description", limit="1")  # type: ignore[arg-type]
+
+    def test_snippets_offset_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="offset must be an integer"):
+            Snippets("description", offset="1")  # type: ignore[arg-type]
+
 
 class TestBM25IndexEdgeCases:
     """Test BM25Index edge cases."""
@@ -887,6 +899,24 @@ class TestNewQueryTypeValidation:
         queryset = Product.objects.filter(description=ParadeDB(TermSet("a", "b")))
         sql = str(queryset.query)
         assert "pdb.term_set" in sql
+
+
+class TestScoringValidation:
+    def test_boost_rejects_non_numeric_input(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Match("shoes", operator="AND", boost="1.0)::pdb.const(10")  # type: ignore[arg-type]
+            )
+        )
+        with pytest.raises(TypeError, match="boost must be an int or float"):
+            _ = str(queryset.query)
+
+    def test_const_rejects_non_finite_input(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND", const=float("inf")))
+        )
+        with pytest.raises(ValueError, match="const must be finite"):
+            _ = str(queryset.query)
 
 
 class TestSnippetsValidation:

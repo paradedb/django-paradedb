@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -1178,11 +1179,24 @@ class ParadeDB:
         return f"{ParadeDB._quote_term(literal)}::{safe_range_type}"
 
     @staticmethod
+    def _render_scoring_number(value: float | None, *, name: str) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            raise TypeError(f"{name} must be an int or float.")
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            raise ValueError(f"{name} must be finite.")
+        return str(value)
+
+    @staticmethod
     def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
-        if boost is not None:
-            sql = f"{sql}::{PDB_TYPE_BOOST}({boost})"
-        if const is not None:
-            sql = f"{sql}::{PDB_TYPE_CONST}({const})"
+        boost_sql = ParadeDB._render_scoring_number(boost, name="boost")
+        if boost_sql is not None:
+            sql = f"{sql}::{PDB_TYPE_BOOST}({boost_sql})"
+        const_sql = ParadeDB._render_scoring_number(const, name="const")
+        if const_sql is not None:
+            sql = f"{sql}::{PDB_TYPE_CONST}({const_sql})"
         return sql
 
     @staticmethod

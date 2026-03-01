@@ -29,6 +29,15 @@ def _quote_term(value: str) -> str:
     return f"'{escaped}'"
 
 
+def _validate_non_negative_int(name: str, value: int | None) -> None:
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an integer.")
+    if value < 0:
+        raise ValueError(f"{name} must be zero or positive.")
+
+
 class Score(Func):
     """BM25 score annotation."""
 
@@ -54,6 +63,7 @@ class Snippet(Func):
         stop_sel: str | None = None,
         max_num_chars: int | None = None,
     ) -> None:
+        _validate_non_negative_int("max_num_chars", max_num_chars)
         self._formatting = (start_sel, stop_sel, max_num_chars)
         super().__init__(F(field))
 
@@ -109,6 +119,9 @@ class Snippets(Func):
             raise ValueError(
                 f"sort_by must be one of {self._VALID_SORT_BY!r}, got {sort_by!r}"
             )
+        _validate_non_negative_int("max_num_chars", max_num_chars)
+        _validate_non_negative_int("limit", limit)
+        _validate_non_negative_int("offset", offset)
         self._start_tag = start_tag
         self._end_tag = end_tag
         self._max_num_chars = max_num_chars

@@ -469,9 +469,35 @@ class TermSet:
     ) -> None:
         if not terms:
             raise ValueError("TermSet requires at least one term.")
+        first_kind = self._term_kind(terms[0])
+        for term in terms[1:]:
+            term_kind = self._term_kind(term)
+            if term_kind != first_kind:
+                raise TypeError(
+                    "TermSet terms must all have the same type "
+                    "(str, int, float, bool, date, or datetime)."
+                )
         object.__setattr__(self, "terms", tuple(terms))
         object.__setattr__(self, "boost", boost)
         object.__setattr__(self, "const", const)
+
+    @staticmethod
+    def _term_kind(value: str | int | float | bool | date | datetime) -> str:
+        if isinstance(value, bool):
+            return "bool"
+        if isinstance(value, int):
+            return "int"
+        if isinstance(value, float):
+            return "float"
+        if isinstance(value, datetime):
+            return "datetime"
+        if isinstance(value, date):
+            return "date"
+        if isinstance(value, str):
+            return "str"
+        raise TypeError(
+            "TermSet terms must be str, int, float, bool, date, or datetime."
+        )
 
 
 @dataclass(frozen=True)
@@ -590,9 +616,38 @@ class MoreLikeThis(Expression):
         if sum(inputs) != 1:
             raise ValueError("MoreLikeThis requires exactly one input source.")
 
+        if self.product_id is not None and (
+            isinstance(self.product_id, bool) or not isinstance(self.product_id, int)
+        ):
+            raise TypeError("MoreLikeThis product_id must be an integer.")
+
         # Validate product_ids not empty
         if self.product_ids is not None and not self.product_ids:
             raise ValueError("MoreLikeThis product_ids cannot be empty.")
+        if self.product_ids is not None and any(
+            isinstance(product_id, bool) or not isinstance(product_id, int)
+            for product_id in self.product_ids
+        ):
+            raise TypeError("MoreLikeThis product_ids must contain integers.")
+
+        if self.key_field is not None and not isinstance(self.key_field, str):
+            raise TypeError("MoreLikeThis key_field must be a string.")
+        if isinstance(self.key_field, str) and not self.key_field.strip():
+            raise ValueError("MoreLikeThis key_field cannot be empty.")
+
+        if self.fields is not None:
+            if not self.fields:
+                raise ValueError("MoreLikeThis fields cannot be empty.")
+            for field in self.fields:
+                if not isinstance(field, str):
+                    raise TypeError("MoreLikeThis fields must contain strings.")
+                if not field.strip():
+                    raise ValueError("MoreLikeThis fields cannot contain empty names.")
+
+        if self.stopwords is not None:
+            for stopword in self.stopwords:
+                if not isinstance(stopword, str):
+                    raise TypeError("MoreLikeThis stopwords must contain strings.")
 
         # Validate fields only with ID-based queries
         if self._document_input is not None and self.fields:
@@ -605,6 +660,16 @@ class MoreLikeThis(Expression):
             if isinstance(self._document_input, dict):
                 self.document = json.dumps(self._document_input)
             else:
+                try:
+                    parsed_document = json.loads(self._document_input)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        "MoreLikeThis document JSON string must be valid JSON."
+                    ) from exc
+                if not isinstance(parsed_document, dict):
+                    raise ValueError(
+                        "MoreLikeThis document JSON string must decode to an object."
+                    )
                 self.document = self._document_input
 
         # Validate numeric parameters
@@ -619,7 +684,7 @@ class MoreLikeThis(Expression):
         }
         for param_name, param_value in numeric_params.items():
             if param_value is not None:
-                if not isinstance(param_value, int):
+                if isinstance(param_value, bool) or not isinstance(param_value, int):
                     raise TypeError(f"MoreLikeThis {param_name} must be an integer.")
                 if param_value < 1:
                     raise ValueError(f"MoreLikeThis {param_name} must be >= 1.")
@@ -1401,11 +1466,19 @@ class ParadeDB:
         if isinstance(first, float):
             return f"ARRAY[{', '.join(str(t) for t in terms)}]::float8[]"
         if isinstance(first, datetime):
-            dts = [t for t in terms if isinstance(t, datetime)]
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(t.isoformat()) for t in dts)}]::timestamptz[]"
+            datetime_terms: list[datetime] = []
+            for term in terms:
+                if not isinstance(term, datetime):
+                    raise TypeError("TermSet terms must all be datetime values.")
+                datetime_terms.append(term)
+            return f"ARRAY[{', '.join(ParadeDB._quote_term(term.isoformat()) for term in datetime_terms)}]::timestamptz[]"
         if isinstance(first, date):
-            ds = [t for t in terms if isinstance(t, date)]
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(t.isoformat()) for t in ds)}]::date[]"
+            date_terms: list[date] = []
+            for term in terms:
+                if not isinstance(term, date) or isinstance(term, datetime):
+                    raise TypeError("TermSet terms must all be date values.")
+                date_terms.append(term)
+            return f"ARRAY[{', '.join(ParadeDB._quote_term(term.isoformat()) for term in date_terms)}]::date[]"
         return (
             f"ARRAY[{', '.join(ParadeDB._quote_term(str(t)) for t in terms)}]::text[]"
         )

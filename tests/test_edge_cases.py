@@ -6,6 +6,7 @@ These are unit tests that don't require a database.
 
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
 from unittest.mock import Mock
 
 import pytest
@@ -310,15 +311,30 @@ class TestMoreLikeThisValidation:
         mlt = MoreLikeThis(product_id=1)
         assert mlt.product_id == 1
 
+    def test_mlt_product_id_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="product_id must be an integer"):
+            MoreLikeThis(product_id="1")  # type: ignore[arg-type]
+
     def test_mlt_product_ids_list(self) -> None:
         """MLT with product_ids list works."""
         mlt = MoreLikeThis(product_ids=[1, 2, 3])
         assert mlt.product_ids == [1, 2, 3]
 
+    def test_mlt_product_ids_must_contain_integers(self) -> None:
+        with pytest.raises(TypeError, match="product_ids must contain integers"):
+            MoreLikeThis(product_ids=[1, "2"])  # type: ignore[list-item]
+
     def test_mlt_document_dict(self) -> None:
         """MLT with document dict works."""
         mlt = MoreLikeThis(document={"description": "running shoes"})
         assert mlt.document == '{"description": "running shoes"}'
+
+    def test_mlt_document_string_must_be_valid_json_object(self) -> None:
+        with pytest.raises(ValueError, match="must decode to an object"):
+            MoreLikeThis(document='["not", "an", "object"]')
+
+        with pytest.raises(ValueError, match="must be valid JSON"):
+            MoreLikeThis(document="{bad json}")
 
     def test_mlt_document_with_fields_raises(self) -> None:
         """MLT with document and fields raises ValueError."""
@@ -326,6 +342,16 @@ class TestMoreLikeThisValidation:
             MoreLikeThis(
                 document={"description": "running shoes"}, fields=["description"]
             )
+
+    def test_mlt_fields_must_be_non_empty_strings(self) -> None:
+        with pytest.raises(ValueError, match="fields cannot be empty"):
+            MoreLikeThis(product_id=1, fields=[])
+
+        with pytest.raises(TypeError, match="fields must contain strings"):
+            MoreLikeThis(product_id=1, fields=[1])  # type: ignore[list-item]
+
+        with pytest.raises(ValueError, match="fields cannot contain empty names"):
+            MoreLikeThis(product_id=1, fields=[""])
 
     def test_mlt_with_all_options(self) -> None:
         """MLT with all tuning options works."""
@@ -356,6 +382,10 @@ class TestMoreLikeThisValidation:
         """MLT with stopwords as tuple converts to list."""
         mlt = MoreLikeThis(product_id=1, stopwords=("the", "a", "an"))
         assert mlt.stopwords == ["the", "a", "an"]
+
+    def test_mlt_stopwords_must_be_strings(self) -> None:
+        with pytest.raises(TypeError, match="stopwords must contain strings"):
+            MoreLikeThis(product_id=1, stopwords=["the", 1])  # type: ignore[list-item]
 
     def test_mlt_word_length_validation(self) -> None:
         """MLT word length parameters accept integers."""
@@ -388,6 +418,9 @@ class TestMoreLikeThisValidation:
         with pytest.raises(TypeError, match="min_term_freq must be an integer"):
             MoreLikeThis(product_id=1, min_term_freq="5")  # type: ignore[arg-type]
 
+        with pytest.raises(TypeError, match="min_term_freq must be an integer"):
+            MoreLikeThis(product_id=1, min_term_freq=True)  # type: ignore[arg-type]
+
         # Valid values should work
         mlt = MoreLikeThis(
             product_id=1,
@@ -407,6 +440,13 @@ class TestMoreLikeThisValidation:
         # Default should be None
         mlt = MoreLikeThis(product_id=1)
         assert mlt.key_field is None
+
+    def test_mlt_key_field_validation(self) -> None:
+        with pytest.raises(TypeError, match="key_field must be a string"):
+            MoreLikeThis(product_id=1, key_field=1)  # type: ignore[arg-type]
+
+        with pytest.raises(ValueError, match="key_field cannot be empty"):
+            MoreLikeThis(product_id=1, key_field="")
 
 
 class TestScoreEdgeCases:
@@ -848,6 +888,14 @@ class TestTermSetExpression:
     def test_term_set_terms_is_tuple(self) -> None:
         expr = TermSet("a", "b", "c")
         assert isinstance(expr.terms, tuple)
+
+    def test_term_set_mixed_types_raise(self) -> None:
+        with pytest.raises(TypeError, match="must all have the same type"):
+            TermSet("a", 1)  # type: ignore[arg-type]
+
+    def test_term_set_mixed_date_datetime_raise(self) -> None:
+        with pytest.raises(TypeError, match="must all have the same type"):
+            TermSet(date.today(), datetime.now(tz=timezone.utc))
 
 
 class TestNewQueryTypeValidation:

@@ -18,6 +18,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 # Install the package and example requirements
+pip install -e .
 pip install -r examples/requirements.txt
 ```
 

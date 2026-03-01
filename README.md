@@ -92,7 +92,7 @@ First, open a Python shell:
 python manage.py shell
 ```
 
-And paste the following command
+And paste the following commands:
 
 ```python
 from django.db import connection
@@ -119,7 +119,7 @@ cursor.close()
 Search with a simple query:
 
 ```python
-from paradedb.search import ParadeDB, Match
+from paradedb.search import ParadeDB, Match, Term
 
 # Single term
 MockItemDjango.objects.filter(description=ParadeDB(Match('shoes', operator='AND')))
@@ -240,7 +240,7 @@ MockItemDjango.objects.filter(rating__lt=4).order_by('id')[:10].facets('category
 
 # ✅ Add a ParadeDB search filter
 MockItemDjango.objects.filter(
-    price__lt=100,
+    rating__gte=4,
     description=ParadeDB(Match('shoes', operator='AND'))
 ).order_by('id')[:10].facets('category')
 ```

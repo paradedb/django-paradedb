@@ -11,11 +11,11 @@ All notable changes to this project will be documented in this file. The format 
 ### Added
 
 - `Proximity` query expression with unordered (`##`) and ordered (`##>`) forms
-- Plain string `ParadeDB(..., operator='OR' | 'AND' | 'TERM')` support
-- `tokenizer=` override support for plain-string `ParadeDB(...)` queries
+- `Match(...)` query expression for explicit `AND`/`OR` literal matching
+- `tokenizer=` override support on `Match(...)` queries
 - `tokenizer` support on `Phrase(...)`
 - Scoring modifiers across query expressions via `boost` and `const`
-- Extended `Fuzzy(...)` options: `operator`, `prefix`, `transposition_cost_one`
+- Extended fuzzy options on `Match(...)`/`Term(...)`: `distance`, `prefix`, `transposition_cost_one`
 - `Parse(..., conjunction_mode=...)` passthrough support
 - `PhrasePrefix(...)` support via `pdb.phrase_prefix(...)`
 - `RegexPhrase(...)` support via `pdb.regex_phrase(...)`

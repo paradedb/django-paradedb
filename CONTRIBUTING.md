@@ -17,9 +17,8 @@ Ideal issues for external contributors include well-scoped, individual features 
 This repository has a workflow to assign issues to new contributors automatically. This ensures that you don't need approval from a maintainer to pick an issue.
 
 1. Before claiming an issue, ensure that:
-
-- It's not already assigned to someone else
-- There are no comments indicating ongoing work
+   - It's not already assigned to someone else.
+   - There are no comments indicating ongoing work.
 
 2. To claim an unassigned issue, comment `/take` on the issue. This will automatically assign the issue to you.
 
@@ -45,6 +44,8 @@ pytest
 
 # Run integration tests (requires Docker)
 bash scripts/run_integration_tests.sh
+# Optional: choose a specific interpreter
+PYTHON_BIN="$(which python3)" bash scripts/run_integration_tests.sh
 
 # Run linting
 ruff check .

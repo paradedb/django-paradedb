@@ -78,6 +78,7 @@ def _build_tokenizer_config(
         return tokenizer
     return f"{tokenizer}({','.join(args_sql)})"
 
+
 class BM25Index(models.Index):
     """BM25 index for ParadeDB."""
 

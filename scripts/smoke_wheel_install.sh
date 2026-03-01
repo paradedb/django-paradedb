@@ -30,7 +30,7 @@ PIP_BIN="${WORK_DIR}/venv/bin/pip"
 "${PIP_BIN}" install --upgrade pip
 "${PIP_BIN}" install "${DIST_DIR}"/django_paradedb-*.whl
 
-DJANGO_SETTINGS_MODULE= "${PYTHON_BIN}" - <<'PY'
+DJANGO_SETTINGS_MODULE="" "${PYTHON_BIN}" - <<'PY'
 from django.conf import settings
 import django
 

@@ -1117,7 +1117,8 @@ class ParadeDB:
     ) -> tuple[
         str,
         tuple[
-            Empty
+            str
+            | Empty
             | Exists
             | FuzzyTerm
             | ParseWithField
@@ -1294,7 +1295,8 @@ class ParadeDB:
 
     def _render_term(
         self,
-        term: Empty
+        term: str
+        | Empty
         | Exists
         | FuzzyTerm
         | ParseWithField
@@ -1464,7 +1466,13 @@ class ParadeDB:
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, All):
             return f"{FN_ALL}()"
-        raise TypeError("Unsupported ParadeDB term type.")
+        if not isinstance(term, str):
+            raise TypeError("Unsupported ParadeDB term type.")
+        # Match(...) resolves into plain string terms, which are rendered here.
+        rendered = self._quote_term(term)
+        if self._tokenizer is not None:
+            rendered = f"{rendered}::{_tokenizer_cast(self._tokenizer)}"
+        return rendered
 
     @staticmethod
     def _render_term_set_array(

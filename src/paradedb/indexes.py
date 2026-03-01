@@ -75,9 +75,7 @@ def _build_tokenizer_config(
 
     if named_args:
         for key, value in named_args.items():
-            safe_key = _validate_config_key(
-                key, context="Tokenizer named arg keys"
-            )
+            safe_key = _validate_config_key(key, context="Tokenizer named arg keys")
             config_parts[safe_key] = value
 
     if filters:

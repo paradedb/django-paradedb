@@ -1,0 +1,96 @@
+# workflows/lint-bash.yml
+#
+# Lint Bash
+# Lint and enforce good practices for Bash scripts.
+
+name: Lint Bash
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "**/*.sh"
+      - ".github/workflows/lint-bash.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: lint-bash-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-bash:
+    name: Lint Bash Scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Git Repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install Beautysh
+        run: pip install beautysh
+
+      - name: Run Beautysh
+        run: |
+          shopt -s globstar nullglob
+          if compgen -G "**/*.sh" > /dev/null; then
+            beautysh **/*.sh --indent-size 2 --check
+          fi
+          shopt -u globstar nullglob
+
+      - name: Check Bash Scripts for bash shebang
+        run: |
+          while read -r file
+          do
+            shebang="$(head -n 1 "$file")"
+            if [[ "$shebang" = "#!/bin/bash" || "$shebang" = "#!/usr/bin/env bash" ]]
+            then
+              echo "[bash shebang -> Present] $file"
+            else
+              echo "[bash shebang -> NOT FOUND] $file" && exit 1
+            fi
+          done < <(find . -name '*.sh')
+
+      - name: Check Bash Scripts for strict mode opt-in
+        run: |
+          while read -r file
+          do
+            if grep -q \
+              -e "^[[:space:]]*set -euo pipefail$" \
+              -e "^[[:space:]]*set -Eeuo pipefail$" \
+              -e "^# @paradedb-skip-check-pipefail$" \
+              "$file"
+            then
+              echo "[strict mode -> Present] $file"
+            else
+              echo "[strict mode -> NOT FOUND] $file" && exit 1
+            fi
+          done < <(find . -name '*.sh')
+
+      - name: Run ShellCheck
+        shell: python {0}
+        run: |
+          import glob
+          import subprocess
+          import sys
+
+          sh_files = sorted(set(glob.glob("**/*.sh", recursive=True)))
+          if not sh_files:
+            print("[Shellcheck skipped] No shell scripts found.")
+            sys.exit(0)
+          for file in sh_files:
+            p = subprocess.run(
+                f"shellcheck -x -P scripts {file}",
+                shell=True,
+                capture_output=True,
+                check=False,
+            )
+            print(p.stdout.decode())
+            if p.returncode != 0:
+                print(f"[Shellcheck did not pass] {file}")
+                sys.exit(1)
+          print(f"[Shellcheck passed] {len(sh_files)} script(s)")

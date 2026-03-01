@@ -4,15 +4,16 @@ This module tests SQL string generation only - no database required.
 """
 
 import json
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.models import F, Q, TextField, Value, Window
-from django.db.models.functions import Concat, RowNumber
+from django.db.models.functions import Concat, Lower, RowNumber
 
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
-from paradedb.indexes import BM25Index
+from paradedb.indexes import BM25Index, IndexExpression
 from paradedb.search import (
     Empty,
     Exists,
@@ -38,12 +39,59 @@ from paradedb.search import (
 from tests.models import Product
 
 
+class DummyDatabaseOperations:
+    """Minimal database operations for SQL string generation."""
+
+    compiler_module = "django.db.backends.postgresql.compiler"
+    cast_char_field_without_max_length = "varchar"
+
+    def quote_name(self, name: str) -> str:
+        return f'"{name}"'
+
+    def max_name_length(self) -> int:
+        return 63
+
+    def autoinc_sql(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+    def conditional_expression_supported_in_where_clause(
+        self, expression: Any
+    ) -> bool:
+        return True
+
+    def combine_expression(self, connector: str, sub_expressions: list[str]) -> str:
+        return f"({f' {connector} '.join(sub_expressions)})"
+
+    def compiler(self, compiler_name: str) -> type:
+        from django.db.backends.postgresql.compiler import SQLCompiler
+
+        return SQLCompiler
+
+    def check_expression_support(self, expression: Any) -> None:
+        """Check if expression is supported - always pass for tests."""
+        pass
+
+
+class DummyConnection:
+    """Minimal connection for SQL string generation."""
+
+    vendor = "postgresql"
+    Database = Mock()
+
+    def __init__(self) -> None:
+        self.features = Mock()
+        self.features.uses_case_insensitive_names = False
+        self.features.allows_group_by_select_index = True
+        self.ops = DummyDatabaseOperations()
+        # Set alias for the connection
+        self.alias = "default"
+
+
 class DummySchemaEditor(BaseDatabaseSchemaEditor):
     """Minimal schema editor for SQL string generation."""
 
     def __init__(self) -> None:
-        connection = Mock()
-        connection.features.uses_case_insensitive_names = False
+        connection = DummyConnection()
         super().__init__(connection, collect_sql=False)
 
     def quote_name(self, name: str) -> str:
@@ -1406,6 +1454,179 @@ class TestBM25Index:
         schema_editor = DummySchemaEditor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert "WHERE" not in sql
+
+    def test_index_expression_with_lower_and_tokenizer(self) -> None:
+        """IndexExpression with Lower() and tokenizer generates correct SQL."""
+        index = BM25Index(
+            fields={"id": {}, "description": {}},
+            expressions=[
+                IndexExpression(
+                    Lower("description"),
+                    alias="description_lower",
+                    tokenizer="simple",
+                ),
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "description",\n    ((LOWER("tests_product"."description"))::pdb.simple(\'alias=description_lower\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_index_expression_non_text_with_pdb_alias(self) -> None:
+        """IndexExpression without tokenizer uses pdb.alias for non-text."""
+        index = BM25Index(
+            fields={"id": {}, "description": {}},
+            expressions=[
+                IndexExpression(
+                    F("rating"),
+                    alias="rating_indexed",
+                ),
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "description",\n    (("tests_product"."rating")::pdb.alias(\'rating_indexed\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_index_expression_with_tokenizer_and_filters(self) -> None:
+        """IndexExpression with tokenizer, filters, and stemmer."""
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[
+                IndexExpression(
+                    Lower("description"),
+                    alias="desc_processed",
+                    tokenizer="simple",
+                    filters=["lowercase", "stemmer"],
+                    stemmer="english",
+                ),
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((LOWER("tests_product"."description"))::pdb.simple(\'alias=desc_processed,lowercase=true,stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_index_expression_with_arithmetic(self) -> None:
+        """IndexExpression with arithmetic expression."""
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[
+                IndexExpression(
+                    F("rating") + F("id"),
+                    alias="rating_plus_id",
+                ),
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert "pdb.alias('rating_plus_id')" in sql
+        assert "+" in sql
+
+    def test_index_expression_with_string_field_reference(self) -> None:
+        """IndexExpression with string field reference (converted to F())."""
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[
+                IndexExpression(
+                    "rating",
+                    alias="rating_alias",
+                ),
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    (("tests_product"."rating")::pdb.alias(\'rating_alias\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_index_expression_with_ngram_tokenizer_and_args(self) -> None:
+        """IndexExpression with ngram tokenizer and positional args."""
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[
+                IndexExpression(
+                    Lower("description"),
+                    alias="desc_ngram",
+                    tokenizer="ngram",
+                    args=[3, 3],
+                    named_args={"prefix_only": True},
+                ),
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert "pdb.ngram(3,3,'alias=desc_ngram,prefix_only=true')" in sql
+
+    def test_multiple_index_expressions(self) -> None:
+        """Multiple IndexExpressions in a single index."""
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[
+                IndexExpression(
+                    Lower("description"),
+                    alias="desc_lower",
+                    tokenizer="simple",
+                ),
+                IndexExpression(
+                    F("rating"),
+                    alias="rating_idx",
+                ),
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert "pdb.simple('alias=desc_lower')" in sql
+        assert "pdb.alias('rating_idx')" in sql
+
+    def test_index_expression_deconstruct(self) -> None:
+        """BM25Index with expressions deconstructs correctly for migrations."""
+        expr = IndexExpression(
+            Lower("description"),
+            alias="desc_lower",
+            tokenizer="simple",
+        )
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[expr],
+            key_field="id",
+            name="product_search_idx",
+        )
+        path, args, kwargs = index.deconstruct()
+        assert "expressions" in kwargs
+        assert len(kwargs["expressions"]) == 1
+        assert kwargs["expressions"][0].alias == "desc_lower"
+
+    def test_index_expression_without_expressions_no_key_in_deconstruct(self) -> None:
+        """BM25Index without expressions does not include key in deconstruct."""
+        index = BM25Index(
+            fields={"id": {}, "description": {}},
+            key_field="id",
+            name="product_search_idx",
+        )
+        path, args, kwargs = index.deconstruct()
+        assert "expressions" not in kwargs
 
 
 class TestMoreLikeThis:

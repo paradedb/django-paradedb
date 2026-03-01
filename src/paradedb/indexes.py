@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from django.db import models
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
+from django.db.models.expressions import Expression
 
 
 def _quote_term(value: str) -> str:
@@ -79,6 +81,64 @@ def _build_tokenizer_config(
     return f"{tokenizer}({','.join(args_sql)})"
 
 
+@dataclass
+class IndexExpression:
+    """Computed expression for BM25 indexing.
+
+    Use this class to index Django expressions (like ``Lower('title')``,
+    ``F('rating') + 1``, or ``Concat('first', 'last')``) in a BM25 index.
+
+    For text expressions, specify a tokenizer. For non-text expressions
+    (integers, timestamps, etc.), omit the tokenizer to use ``pdb.alias``.
+
+    Args:
+        expression: A Django expression to index (e.g., ``Lower('title')``).
+        alias: Required. The name used to reference this expression in queries.
+        tokenizer: Tokenizer for text expressions (e.g., 'simple', 'unicode_words').
+            Omit for non-text expressions to use ``pdb.alias``.
+        args: Positional arguments for the tokenizer.
+        named_args: Named arguments for the tokenizer configuration.
+        filters: Token filters (e.g., ['lowercase', 'stemmer']).
+        stemmer: Stemmer language (e.g., 'english').
+
+    Example::
+
+        from django.db.models.functions import Lower, Concat
+        from django.db.models import F, Value
+        from paradedb.indexes import BM25Index, IndexExpression
+
+        BM25Index(
+            fields={"id": {}, "description": {}},
+            expressions=[
+                # Text expression with tokenizer
+                IndexExpression(
+                    Lower("title"),
+                    alias="title_lower",
+                    tokenizer="simple",
+                ),
+                # Non-text expression with pdb.alias
+                IndexExpression(
+                    F("rating") + 1,
+                    alias="rating_plus_one",
+                ),
+                # JSON path expression
+                IndexExpression(
+                    F("metadata__word_count"),
+                    alias="word_count",
+                ),
+            ],
+            key_field="id",
+            name="search_idx",
+        )
+    """
+
+    expression: Expression | str
+    alias: str
+    tokenizer: str | None = None
+    args: list[Any] | None = None
+    named_args: dict[str, Any] | None = None
+    filters: list[str] | None = None
+    stemmer: str | None = None
 class BM25Index(models.Index):
     """BM25 index for ParadeDB."""
 
@@ -90,10 +150,12 @@ class BM25Index(models.Index):
         fields: dict[str, dict[str, Any]],
         key_field: str,
         name: str,
+        expressions: list[IndexExpression] | None = None,
         condition: models.Q | None = None,
     ) -> None:
         self.fields_config = fields
         self.key_field = key_field
+        self.index_expressions = expressions or []
         super().__init__(name=name, fields=list(fields.keys()), condition=condition)
 
     def deconstruct(self) -> tuple[str, Any, dict[str, Any]]:
@@ -101,6 +163,8 @@ class BM25Index(models.Index):
         kwargs["fields"] = self.fields_config
         kwargs["key_field"] = self.key_field
         kwargs["name"] = self.name
+        if self.index_expressions:
+            kwargs["expressions"] = self.index_expressions
         return path, args, kwargs
 
     def create_sql(
@@ -214,7 +278,61 @@ class BM25Index(models.Index):
             else:
                 expressions.append(column)
 
+        # Process IndexExpression entries
+        for idx_expr in self.index_expressions:
+            expressions.append(
+                self._build_computed_expression(idx_expr, model, schema_editor)
+            )
+
         return expressions
+
+    def _build_computed_expression(
+        self,
+        idx_expr: IndexExpression,
+        model: type[models.Model],
+        schema_editor: BaseDatabaseSchemaEditor,
+    ) -> str:
+        """Build SQL for a computed expression with pdb.alias or tokenizer cast."""
+        expr = idx_expr.expression
+
+        # Handle string field references as F() expressions
+        if isinstance(expr, str):
+            from django.db.models import F
+
+            expr = F(expr)
+
+        # Compile the expression to SQL
+        from django.db.models.sql import Query
+
+        query = Query(model)
+        compiler = query.get_compiler(connection=schema_editor.connection)
+
+        # Resolve and compile the expression
+        resolved = expr.resolve_expression(query, allow_joins=False, for_save=False)
+        expr_sql, params = compiler.compile(resolved)
+
+        if params:
+            raise ValueError(
+                f"IndexExpression with alias {idx_expr.alias!r} cannot contain "
+                f"parameterized values. Use literal expressions only."
+            )
+
+        # Build the cast based on whether a tokenizer is specified
+        if idx_expr.tokenizer is not None:
+            # Text expression with tokenizer
+            tokenizer_sql = _build_tokenizer_config(
+                tokenizer=idx_expr.tokenizer,
+                args=idx_expr.args,
+                named_args=idx_expr.named_args,
+                filters=idx_expr.filters,
+                stemmer=idx_expr.stemmer,
+                alias=idx_expr.alias,
+            )
+            return f"(({expr_sql})::pdb.{tokenizer_sql})"
+        else:
+            # Non-text expression with pdb.alias
+            alias_quoted = _quote_term(idx_expr.alias)
+            return f"(({expr_sql})::pdb.alias({alias_quoted}))"
 
     @staticmethod
     def _extract_named_args(
@@ -303,4 +421,4 @@ class BM25Index(models.Index):
         return expressions
 
 
-__all__ = ["BM25Index"]
+__all__ = ["BM25Index", "IndexExpression"]

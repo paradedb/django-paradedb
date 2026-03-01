@@ -17,6 +17,19 @@ def _quote_term(value: str) -> str:
     return f"'{escaped}'"
 
 
+_CONFIG_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _validate_config_key(key: str, *, context: str) -> str:
+    if not isinstance(key, str):
+        raise ValueError(f"{context} must be strings.")
+    if not _CONFIG_KEY_RE.match(key):
+        raise ValueError(
+            f"{context} must match {_CONFIG_KEY_RE.pattern!r}; got {key!r}."
+        )
+    return key
+
+
 def _render_sql_arg(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -37,6 +50,12 @@ def _render_config_value(value: Any) -> str:
     if value is None:
         return "null"
     if isinstance(value, str):
+        if "=" in value:
+            raise ValueError("Tokenizer named arg string values cannot contain '='.")
+        if any(ch in value for ch in ("\x00", "\n", "\r")):
+            raise ValueError(
+                "Tokenizer named arg string values cannot contain control characters."
+            )
         return value
     raise TypeError(f"Unsupported tokenizer named arg type: {type(value).__name__}")
 
@@ -50,20 +69,24 @@ def _build_tokenizer_config(
     stemmer: str | None,
     alias: str | None = None,
 ) -> str:
-    config_parts: dict[str, str] = {}
+    config_parts: dict[str, Any] = {}
     if alias is not None:
         config_parts["alias"] = alias
 
     if named_args:
         for key, value in named_args.items():
-            config_parts[str(key)] = _render_config_value(value)
+            safe_key = _validate_config_key(
+                key, context="Tokenizer named arg keys"
+            )
+            config_parts[safe_key] = value
 
     if filters:
         for name in filters:
+            safe_name = _validate_config_key(name, context="Tokenizer filter names")
             if name == "stemmer" and stemmer:
                 config_parts.setdefault("stemmer", stemmer)
             else:
-                config_parts.setdefault(name, "true")
+                config_parts.setdefault(safe_name, True)
     elif stemmer:
         config_parts.setdefault("stemmer", stemmer)
 
@@ -73,7 +96,8 @@ def _build_tokenizer_config(
 
     if config_parts:
         rendered_config = ",".join(
-            f"{key}={value}" for key, value in config_parts.items()
+            f"{_validate_config_key(key, context='Tokenizer config keys')}={_render_config_value(value)}"
+            for key, value in config_parts.items()
         )
         args_sql.append(_quote_term(rendered_config))
 

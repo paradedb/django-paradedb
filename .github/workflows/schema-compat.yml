@@ -73,9 +73,9 @@ jobs:
 
     env:
       PARADEDB_INTEGRATION: "1"
-      PARADEDB_TEST_DSN: postgresql://postgres@localhost:5432/postgres
+      PARADEDB_TEST_DSN: postgresql://postgres:postgres@localhost:5432/postgres
       PGPASSWORD: postgres
-      DATABASE_URL: postgresql://postgres@localhost:5432/postgres
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       PYTHONPATH: ${{ github.workspace }}/src
 
     steps:

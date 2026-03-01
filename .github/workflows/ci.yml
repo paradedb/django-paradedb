@@ -51,6 +51,12 @@ jobs:
       - name: Type check
         run: uv run --no-sync mypy src/paradedb
 
+      - name: Check API stub sync
+        run: python scripts/check_api_stub_sync.py
+
+      - name: Wheel install smoke test
+        run: bash scripts/smoke_wheel_install.sh
+
   matrix-tests:
     name: Python ${{ matrix.python-version }} / Django ${{ matrix.django-version }}
     runs-on: ubuntu-latest
@@ -97,9 +103,9 @@ jobs:
 
     env:
       PARADEDB_INTEGRATION: "1"
-      PARADEDB_TEST_DSN: postgresql://postgres@localhost:5432/postgres
+      PARADEDB_TEST_DSN: postgresql://postgres:postgres@localhost:5432/postgres
       PGPASSWORD: postgres
-      DATABASE_URL: postgresql://postgres@localhost:5432/postgres
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       PYTHONPATH: ${{ github.workspace }}/src
       DJANGO_SPEC: Django~=${{ matrix.django-version }}.0
 

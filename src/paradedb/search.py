@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any, Literal, overload
 
+from django.core.exceptions import FieldDoesNotExist
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import (
     AutoField,
@@ -813,16 +814,16 @@ class MoreLikeThis(Expression):
             # Find the field in the model to get its column name
             try:
                 field = model._meta.get_field(self.key_field)
-                # Check if field has column attribute (exclude relations)
-                if not hasattr(field, "column") or field.column is None:
-                    raise ValueError(
-                        f"MoreLikeThis key_field '{self.key_field}' must be a concrete field with a column"
-                    )
-                key_column: str = field.column
-            except Exception as e:
+            except FieldDoesNotExist as e:
                 raise ValueError(
                     f"MoreLikeThis key_field '{self.key_field}' not found in model {model.__name__}"
                 ) from e
+            # Check if field has column attribute (exclude relations)
+            if not hasattr(field, "column") or field.column is None:
+                raise ValueError(
+                    f"MoreLikeThis key_field '{self.key_field}' must be a concrete field with a column"
+                )
+            key_column: str = field.column
         else:
             key_column = model._meta.pk.column
 
@@ -1006,83 +1007,17 @@ class ParadeDB:
                 "Plain string terms are not supported. Use ParadeDB(Match(..., operator=...))."
             )
 
-        if self._tokenizer is not None and any(
-            isinstance(
-                term,
-                Empty
-                | Exists
-                | FuzzyTerm
-                | ParseWithField
-                | Range
-                | TermSet
-                | Phrase
-                | Proximity
-                | Parse
-                | PhrasePrefix
-                | RegexPhrase
-                | ProximityRegex
-                | ProximityArray
-                | RangeTerm
-                | Term
-                | Regex
-                | All,
-            )
-            for term in self._terms
-        ):
+        if self._tokenizer is not None:
             raise ValueError(
-                "ParadeDB tokenizer is only supported with plain string terms."
+                "ParadeDB tokenizer keyword is only supported via Match(..., tokenizer=...)."
             )
-        if self._boost is not None and any(
-            isinstance(
-                term,
-                Empty
-                | Exists
-                | FuzzyTerm
-                | ParseWithField
-                | Range
-                | TermSet
-                | Phrase
-                | Proximity
-                | Parse
-                | PhrasePrefix
-                | RegexPhrase
-                | ProximityRegex
-                | ProximityArray
-                | RangeTerm
-                | Term
-                | Regex
-                | All,
-            )
-            for term in self._terms
-        ):
+        if self._boost is not None:
             raise ValueError(
-                "ParadeDB boost is only supported with plain string terms."
+                "ParadeDB boost keyword is only supported via Match(..., boost=...)."
             )
-        if self._const is not None and any(
-            isinstance(
-                term,
-                Empty
-                | Exists
-                | FuzzyTerm
-                | ParseWithField
-                | Range
-                | TermSet
-                | Phrase
-                | Proximity
-                | Parse
-                | PhrasePrefix
-                | RegexPhrase
-                | ProximityRegex
-                | ProximityArray
-                | RangeTerm
-                | Term
-                | Regex
-                | All,
-            )
-            for term in self._terms
-        ):
+        if self._const is not None:
             raise ValueError(
-                "ParadeDB const is only supported with plain string terms."
+                "ParadeDB const keyword is only supported via Match(..., const=...)."
             )
 
     def resolve_expression(
@@ -1108,8 +1043,7 @@ class ParadeDB:
         literals = [self._render_term(term) for term in terms]
 
         if len(literals) == 1:
-            # For plain strings, apply fuzzy and scoring here.
-            # For structured types, _render_term already bakes in term-level scoring.
+            # Match-level fuzzy and scoring are applied here after rendering.
             rendered = self._append_fuzzy(
                 literals[0],
                 distance=self._distance,
@@ -1183,8 +1117,7 @@ class ParadeDB:
     ) -> tuple[
         str,
         tuple[
-            str
-            | Empty
+            Empty
             | Exists
             | FuzzyTerm
             | ParseWithField
@@ -1361,8 +1294,7 @@ class ParadeDB:
 
     def _render_term(
         self,
-        term: str
-        | Empty
+        term: Empty
         | Exists
         | FuzzyTerm
         | ParseWithField
@@ -1532,13 +1464,7 @@ class ParadeDB:
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, All):
             return f"{FN_ALL}()"
-        # For plain strings, return bare quoted term.
-        # Fuzzy and scoring are applied at the as_sql level for proper SQL generation.
-        # Tokenizer is applied here since it should be per-term.
-        rendered = self._quote_term(term)
-        if self._tokenizer is not None:
-            rendered = f"{rendered}::{_tokenizer_cast(self._tokenizer)}"
-        return rendered
+        raise TypeError("Unsupported ParadeDB term type.")
 
     @staticmethod
     def _render_term_set_array(

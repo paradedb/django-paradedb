@@ -25,7 +25,7 @@ if ! command -v docker >/dev/null 2>&1; then
   if [[ "$RUNNING" == "1" ]]; then exit 1; else return 1; fi
 fi
 
-if ! docker ps -a --format '{{.Names}}' | grep -Eq "^${CONTAINER_NAME}$"; then
+if ! docker ps -a --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
   echo "Starting ParadeDB container ${CONTAINER_NAME} from ${IMAGE}..."
   docker run -d \
     --name "${CONTAINER_NAME}" \

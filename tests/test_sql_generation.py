@@ -504,9 +504,23 @@ class TestTokenizerOverride:
     def test_tokenizer_invalid_with_term(self) -> None:
         with pytest.raises(
             ValueError,
-            match=r"ParadeDB tokenizer is only supported with plain string terms\.",
+            match=r"ParadeDB tokenizer keyword is only supported via Match\(\.\.\., tokenizer=\.\.\.\)\.",
         ):
             _ = ParadeDB(Term("x"), tokenizer="whitespace")
+
+    def test_boost_keyword_invalid_with_term(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"ParadeDB boost keyword is only supported via Match\(\.\.\., boost=\.\.\.\)\.",
+        ):
+            _ = ParadeDB(Term("x"), boost=2.0)
+
+    def test_const_keyword_invalid_with_phrase(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match=r"ParadeDB const keyword is only supported via Match\(\.\.\., const=\.\.\.\)\.",
+        ):
+            _ = ParadeDB(Phrase("x"), const=1.0)
 
 
 class TestParseQuery:
@@ -1397,6 +1411,40 @@ class TestBM25Index:
         )
         schema_editor = DummySchemaEditor()
         with pytest.raises(ValueError, match="deprecated 'options'"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
+    def test_named_args_invalid_key_raises(self) -> None:
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizer": "simple",
+                    "named_args": {"bad-key": True},
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="Tokenizer named arg keys must match"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
+    def test_named_args_value_with_equals_raises(self) -> None:
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizer": "simple",
+                    "named_args": {"language": "en=us"},
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(
+            ValueError, match="named arg string values cannot contain '='"
+        ):
             index.create_sql(model=Product, schema_editor=schema_editor)
 
     def test_create_sql_concurrently(self) -> None:

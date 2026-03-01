@@ -84,7 +84,10 @@ jobs:
             sys.exit(0)
           for file in sh_files:
             p = subprocess.run(
-                f"shellcheck -x {file}", shell=True, capture_output=True, check=False
+                f"shellcheck -x -P scripts {file}",
+                shell=True,
+                capture_output=True,
+                check=False,
             )
             print(p.stdout.decode())
             if p.returncode != 0:

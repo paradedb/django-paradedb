@@ -1,89 +1,83 @@
-# Release Management & Compatibility
+# Release Management and Compatibility
 
-This document defines release policies for `django-paradedb`, including
-versioning, compatibility promises, and support windows. It is intentionally
-lightweight while ParadeDB is pre-1.0.
+This document describes how `django-paradedb` versions are released and what
+compatibility guarantees the project provides.
 
 ## Goals
 
-- Keep Django integration stable and predictable.
-- Track ParadeDB capabilities without blocking users on upgrades.
-- Minimize maintenance burden while providing a clear support matrix.
+- Keep the Django integration stable and predictable.
+- Add ParadeDB features quickly without forcing unnecessary upgrades.
+- Keep support expectations clear for users and maintainers.
 
-## Current Status (Pre-1.0 ParadeDB)
+## Current Status (ParadeDB Pre-1.0)
 
-ParadeDB has not reached 1.0.0. Until it does:
+ParadeDB is still pre-1.0, so minor releases may include breaking changes.
+During this phase:
 
-- We treat ParadeDB minor versions as potentially breaking.
-- We will document feature availability by ParadeDB version.
-- We will prefer capability-based gating for new features when feasible.
+- Feature availability is documented by ParadeDB version.
+- New functionality should use capability checks when practical.
+- Errors for unsupported capabilities should be explicit.
 
-## Versioning Policy (Library)
+## Versioning Policy
 
-We follow SemVer for `django-paradedb`:
+`django-paradedb` follows SemVer:
 
-- **MAJOR**: Breaking changes in the Django integration API or behavior.
-- **MINOR**: New features or non-breaking behavior additions.
-- **PATCH**: Bug fixes and documentation changes only.
+- **MAJOR**: Breaking API or behavior changes.
+- **MINOR**: New features and non-breaking enhancements.
+- **PATCH**: Bug fixes and documentation updates.
 
 ## Compatibility Principles
 
-1. **Major Alignment (Optional Post-1.0)**
-   - When ParadeDB reaches 1.0, consider aligning major versions
-     (e.g., ParadeDB 1.x ↔ django-paradedb 1.x).
-2. **Forward-Compatible Minor Policy**
-   - A given library minor should work with the same ParadeDB major and
-     later minor versions, but new ParadeDB features require a newer
-     library minor to use.
-3. **Capability Gating**
-   - If a ParadeDB feature is version-gated, the library should expose a
-     predictable API and raise a clear error (or no-op) when unsupported.
+1. Major-version alignment after ParadeDB 1.0: we plan to align majors where
+   practical (for example, ParadeDB 1.x with `django-paradedb` 1.x).
+2. Minor forward compatibility: a given library minor should support the same
+   ParadeDB major and later ParadeDB minors.
+3. Capability gating: if a feature depends on a ParadeDB version, expose a
+   stable API and return a clear error (or no-op) when unsupported.
 
-## Support Matrix (Draft)
+## Support Matrix
 
-This matrix is a _policy target_ and should be updated as the project grows.
+- **Django**: Current LTS and previous LTS.
+- **ParadeDB**: Latest minor and previous minor (while ParadeDB is pre-1.0).
+- **Postgres**: Versions supported by ParadeDB.
+- **Python**: Versions required by supported Django releases.
 
-- **Django**: Current LTS + previous LTS
-- **ParadeDB**: Latest minor + previous minor (while pre-1.0)
-- **Postgres**: ParadeDB-supported versions only
-- **Python**: Match Django LTS requirements
+Update this matrix whenever support policy changes.
 
 ## Release Cadence
 
-- **Regular releases**: As needed; bundled feature releases are preferred.
-- **Hotfix releases**: Patch-only for regressions or critical bugs.
+- **Regular releases**: As needed, typically bundled feature updates.
+- **Hotfix releases**: Patch releases for regressions or critical bugs.
 
 ## Deprecation Policy
 
-- Deprecations must be documented with the version they were introduced.
-- Remove deprecated behavior no earlier than the next MINOR release, or
-  after two MINOR releases, whichever is later.
+- Every deprecation must note the version where it was introduced.
+- Remove deprecated behavior no earlier than the next MINOR release, or after
+  two MINOR releases, whichever is later.
 
-## Feature Availability
+## Feature Availability Documentation
 
-Features that depend on ParadeDB capabilities should be documented here,
-or in `README.md`, with their minimum ParadeDB version.
+Document ParadeDB version requirements for version-gated features in this file
+or in `README.md`.
 
-Example format:
+Use this format:
 
-- `feature_name`: ParadeDB >= 0.x.y
+- `feature_name`: ParadeDB >= `0.x.y`
 
-## Testing & CI
+## Testing and CI Expectations
 
-We aim to test the support matrix in CI:
+CI should cover the published support matrix:
 
-- Django: current LTS + previous LTS
-- ParadeDB: latest minor + previous minor
-- Postgres: ParadeDB-supported versions
+- Django: current LTS and previous LTS.
+- ParadeDB: latest minor and previous minor.
+- Postgres: ParadeDB-supported versions.
 
-Non-blocking (optional):
+Optional non-blocking jobs may include ParadeDB nightly or pre-release builds.
 
-- ParadeDB nightly/pre-release builds
+## Decisions for ParadeDB 1.0
 
-## Open Decisions
+Revisit these points once ParadeDB reaches 1.0:
 
-The following items should be decided once ParadeDB 1.0.0 ships:
-
-- Do we align `django-paradedb` major versions to ParadeDB major versions?
-- What is the long-term support window for older ParadeDB majors?
-- Do we want a separate "compatibility table" in `README.md`?
+- Final major-version alignment policy.
+- Long-term support window for older ParadeDB majors.
+- Whether to duplicate the support matrix in `README.md`.

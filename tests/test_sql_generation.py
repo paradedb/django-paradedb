@@ -137,6 +137,12 @@ class TestExactLiteralDisjunction:
         ):
             _ = ParadeDB(Phrase("text"), operator="OR")
 
+    def test_operator_none_with_phrase_is_allowed(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("text"), operator=None)
+        )
+        assert "### 'text'" in str(queryset.query)
+
     def test_operator_invalid_value(self) -> None:
         with pytest.raises(
             ValueError,

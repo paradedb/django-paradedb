@@ -1004,6 +1004,8 @@ class ParadeDB:
             raise TypeError(
                 "Plain string terms are not supported. Use ParadeDB(Match(..., operator=...))."
             )
+        if operator is None:
+            operator = _DEFAULT_OPERATOR
         if operator is not _DEFAULT_OPERATOR:
             raise ValueError(
                 "ParadeDB operator keyword is only supported via Match(..., operator=...)."

@@ -94,13 +94,6 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
     def _normalized_queryset(self) -> ParadeDBQuerySet:
         return cast(ParadeDBQuerySet, self._chain())  # type: ignore[attr-defined]
 
-    def _facets_only(
-        self, json_spec: str, *, exact: bool | None = None
-    ) -> dict[str, object]:
-        queryset = self._normalized_queryset()
-        result = queryset.aggregate(_paradedb_facets=Agg(json_spec, exact=exact))
-        return result.get("_paradedb_facets") or {}
-
     def _facets_only_multi(
         self, agg_specs: dict[str, str], *, exact: bool | None = None
     ) -> dict[str, object]:
@@ -195,30 +188,6 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         if order not in mapping:
             raise ValueError("Facet order must be count, -count, key, or -key.")
         return mapping[order]
-
-    @staticmethod
-    def _extract_facets(rows: list[Any], alias: str) -> dict[str, object]:
-        if not rows:
-            return {}
-        first = rows[0]
-        if isinstance(first, dict):
-            facets = first.get(alias) or {}
-            for row in rows:
-                row.pop(alias, None)
-            return facets
-        if isinstance(first, tuple):
-            if not first:
-                return {}
-            facets = first[-1] if isinstance(first[-1], dict) else {}
-            for index, row in enumerate(rows):
-                if isinstance(row, tuple) and len(row) > 0:
-                    rows[index] = row[:-1]
-            return facets
-        facets = getattr(first, alias, None) or {}
-        for row in rows:
-            if hasattr(row, alias):
-                delattr(row, alias)
-        return facets
 
     @staticmethod
     def _extract_facets_multi(rows: list[Any], aliases: list[str]) -> dict[str, object]:

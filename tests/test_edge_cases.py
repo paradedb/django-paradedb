@@ -12,6 +12,7 @@ from unittest.mock import Mock
 import pytest
 from django.db.models import Value
 
+import paradedb
 from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
@@ -1014,3 +1015,22 @@ class TestSnippetsValidation:
         """Verify sort_by validation."""
         with pytest.raises(ValueError, match="sort_by must be one of"):
             Snippets("description", sort_by="invalid")  # type: ignore[arg-type]
+
+
+class TestTopLevelExports:
+    def test_query_and_manager_exports_are_available(self) -> None:
+        expected_exports = [
+            "Empty",
+            "Exists",
+            "FuzzyTerm",
+            "ParseWithField",
+            "Range",
+            "RangeRelation",
+            "RangeType",
+            "TermSet",
+            "ParadeOperator",
+            "ParadeDBManager",
+            "ParadeDBQuerySet",
+        ]
+        for name in expected_exports:
+            assert hasattr(paradedb, name)

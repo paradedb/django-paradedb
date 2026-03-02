@@ -9,6 +9,7 @@ from django.db import models
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
 from django.db.models.expressions import Expression
+from django.utils.deconstruct import deconstructible
 
 
 def _quote_term(value: str) -> str:
@@ -81,6 +82,40 @@ def _build_tokenizer_config(
     return f"{tokenizer}({','.join(args_sql)})"
 
 
+def _quote_compiled_param(value: Any, schema_editor: BaseDatabaseSchemaEditor) -> str:
+    try:
+        return schema_editor.quote_value(value)
+    except NotImplementedError:
+        return _render_sql_arg(value)
+
+
+def _inline_compiled_params(
+    sql: str,
+    params: tuple[Any, ...] | list[Any],
+    schema_editor: BaseDatabaseSchemaEditor,
+) -> str:
+    if not params:
+        return sql
+
+    sql_parts = sql.split("%s")
+    if len(sql_parts) - 1 != len(params):
+        raise ValueError(
+            "IndexExpression generated unsupported SQL placeholders. "
+            "Only simple value placeholders are supported."
+        )
+
+    rendered_sql = sql_parts[0]
+    for quoted_param, sql_part in zip(
+        (_quote_compiled_param(value, schema_editor) for value in params),
+        sql_parts[1:],
+        strict=True,
+    ):
+        rendered_sql += quoted_param + sql_part
+
+    return rendered_sql
+
+
+@deconstructible(path="paradedb.indexes.IndexExpression")
 @dataclass
 class IndexExpression:
     """Computed expression for BM25 indexing.
@@ -103,8 +138,8 @@ class IndexExpression:
 
     Example::
 
-        from django.db.models.functions import Lower, Concat
-        from django.db.models import F, Value
+        from django.db.models import F
+        from django.db.models.functions import Lower
         from paradedb.indexes import BM25Index, IndexExpression
 
         BM25Index(
@@ -139,6 +174,8 @@ class IndexExpression:
     named_args: dict[str, Any] | None = None
     filters: list[str] | None = None
     stemmer: str | None = None
+
+
 class BM25Index(models.Index):
     """BM25 index for ParadeDB."""
 
@@ -155,7 +192,7 @@ class BM25Index(models.Index):
     ) -> None:
         self.fields_config = fields
         self.key_field = key_field
-        self.index_expressions = expressions or []
+        self.index_expressions = list(expressions or [])
         super().__init__(name=name, fields=list(fields.keys()), condition=condition)
 
     def deconstruct(self) -> tuple[str, Any, dict[str, Any]]:
@@ -310,12 +347,7 @@ class BM25Index(models.Index):
         # Resolve and compile the expression
         resolved = expr.resolve_expression(query, allow_joins=False, for_save=False)
         expr_sql, params = compiler.compile(resolved)
-
-        if params:
-            raise ValueError(
-                f"IndexExpression with alias {idx_expr.alias!r} cannot contain "
-                f"parameterized values. Use literal expressions only."
-            )
+        expr_sql = _inline_compiled_params(expr_sql, params, schema_editor)
 
         # Build the cast based on whether a tokenizer is specified
         if idx_expr.tokenizer is not None:

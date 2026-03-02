@@ -9,6 +9,7 @@ from unittest.mock import Mock
 
 import pytest
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.migrations.writer import MigrationWriter
 from django.db.models import F, Q, TextField, Value, Window
 from django.db.models.functions import Concat, Lower, RowNumber
 
@@ -51,18 +52,18 @@ class DummyDatabaseOperations:
     def max_name_length(self) -> int:
         return 63
 
-    def autoinc_sql(self, *args: Any, **kwargs: Any) -> None:
+    def autoinc_sql(self, *_args: Any, **_kwargs: Any) -> None:
         return None
 
     def conditional_expression_supported_in_where_clause(
-        self, expression: Any
+        self, _expression: Any
     ) -> bool:
         return True
 
     def combine_expression(self, connector: str, sub_expressions: list[str]) -> str:
         return f"({f' {connector} '.join(sub_expressions)})"
 
-    def compiler(self, compiler_name: str) -> type:
+    def compiler(self, _compiler_name: str) -> type:
         from django.db.backends.postgresql.compiler import SQLCompiler
 
         return SQLCompiler
@@ -70,6 +71,9 @@ class DummyDatabaseOperations:
     def check_expression_support(self, expression: Any) -> None:
         """Check if expression is supported - always pass for tests."""
         pass
+
+    def adapt_integerfield_value(self, value: Any, _internal_type: str) -> Any:
+        return value
 
 
 class DummyConnection:
@@ -96,6 +100,18 @@ class DummySchemaEditor(BaseDatabaseSchemaEditor):
 
     def quote_name(self, name: str) -> str:
         return f'"{name}"'
+
+    def quote_value(self, value: Any) -> str:
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, int | float):
+            return str(value)
+        if value is None:
+            return "null"
+        if isinstance(value, str):
+            escaped = value.replace("'", "''")
+            return f"'{escaped}'"
+        raise TypeError(f"Unsupported quoted value type: {type(value).__name__}")
 
 
 class TestParadeDBLookup:
@@ -1520,13 +1536,13 @@ class TestBM25Index:
         )
 
     def test_index_expression_with_arithmetic(self) -> None:
-        """IndexExpression with arithmetic expression."""
+        """IndexExpression with arithmetic constant is inlined into SQL."""
         index = BM25Index(
             fields={"id": {}},
             expressions=[
                 IndexExpression(
-                    F("rating") + F("id"),
-                    alias="rating_plus_id",
+                    F("rating") + 1,
+                    alias="rating_plus_one",
                 ),
             ],
             key_field="id",
@@ -1534,8 +1550,30 @@ class TestBM25Index:
         )
         schema_editor = DummySchemaEditor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
-        assert "pdb.alias('rating_plus_id')" in sql
-        assert "+" in sql
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    (((("tests_product"."rating" + 1)))::pdb.alias(\'rating_plus_one\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_index_expression_with_json_path_reference(self) -> None:
+        """IndexExpression with JSON path transform inlines compiled params."""
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[
+                IndexExpression(
+                    F("metadata__word_count"),
+                    alias="word_count",
+                ),
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((("tests_product"."metadata" -> \'word_count\'))::pdb.alias(\'word_count\'))\n)\nWITH (key_field=\'id\')'
+        )
 
     def test_index_expression_with_string_field_reference(self) -> None:
         """IndexExpression with string field reference (converted to F())."""
@@ -1613,10 +1651,30 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        path, args, kwargs = index.deconstruct()
+        _path, _args, kwargs = index.deconstruct()
         assert "expressions" in kwargs
         assert len(kwargs["expressions"]) == 1
         assert kwargs["expressions"][0].alias == "desc_lower"
+
+    def test_index_expression_is_migration_serializable(self) -> None:
+        """BM25Index with IndexExpression serializes through MigrationWriter."""
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[
+                IndexExpression(
+                    Lower("description"),
+                    alias="desc_lower",
+                    tokenizer="simple",
+                )
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        serialized, imports = MigrationWriter.serialize(index)
+        assert "IndexExpression(" in serialized
+        assert "Lower('description')" in serialized
+        assert "import django.db.models.functions.text" in imports
+        assert "import paradedb.indexes" in imports
 
     def test_index_expression_without_expressions_no_key_in_deconstruct(self) -> None:
         """BM25Index without expressions does not include key in deconstruct."""
@@ -1625,7 +1683,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        path, args, kwargs = index.deconstruct()
+        _path, _args, kwargs = index.deconstruct()
         assert "expressions" not in kwargs
 
 

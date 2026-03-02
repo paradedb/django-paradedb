@@ -13,13 +13,10 @@ Before running any example, you need to set up your environment.
 All examples share a common set of dependencies.
 
 ```bash
-# Create and activate a virtual environment (optional but recommended)
-python -m venv .venv
-source .venv/bin/activate
+# Install uv: https://docs.astral.sh/uv/getting-started/installation/
 
-# Install the package and example requirements
-pip install -e .
-pip install -r examples/requirements.txt
+# Create or update an environment with the example dependencies
+uv sync --extra examples
 ```
 
 ### 2. Start ParadeDB
@@ -60,7 +57,7 @@ This script demonstrates the fundamental building blocks of search. You will lea
 **Run it:**
 
 ```bash
-python examples/quickstart/quickstart.py
+uv run python examples/quickstart/quickstart.py
 ```
 
 #### 2. Faceted Search (`faceted_search/faceted_search.py`)
@@ -77,7 +74,7 @@ Facets are the "filters" you see on shopping sites (e.g., "Brand (5)", "Color (3
 **Run it:**
 
 ```bash
-python examples/faceted_search/faceted_search.py
+uv run python examples/faceted_search/faceted_search.py
 ```
 
 ---
@@ -98,9 +95,8 @@ Standard search requires hitting "Enter". Autocomplete gives immediate feedback.
 **Run it:**
 
 ```bash
-cd examples/autocomplete
-python setup.py          # Step 1: Create table with ngram index
-python autocomplete.py   # Step 2: Run the search demo
+uv run python examples/autocomplete/setup.py          # Step 1: Create table with ngram index
+uv run python examples/autocomplete/autocomplete.py   # Step 2: Run the search demo
 ```
 
 #### 4. More Like This (`more_like_this/more_like_this.py`)
@@ -112,7 +108,7 @@ Want to show "Related Articles" or "Customers also bought"? This feature analyze
 **Run it:**
 
 ```bash
-python examples/more_like_this/more_like_this.py
+uv run python examples/more_like_this/more_like_this.py
 ```
 
 ---
@@ -132,9 +128,8 @@ Keyword search (BM25) is great for exact matches ("Part #123"). Vector search is
 **Run it:**
 
 ```bash
-cd examples/hybrid_rrf
-python setup.py         # Loads pre-computed embeddings into the DB
-python hybrid_rrf.py    # Performs the hybrid search
+uv run python examples/hybrid_rrf/setup.py         # Loads pre-computed embeddings into the DB
+uv run python examples/hybrid_rrf/hybrid_rrf.py    # Performs the hybrid search
 ```
 
 #### 6. RAG: Retrieval-Augmented Generation (`rag/`)
@@ -151,8 +146,7 @@ This example builds a mini QA system. It searches your data for relevant context
 **Run it:**
 
 ```bash
-cd examples/rag
-python rag.py
+uv run python examples/rag/rag.py
 ```
 
 ---

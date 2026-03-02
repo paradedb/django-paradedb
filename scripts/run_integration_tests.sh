@@ -15,28 +15,16 @@ export PARADEDB_INTEGRATION=1
 export PARADEDB_TEST_DSN="postgres://${USER}:${PASSWORD}@localhost:${PORT}/${DB}"
 export PGPASSWORD="${PASSWORD}"
 
-PYTHON_BIN="${PYTHON_BIN:-}"
-if [[ -z "${PYTHON_BIN}" ]]; then
-  if [[ -x "./.venv/bin/python" ]]; then
-    PYTHON_BIN="./.venv/bin/python"
-  elif command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python3)"
-  elif command -v python >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python)"
-  else
-    echo "Unable to find a Python interpreter. Set PYTHON_BIN or install Python." >&2
-    exit 1
-  fi
-fi
-
-if ! "${PYTHON_BIN}" -m pytest --version >/dev/null 2>&1; then
-  echo "pytest is not available for ${PYTHON_BIN}. Install dev dependencies first." >&2
-  echo "Hint: pip install -e '.[dev]'" >&2
+if ! command -v uv >/dev/null 2>&1; then
+  echo "uv is required to run integration tests." >&2
+  echo "Install uv, then rerun this script." >&2
   exit 1
 fi
 
+PYTEST_CMD=(uv run --extra dev pytest)
+
 if [[ $# -gt 0 ]]; then
-  "${PYTHON_BIN}" -m pytest "$@"
+  "${PYTEST_CMD[@]}" "$@"
 else
-  "${PYTHON_BIN}" -m pytest -m integration
+  "${PYTEST_CMD[@]}" -m integration
 fi

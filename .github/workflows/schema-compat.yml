@@ -33,6 +33,14 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Create uv environment
+        run: uv venv --python "3.13"
+
       - name: Download pg_search.schema.sql
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -42,7 +50,7 @@ jobs:
             --pattern pg_search.schema.sql
 
       - name: Run Schema Compatibility Check
-        run: python scripts/check_schema_compat.py pg_search.schema.sql api.json
+        run: uv run --no-sync python scripts/check_schema_compat.py pg_search.schema.sql api.json
 
   integration-tests:
     name: Integration Tests
@@ -79,16 +87,21 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv venv --python "3.13"
+          uv sync --extra dev
 
       - name: Run unit tests
-        run: pytest -m "not integration" --cov=paradedb
+        run: uv run --no-sync pytest -m "not integration" --cov=paradedb
 
       - name: Run integration tests
-        run: pytest -m integration --cov=paradedb --cov-append
+        run: uv run --no-sync pytest -m integration --cov=paradedb --cov-append
 
   notify:
     name: Notify on Failure

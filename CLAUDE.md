@@ -5,7 +5,7 @@
 Run unit tests (no database required) before every push — this is what CI checks first:
 
 ```bash
-.venv/bin/python -m pytest -m "not integration"
+uv run pytest -m "not integration"
 ```
 
 ## Integration Tests

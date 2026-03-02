@@ -31,14 +31,21 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Install Beautysh
-        run: pip install beautysh
+        run: |
+          uv venv --python "3.11"
+          uv pip install --python .venv/bin/python beautysh
 
       - name: Run Beautysh
         run: |
           shopt -s globstar nullglob
           if compgen -G "**/*.sh" > /dev/null; then
-            beautysh **/*.sh --indent-size 2 --check
+            uv run --no-sync beautysh **/*.sh --indent-size 2 --check
           fi
           shopt -u globstar nullglob
 
@@ -72,25 +79,26 @@ jobs:
           done < <(find . -name '*.sh')
 
       - name: Run ShellCheck
-        shell: python {0}
         run: |
+          uv run --no-sync python - <<'PY'
           import glob
           import subprocess
           import sys
 
           sh_files = sorted(set(glob.glob("**/*.sh", recursive=True)))
           if not sh_files:
-            print("[Shellcheck skipped] No shell scripts found.")
-            sys.exit(0)
+              print("[Shellcheck skipped] No shell scripts found.")
+              sys.exit(0)
           for file in sh_files:
-            p = subprocess.run(
-                f"shellcheck -x -P scripts {file}",
-                shell=True,
-                capture_output=True,
-                check=False,
-            )
-            print(p.stdout.decode())
-            if p.returncode != 0:
-                print(f"[Shellcheck did not pass] {file}")
-                sys.exit(1)
+              p = subprocess.run(
+                  f"shellcheck -x -P scripts {file}",
+                  shell=True,
+                  capture_output=True,
+                  check=False,
+              )
+              print(p.stdout.decode())
+              if p.returncode != 0:
+                  print(f"[Shellcheck did not pass] {file}")
+                  sys.exit(1)
           print(f"[Shellcheck passed] {len(sh_files)} script(s)")
+          PY

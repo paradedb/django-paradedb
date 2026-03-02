@@ -32,19 +32,24 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          uv venv --python "3.13"
+          uv sync --extra dev
 
       - name: Ruff check
-        run: ruff check .
+        run: uv run --no-sync ruff check .
 
       - name: Ruff format check
-        run: ruff format --check .
+        run: uv run --no-sync ruff format --check .
 
       - name: Type check
-        run: mypy src/paradedb
+        run: uv run --no-sync mypy src/paradedb
 
   matrix-tests:
     name: Python ${{ matrix.python-version }} / Django ${{ matrix.django-version }}
@@ -106,17 +111,22 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-          pip install "Django~=${{ matrix.django-version }}.0"
+          uv venv --python "${{ matrix.python-version }}"
+          uv sync --extra dev
+          uv pip install --python .venv/bin/python "Django~=${{ matrix.django-version }}.0"
 
       - name: Run unit tests
-        run: pytest -m "not integration" --cov=paradedb
+        run: uv run --no-sync pytest -m "not integration" --cov=paradedb
 
       - name: Run integration tests
-        run: pytest -m integration --cov=paradedb --cov-append --cov-report=xml
+        run: uv run --no-sync pytest -m integration --cov=paradedb --cov-append --cov-report=xml
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
@@ -130,20 +140,20 @@ jobs:
 
       - name: Run examples
         run: |
-          python examples/quickstart/quickstart.py
-          python examples/autocomplete/setup.py
-          python examples/autocomplete/autocomplete.py
-          python examples/more_like_this/more_like_this.py
-          python examples/faceted_search/faceted_search.py
-          python examples/hybrid_rrf/setup.py
-          python examples/hybrid_rrf/hybrid_rrf.py
+          uv run --no-sync python examples/quickstart/quickstart.py
+          uv run --no-sync python examples/autocomplete/setup.py
+          uv run --no-sync python examples/autocomplete/autocomplete.py
+          uv run --no-sync python examples/more_like_this/more_like_this.py
+          uv run --no-sync python examples/faceted_search/faceted_search.py
+          uv run --no-sync python examples/hybrid_rrf/setup.py
+          uv run --no-sync python examples/hybrid_rrf/hybrid_rrf.py
 
       - name: Run RAG example (if API key configured)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           if [ -n "${OPENROUTER_API_KEY}" ]; then
-            python examples/rag/rag.py
+            uv run --no-sync python examples/rag/rag.py
           else
             echo "Skipping RAG example: OPENROUTER_API_KEY is not configured."
           fi

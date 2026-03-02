@@ -24,7 +24,10 @@ from paradedb.functions import Score
 from paradedb.search import Match, ParadeDB
 
 if MockItem is None:
-    raise ImportError("pgvector is required for this example. pip install pgvector")
+    raise ImportError(
+        "pgvector is required for this example. Install the example extras with "
+        "'uv sync --extra examples'."
+    )
 
 
 def get_query_embedding(text: str) -> str:

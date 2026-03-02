@@ -76,11 +76,17 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
       - name: Build package
         run: |
-          pip install build twine
-          python -m build
-          twine check dist/*
+          uv venv --python "3.13"
+          uv pip install --python .venv/bin/python build twine
+          uv run --no-sync python -m build
+          uv run --no-sync twine check dist/*
           echo "✅ Package built and validated"
 
       - name: Determine if latest
@@ -112,7 +118,7 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
-          twine upload dist/*
+          uv run --no-sync twine upload dist/*
           echo "✅ Published django-paradedb ${VERSION} to PyPI"
 
       - name: Summary

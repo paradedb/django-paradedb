@@ -26,33 +26,33 @@ If you find yourself unable to make progress, don't hesitate to seek help in the
 
 ### Development Workflow
 
-django-paradedb is a Python package that provides Django ORM integration for ParadeDB. Development is done using standard Python tooling.
+django-paradedb is a Python package that provides Django ORM integration for ParadeDB. Development is done with `uv`, which keeps Python selection and dependencies aligned between local work and CI.
 
 ```bash
 # Clone the repository
 git clone https://github.com/paradedb/django-paradedb.git
 cd django-paradedb
 
-# Install development dependencies
-pip install -e ".[dev]"
+# Install uv: https://docs.astral.sh/uv/getting-started/installation/
+
+# Create or update the project environment
+uv sync --extra dev
 
 # Install prek hooks
-prek install
+uvx prek install
 
 # Run tests
-pytest
+uv run pytest
 
 # Run integration tests (requires Docker)
 bash scripts/run_integration_tests.sh
-# Optional: choose a specific interpreter
-PYTHON_BIN="$(which python3)" bash scripts/run_integration_tests.sh
 
 # Run linting
-ruff check .
-ruff format .
+uv run ruff check .
+uv run ruff format .
 
 # Run type checking
-mypy src/paradedb
+uv run mypy src/paradedb
 ```
 
 ### Pull Request Workflow
@@ -62,7 +62,7 @@ All changes to django-paradedb happen through GitHub Pull Requests. Here is the 
 1. Before working on a change, please check if there is already a GitHub issue open for it.
 2. If there is not, please open an issue first. This gives the community visibility into your work and allows others to make suggestions and leave comments.
 3. Fork the django-paradedb repo and branch out from the `main` branch.
-4. Install [prek](https://prek.j178.dev/quickstart/#already-using-pre-commit) hooks within your fork with `prek install` to ensure code quality and consistency with upstream.
+4. Install [prek](https://prek.j178.dev/quickstart/#already-using-pre-commit) hooks within your fork with `uvx prek install` to ensure code quality and consistency with upstream.
 5. Make your changes. If you've added new functionality, please add tests. We will not merge a feature without appropriate tests.
 6. Open a pull request towards the `main` branch. Ensure that all tests and checks pass. Note that the django-paradedb repository has pull request title linting in place and follows the [Conventional Commits spec](https://www.conventionalcommits.org/).
 7. Congratulations! Our team will review your pull request.

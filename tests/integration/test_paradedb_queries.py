@@ -215,6 +215,47 @@ def test_proximity_array_with_prox_regex_bool_max_expansions() -> None:
     assert ids == {3}
 
 
+def test_proximity_array_with_prox_regex_float_max_expansions() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(
+                    ProxRegex("run.*", max_expansions=1.5),  # type: ignore[arg-type]
+                    right_term="shoes",
+                    distance=1,
+                )
+            )
+        )
+    )
+    assert ids == {3}
+
+
+def test_proximity_array_with_prox_regex_non_string_pattern() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(
+                    ProxRegex(123),  # type: ignore[arg-type]
+                    right_term="shoes",
+                    distance=1,
+                )
+            )
+        )
+    )
+    assert ids == {3}
+
+
+def test_proximity_array_with_non_string_left_term() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(123, right_term="shoes", distance=1)  # type: ignore[arg-type]
+            )
+        )
+    )
+    assert ids == {3}
+
+
 def test_proximity_array_with_invalid_prox_regex_pattern_raises() -> None:
     with pytest.raises(DatabaseError, match="regex parse error"):
         MockItem.objects.filter(

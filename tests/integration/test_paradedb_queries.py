@@ -17,6 +17,7 @@ from paradedb.search import (
     Proximity,
     ProximityArray,
     ProximityRegex,
+    ProxRegex,
     RangeTerm,
     Regex,
     RegexPhrase,
@@ -153,6 +154,42 @@ def test_proximity_array_query() -> None:
         )
     )
     assert ids == {3}
+
+
+def test_proximity_array_with_mixed_prox_regex_items() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(
+                    "sleek",
+                    ProxRegex("run.*"),
+                    right_term="shoes",
+                    distance=1,
+                )
+            )
+        )
+    )
+    assert ids == {3}
+
+
+def test_proximity_array_with_only_prox_regex_left_term() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(ProxRegex("run.*"), right_term="shoes", distance=1)
+            )
+        )
+    )
+    assert ids == {3}
+
+
+def test_proximity_array_with_invalid_prox_regex_pattern_raises() -> None:
+    with pytest.raises(DatabaseError, match="regex parse error"):
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(ProxRegex("[invalid"), right_term="shoes", distance=1)
+            )
+        ).exists()
 
 
 def test_fuzzy_distance() -> None:

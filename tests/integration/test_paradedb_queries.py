@@ -200,6 +200,21 @@ def test_proximity_array_with_only_prox_regex_left_term() -> None:
     assert ids == {3}
 
 
+def test_proximity_array_with_prox_regex_custom_max_expansions() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(
+                    ProxRegex("run.*", max_expansions=100),
+                    right_term="shoes",
+                    distance=1,
+                )
+            )
+        )
+    )
+    assert ids == {3}
+
+
 def test_proximity_array_with_prox_regex_bool_max_expansions() -> None:
     with pytest.raises(TypeError, match="ProxRegex max_expansions must be an integer"):
         ProxRegex("run.*", max_expansions=True)

@@ -608,71 +608,93 @@ class MoreLikeThis(Expression):
 
     def _validate(self) -> None:
         # Check exactly one input source is provided
-        inputs = [
-            self.product_id is not None,
-            self.product_ids is not None,
-            self._document_input is not None,
-        ]
-        if sum(inputs) != 1:
+        if self._count_inputs() != 1:
             raise ValueError("MoreLikeThis requires exactly one input source.")
 
-        if self.product_id is not None and (
-            isinstance(self.product_id, bool) or not isinstance(self.product_id, int)
-        ):
-            raise TypeError("MoreLikeThis product_id must be an integer.")
-
-        # Validate product_ids not empty
-        if self.product_ids is not None and not self.product_ids:
-            raise ValueError("MoreLikeThis product_ids cannot be empty.")
-        if self.product_ids is not None and any(
-            isinstance(product_id, bool) or not isinstance(product_id, int)
-            for product_id in self.product_ids
-        ):
-            raise TypeError("MoreLikeThis product_ids must contain integers.")
-
-        if self.key_field is not None and not isinstance(self.key_field, str):
-            raise TypeError("MoreLikeThis key_field must be a string.")
-        if isinstance(self.key_field, str) and not self.key_field.strip():
-            raise ValueError("MoreLikeThis key_field cannot be empty.")
-
-        if self.fields is not None:
-            if not self.fields:
-                raise ValueError("MoreLikeThis fields cannot be empty.")
-            for field in self.fields:
-                if not isinstance(field, str):
-                    raise TypeError("MoreLikeThis fields must contain strings.")
-                if not field.strip():
-                    raise ValueError("MoreLikeThis fields cannot contain empty names.")
-
-        if self.stopwords is not None:
-            for stopword in self.stopwords:
-                if not isinstance(stopword, str):
-                    raise TypeError("MoreLikeThis stopwords must contain strings.")
+        self._validate_product_inputs()
+        self._validate_key_field()
+        self._validate_fields()
+        self._validate_stopwords()
 
         # Validate fields only with ID-based queries
         if self._document_input is not None and self.fields:
             raise ValueError("MoreLikeThis fields are only valid with product_id(s).")
 
         # Validate document type and convert to JSON string
-        if self._document_input is not None:
-            if not isinstance(self._document_input, dict | str):
-                raise ValueError("MoreLikeThis document must be a dict or JSON string.")
-            if isinstance(self._document_input, dict):
-                self.document = json.dumps(self._document_input)
-            else:
-                try:
-                    parsed_document = json.loads(self._document_input)
-                except json.JSONDecodeError as exc:
-                    raise ValueError(
-                        "MoreLikeThis document JSON string must be valid JSON."
-                    ) from exc
-                if not isinstance(parsed_document, dict):
-                    raise ValueError(
-                        "MoreLikeThis document JSON string must decode to an object."
-                    )
-                self.document = self._document_input
+        self._validate_document_input()
+        self._validate_numeric_params()
 
-        # Validate numeric parameters
+    def _count_inputs(self) -> int:
+        return sum(
+            [
+                self.product_id is not None,
+                self.product_ids is not None,
+                self._document_input is not None,
+            ]
+        )
+
+    def _validate_product_inputs(self) -> None:
+        if self.product_id is not None and (
+            isinstance(self.product_id, bool) or not isinstance(self.product_id, int)
+        ):
+            raise TypeError("MoreLikeThis product_id must be an integer.")
+
+        if self.product_ids is not None and not self.product_ids:
+            raise ValueError("MoreLikeThis product_ids cannot be empty.")
+
+        if self.product_ids is not None and any(
+            isinstance(product_id, bool) or not isinstance(product_id, int)
+            for product_id in self.product_ids
+        ):
+            raise TypeError("MoreLikeThis product_ids must contain integers.")
+
+    def _validate_key_field(self) -> None:
+        if self.key_field is not None and not isinstance(self.key_field, str):
+            raise TypeError("MoreLikeThis key_field must be a string.")
+        if isinstance(self.key_field, str) and not self.key_field.strip():
+            raise ValueError("MoreLikeThis key_field cannot be empty.")
+
+    def _validate_fields(self) -> None:
+        if self.fields is None:
+            return
+        if not self.fields:
+            raise ValueError("MoreLikeThis fields cannot be empty.")
+        for field in self.fields:
+            if not isinstance(field, str):
+                raise TypeError("MoreLikeThis fields must contain strings.")
+            if not field.strip():
+                raise ValueError("MoreLikeThis fields cannot contain empty names.")
+
+    def _validate_stopwords(self) -> None:
+        if self.stopwords is None:
+            return
+        for stopword in self.stopwords:
+            if not isinstance(stopword, str):
+                raise TypeError("MoreLikeThis stopwords must contain strings.")
+
+    def _validate_document_input(self) -> None:
+        if self._document_input is None:
+            return
+        if not isinstance(self._document_input, dict | str):
+            raise ValueError("MoreLikeThis document must be a dict or JSON string.")
+        if isinstance(self._document_input, dict):
+            self.document = json.dumps(self._document_input)
+            return
+
+        try:
+            parsed_document = json.loads(self._document_input)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                "MoreLikeThis document JSON string must be valid JSON."
+            ) from exc
+
+        if not isinstance(parsed_document, dict):
+            raise ValueError(
+                "MoreLikeThis document JSON string must decode to an object."
+            )
+        self.document = self._document_input
+
+    def _validate_numeric_params(self) -> None:
         numeric_params = {
             "min_term_freq": self.min_term_freq,
             "max_query_terms": self.max_query_terms,
@@ -683,11 +705,12 @@ class MoreLikeThis(Expression):
             "max_word_length": self.max_word_length,
         }
         for param_name, param_value in numeric_params.items():
-            if param_value is not None:
-                if isinstance(param_value, bool) or not isinstance(param_value, int):
-                    raise TypeError(f"MoreLikeThis {param_name} must be an integer.")
-                if param_value < 1:
-                    raise ValueError(f"MoreLikeThis {param_name} must be >= 1.")
+            if param_value is None:
+                continue
+            if isinstance(param_value, bool) or not isinstance(param_value, int):
+                raise TypeError(f"MoreLikeThis {param_name} must be an integer.")
+            if param_value < 1:
+                raise ValueError(f"MoreLikeThis {param_name} must be >= 1.")
 
     def resolve_expression(
         self,

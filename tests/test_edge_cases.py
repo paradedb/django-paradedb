@@ -315,6 +315,9 @@ class TestMoreLikeThisValidation:
         with pytest.raises(TypeError, match="product_id must be an integer"):
             MoreLikeThis(product_id="1")  # type: ignore[arg-type]
 
+        with pytest.raises(TypeError, match="product_id must be an integer"):
+            MoreLikeThis(product_id=True)  # type: ignore[arg-type]
+
     def test_mlt_product_ids_list(self) -> None:
         """MLT with product_ids list works."""
         mlt = MoreLikeThis(product_ids=[1, 2, 3])
@@ -323,6 +326,9 @@ class TestMoreLikeThisValidation:
     def test_mlt_product_ids_must_contain_integers(self) -> None:
         with pytest.raises(TypeError, match="product_ids must contain integers"):
             MoreLikeThis(product_ids=[1, "2"])  # type: ignore[list-item]
+
+        with pytest.raises(TypeError, match="product_ids must contain integers"):
+            MoreLikeThis(product_ids=[1, True])  # type: ignore[list-item]
 
     def test_mlt_document_dict(self) -> None:
         """MLT with document dict works."""

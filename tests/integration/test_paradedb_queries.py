@@ -172,11 +172,43 @@ def test_proximity_array_with_mixed_prox_regex_items() -> None:
     assert ids == {3}
 
 
+def test_proximity_array_with_mixed_prox_regex_items_ordered() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(
+                    "sleek",
+                    ProxRegex("run.*"),
+                    right_term="shoes",
+                    distance=1,
+                    ordered=True,
+                )
+            )
+        )
+    )
+    assert ids == {3}
+
+
 def test_proximity_array_with_only_prox_regex_left_term() -> None:
     ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(
                 ProximityArray(ProxRegex("run.*"), right_term="shoes", distance=1)
+            )
+        )
+    )
+    assert ids == {3}
+
+
+def test_proximity_array_with_prox_regex_bool_max_expansions() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(
+                    ProxRegex("run.*", max_expansions=True),
+                    right_term="shoes",
+                    distance=1,
+                )
             )
         )
     )

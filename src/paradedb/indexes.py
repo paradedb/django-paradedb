@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from django.db import models
@@ -78,15 +77,6 @@ def _build_tokenizer_config(
     if not args_sql:
         return tokenizer
     return f"{tokenizer}({','.join(args_sql)})"
-
-
-@dataclass(frozen=True)
-class FieldConfig:
-    """Configuration for a BM25 index field."""
-
-    tokenizer: str | None
-    filters: list[str] | None
-    stemmer: str | None
 
 
 class BM25Index(models.Index):

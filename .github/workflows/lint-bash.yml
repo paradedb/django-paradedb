@@ -36,16 +36,11 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install Beautysh
-        run: |
-          uv venv --python "3.11"
-          uv pip install --python .venv/bin/python beautysh
-
       - name: Run Beautysh
         run: |
           shopt -s globstar nullglob
           if compgen -G "**/*.sh" > /dev/null; then
-            uv run --no-sync beautysh **/*.sh --indent-size 2 --check
+            uv tool run --from beautysh beautysh **/*.sh --indent-size 2 --check
           fi
           shopt -u globstar nullglob
 

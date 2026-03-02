@@ -22,9 +22,6 @@
 
 ```bash
 uv add django-paradedb
-
-# Or, if you are not using uv:
-pip install django-paradedb
 ```
 
 ## Quick Start

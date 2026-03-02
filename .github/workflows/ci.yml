@@ -101,6 +101,7 @@ jobs:
       PGPASSWORD: postgres
       DATABASE_URL: postgresql://postgres@localhost:5432/postgres
       PYTHONPATH: ${{ github.workspace }}/src
+      DJANGO_SPEC: Django~=${{ matrix.django-version }}.0
 
     steps:
       - name: Checkout
@@ -120,13 +121,12 @@ jobs:
         run: |
           uv venv --python "${{ matrix.python-version }}"
           uv sync --extra dev
-          uv pip install --python .venv/bin/python "Django~=${{ matrix.django-version }}.0"
 
       - name: Run unit tests
-        run: uv run --no-sync pytest -m "not integration" --cov=paradedb
+        run: uv run --with "${DJANGO_SPEC}" pytest -m "not integration" --cov=paradedb
 
       - name: Run integration tests
-        run: uv run --no-sync pytest -m integration --cov=paradedb --cov-append --cov-report=xml
+        run: uv run --with "${DJANGO_SPEC}" pytest -m integration --cov=paradedb --cov-append --cov-report=xml
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
@@ -140,20 +140,20 @@ jobs:
 
       - name: Run examples
         run: |
-          uv run --no-sync python examples/quickstart/quickstart.py
-          uv run --no-sync python examples/autocomplete/setup.py
-          uv run --no-sync python examples/autocomplete/autocomplete.py
-          uv run --no-sync python examples/more_like_this/more_like_this.py
-          uv run --no-sync python examples/faceted_search/faceted_search.py
-          uv run --no-sync python examples/hybrid_rrf/setup.py
-          uv run --no-sync python examples/hybrid_rrf/hybrid_rrf.py
+          uv run --with "${DJANGO_SPEC}" python examples/quickstart/quickstart.py
+          uv run --with "${DJANGO_SPEC}" python examples/autocomplete/setup.py
+          uv run --with "${DJANGO_SPEC}" python examples/autocomplete/autocomplete.py
+          uv run --with "${DJANGO_SPEC}" python examples/more_like_this/more_like_this.py
+          uv run --with "${DJANGO_SPEC}" python examples/faceted_search/faceted_search.py
+          uv run --with "${DJANGO_SPEC}" python examples/hybrid_rrf/setup.py
+          uv run --with "${DJANGO_SPEC}" python examples/hybrid_rrf/hybrid_rrf.py
 
       - name: Run RAG example (if API key configured)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           if [ -n "${OPENROUTER_API_KEY}" ]; then
-            uv run --no-sync python examples/rag/rag.py
+            uv run --with "${DJANGO_SPEC}" python examples/rag/rag.py
           else
             echo "Skipping RAG example: OPENROUTER_API_KEY is not configured."
           fi

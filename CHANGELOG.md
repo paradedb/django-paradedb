@@ -45,6 +45,8 @@ All notable changes to this project will be documented in this file. The format 
   notifications via GitHub Issues and Slack. (#46)
 - Inline fuzzy parameters (`distance`, `prefix`, `transposition_cost_one`) on `Match`
   and `Term` query expressions. (#40)
+- `ProxRegex` items (`pdb.prox_regex(...)`) can now be mixed with plain strings inside
+  `ProximityArray`. (#48)
 
 ### Changed
 
@@ -52,30 +54,37 @@ All notable changes to this project will be documented in this file. The format 
   use `ParadeDB(Match('shoes', operator='AND'))` instead. (#37)
 - **BREAKING**: Fuzzy search is no longer a standalone `Fuzzy(...)` expression — use
   `Match('shoez', operator='OR', distance=1)` or `Term('shoez', distance=1)`. (#37, #40)
+- **BREAKING**: `operator` kwarg removed from `ParadeDB(...)` — pass it via `Match(...)`
+  instead. (#51)
 - JSON field aggregations now use native `json_fields` index configuration with dot
   notation (`metadata.color`) instead of column aliases. (#42)
 - Tokenizer quoting improved to support invocation syntax like
   `whitespace('lowercase=false')` without over-quoting. (#40)
 - Tokenizer resolution now uses a validated lookup backed by `api.json` constants. (#44)
 - All hardcoded ParadeDB SQL strings replaced with constants from `paradedb.api`. (#44)
-- Bumped ParadeDB version from 0.21.8 to 0.21.10 in CI and dev scripts.
-- README quickstart rewritten to use `MockItemDjango` model with `mock_items` test
-  dataset. (#36)
+- `Match` now validates invalid combinations (tokenizer + fuzzy, multi-term fuzzy +
+  boost/const) eagerly at construction time. (#57)
+- `TermSet` enforces homogeneous element types. (#50)
+- `MoreLikeThis` validation tightened for key field, fields, stopwords, and numeric
+  options. (#50, #58)
+- README quickstart rewritten to use `MockItemDjango` model with `mock_items` dataset. (#36)
 
 ### Fixed
 
 - `BM25Index.create_sql()` now properly passes `concurrently` kwarg, fixing silent
   failures with Django's `AddIndexConcurrently`. (#41)
-- Multi-term fuzzy array queries now generate valid SQL (`ARRAY[...]::pdb.fuzzy(N)`
-  instead of per-element casts that produced invalid `pdb.fuzzy[]` type). (#42)
+- Multi-term fuzzy queries generate correct SQL (`ARRAY[...]::pdb.fuzzy(N)` instead of
+  invalid per-element casts). (#42, #57)
 - Tokenizer + fuzzy ordering for single-term queries corrected. (#42)
+- `api.json` loaded from package data when installed (source-tree fallback for dev). (#49)
+- `boost`/`const` validated as finite numbers; snippet numeric options validated as
+  non-negative integers. (#49)
 
 ### Removed
 
-- **BREAKING**: `PQ` class removed — use Django `Q` objects with `Match` clauses for
-  boolean logic across search terms. (#37, #40)
-- **BREAKING**: `Fuzzy` standalone search expression removed — fuzzy options are now
-  inline parameters on `Match` and `Term`. (#37, #40)
+- **BREAKING**: `PQ` class removed — use Django `Q` objects with `Match` clauses. (#37, #40)
+- **BREAKING**: `Fuzzy` standalone expression removed — use inline fuzzy params on
+  `Match` and `Term`. (#37, #40)
 - `TERM` removed from `ParadeOperator` literal type (only `AND` and `OR` remain). (#37)
 
 ## [0.3.0] - 2026-02-19

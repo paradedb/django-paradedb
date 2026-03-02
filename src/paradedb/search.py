@@ -149,6 +149,18 @@ def _validate_fuzzy_distance(distance: int | None) -> None:
         raise ValueError("Distance must be between 0 and 2, inclusive.")
 
 
+def _validate_non_negative_int(name: str, value: int) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an integer.")
+    if value < 0:
+        raise ValueError(f"{name} must be zero or positive.")
+
+
+def _validate_string(name: str, value: str) -> None:
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string.")
+
+
 @dataclass(frozen=True)
 class Phrase:
     """Phrase search expression.
@@ -262,10 +274,10 @@ class ProximityRegex:
     const: float | None = None
 
     def __post_init__(self) -> None:
-        if self.distance < 0:
-            raise ValueError("ProximityRegex distance must be zero or positive.")
-        if self.max_expansions < 0:
-            raise ValueError("ProximityRegex max_expansions must be zero or positive.")
+        _validate_string("ProximityRegex left_term", self.left_term)
+        _validate_string("ProximityRegex pattern", self.pattern)
+        _validate_non_negative_int("ProximityRegex distance", self.distance)
+        _validate_non_negative_int("ProximityRegex max_expansions", self.max_expansions)
 
 
 @dataclass(frozen=True)
@@ -280,8 +292,8 @@ class ProxRegex:
     max_expansions: int = 50
 
     def __post_init__(self) -> None:
-        if self.max_expansions < 0:
-            raise ValueError("ProxRegex max_expansions must be zero or positive.")
+        _validate_string("ProxRegex pattern", self.pattern)
+        _validate_non_negative_int("ProxRegex max_expansions", self.max_expansions)
 
 
 @dataclass(frozen=True)
@@ -310,10 +322,16 @@ class ProximityArray:
     ) -> None:
         if not left_terms:
             raise ValueError("ProximityArray requires at least one left-side term.")
-        if distance < 0:
-            raise ValueError("ProximityArray distance must be zero or positive.")
-        if max_expansions < 0:
-            raise ValueError("ProximityArray max_expansions must be zero or positive.")
+        for left_term in left_terms:
+            if not isinstance(left_term, str | ProxRegex):
+                raise TypeError(
+                    "ProximityArray left_terms must be strings or ProxRegex instances."
+                )
+        _validate_string("ProximityArray right_term", right_term)
+        _validate_non_negative_int("ProximityArray distance", distance)
+        _validate_non_negative_int("ProximityArray max_expansions", max_expansions)
+        if right_pattern is not None:
+            _validate_string("ProximityArray right_pattern", right_pattern)
         object.__setattr__(self, "left_terms", tuple(left_terms))
         object.__setattr__(self, "right_term", right_term)
         object.__setattr__(self, "distance", distance)

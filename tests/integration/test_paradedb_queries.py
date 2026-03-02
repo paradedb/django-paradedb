@@ -201,59 +201,26 @@ def test_proximity_array_with_only_prox_regex_left_term() -> None:
 
 
 def test_proximity_array_with_prox_regex_bool_max_expansions() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                ProximityArray(
-                    ProxRegex("run.*", max_expansions=True),
-                    right_term="shoes",
-                    distance=1,
-                )
-            )
-        )
-    )
-    assert ids == {3}
+    with pytest.raises(TypeError, match="ProxRegex max_expansions must be an integer"):
+        ProxRegex("run.*", max_expansions=True)
 
 
 def test_proximity_array_with_prox_regex_float_max_expansions() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                ProximityArray(
-                    ProxRegex("run.*", max_expansions=1.5),  # type: ignore[arg-type]
-                    right_term="shoes",
-                    distance=1,
-                )
-            )
-        )
-    )
-    assert ids == {3}
+    with pytest.raises(TypeError, match="ProxRegex max_expansions must be an integer"):
+        ProxRegex("run.*", max_expansions=1.5)  # type: ignore[arg-type]
 
 
 def test_proximity_array_with_prox_regex_non_string_pattern() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                ProximityArray(
-                    ProxRegex(123),  # type: ignore[arg-type]
-                    right_term="shoes",
-                    distance=1,
-                )
-            )
-        )
-    )
-    assert ids == {3}
+    with pytest.raises(TypeError, match="ProxRegex pattern must be a string"):
+        ProxRegex(123)  # type: ignore[arg-type]
 
 
 def test_proximity_array_with_non_string_left_term() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                ProximityArray(123, right_term="shoes", distance=1)  # type: ignore[arg-type]
-            )
-        )
-    )
-    assert ids == {3}
+    with pytest.raises(
+        TypeError,
+        match="ProximityArray left_terms must be strings or ProxRegex instances",
+    ):
+        ProximityArray(123, right_term="shoes", distance=1)  # type: ignore[arg-type]
 
 
 def test_proximity_array_with_invalid_prox_regex_pattern_raises() -> None:

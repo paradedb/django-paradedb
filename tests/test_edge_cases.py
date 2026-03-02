@@ -300,10 +300,25 @@ class TestExpressionValidation:
         with pytest.raises(ValueError, match="max_expansions must be zero or positive"):
             ProxRegex("pattern", max_expansions=-1)
 
+    def test_prox_regex_max_expansions_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="max_expansions must be an integer"):
+            ProxRegex("pattern", max_expansions=1.5)  # type: ignore[arg-type]
+
+    def test_prox_regex_pattern_must_be_string(self) -> None:
+        with pytest.raises(TypeError, match="pattern must be a string"):
+            ProxRegex(123)  # type: ignore[arg-type]
+
     def test_prox_regex_defaults(self) -> None:
         prox_regex = ProxRegex("pattern")
         assert prox_regex.pattern == "pattern"
         assert prox_regex.max_expansions == 50
+
+    def test_proximity_array_left_terms_must_be_strings_or_proxregex(self) -> None:
+        with pytest.raises(
+            TypeError,
+            match="left_terms must be strings or ProxRegex instances",
+        ):
+            ProximityArray(123, right_term="right", distance=1)  # type: ignore[arg-type]
 
 
 class TestMoreLikeThisValidation:

@@ -47,7 +47,7 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         exact: bool | None = None,
     ) -> dict[str, object] | tuple[list[Any], dict[str, object]]:
         # Faceted queries require pdb.agg() OVER () with ORDER BY + LIMIT and a ParadeDB
-        # operator in the WHERE clause to trigger the custom scan.
+        # search condition in the WHERE clause to trigger the custom scan.
         #
         # Example:
         # SELECT id, description, pdb.agg('{"value_count":{"field":"id"}}') OVER ()
@@ -58,7 +58,7 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         if not fields and agg is None:
             raise ValueError("facets() requires fields or agg.")
 
-        self._require_paradedb_operator()
+        self._require_paradedb_search_condition()
         if include_rows:
             self._require_order_by_and_limit()
         elif exact is False:
@@ -107,10 +107,10 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
             return result.get(alias) or {}
         return {alias: result.get(alias) or {} for alias in agg_specs}
 
-    def _require_paradedb_operator(self) -> None:
+    def _require_paradedb_search_condition(self) -> None:
         if not _contains_paradedb_operator(self.query.where):
             raise ValueError(
-                "facets() requires a ParadeDB operator in the WHERE clause. "
+                "facets() requires a ParadeDB search condition in the WHERE clause. "
                 "Add a ParadeDB search filter before calling facets()."
             )
 

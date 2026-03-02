@@ -232,7 +232,7 @@ Notes:
 
 ## Common Errors
 
-### "facets() requires a ParadeDB operator in the WHERE clause"
+### "facets() requires a ParadeDB search condition in the WHERE clause"
 
 ```python
 # ❌ Missing ParadeDB filter

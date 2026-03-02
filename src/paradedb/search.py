@@ -72,7 +72,6 @@ from paradedb.api import (
 )
 
 ParadeOperator = Literal["OR", "AND"]
-_DEFAULT_OPERATOR = object()
 
 
 # Regex to detect simple PostgreSQL identifiers (no quoting needed) vs complex ones.
@@ -910,9 +909,7 @@ class ParadeDB:
         ParadeDB(Phrase('a'), 'b')           # ❌ Error - no mixing
 
     Raises:
-        ValueError: If Parse/Term/Regex/All is not provided as a single term,
-            or operator is passed with
-            non-string query expressions
+        ValueError: If Parse/Term/Regex/All is not provided as a single term
         TypeError: If query term types are mixed
     """
 
@@ -921,7 +918,7 @@ class ParadeDB:
     contains_column_references = False
 
     @overload
-    def __init__(self, __match: Match, *, operator: object = _DEFAULT_OPERATOR) -> None:
+    def __init__(self, __match: Match) -> None:
         """Explicit literal search with required Match operator."""
         ...
 
@@ -943,30 +940,23 @@ class ParadeDB:
         | Term
         | Regex
         | All,
-        *,
-        operator: None = None,
     ) -> None:
         """Query expression (must be sole argument)."""
         ...
 
     @overload
-    def __init__(
-        self, __phrase1: Phrase, *phrases: Phrase, operator: None = None
-    ) -> None:
+    def __init__(self, __phrase1: Phrase, *phrases: Phrase) -> None:
         """Phrase search with one or more Phrase objects."""
         ...
 
     @overload
-    def __init__(
-        self, __prox1: Proximity, *prox: Proximity, operator: None = None
-    ) -> None:
+    def __init__(self, __prox1: Proximity, *prox: Proximity) -> None:
         """Proximity search with a single Proximity object."""
         ...
 
     def __init__(
         self,
-        *terms: str
-        | Match
+        *terms: Match
         | Phrase
         | Proximity
         | Empty
@@ -984,7 +974,6 @@ class ParadeDB:
         | Term
         | Regex
         | All,
-        operator: ParadeOperator | object = _DEFAULT_OPERATOR,
         tokenizer: str | None = None,
         boost: float | None = None,
         const: float | None = None,
@@ -998,17 +987,10 @@ class ParadeDB:
         self._transposition_cost_one = False
         self._boost = boost
         self._const = const
-        self._operator: ParadeOperator = "AND"
 
         if any(isinstance(term, str) for term in self._terms):
             raise TypeError(
                 "Plain string terms are not supported. Use ParadeDB(Match(..., operator=...))."
-            )
-        if operator is None:
-            operator = _DEFAULT_OPERATOR
-        if operator is not _DEFAULT_OPERATOR:
-            raise ValueError(
-                "ParadeDB operator keyword is only supported via Match(..., operator=...)."
             )
 
         if self._tokenizer is not None and any(
@@ -1281,10 +1263,7 @@ class ParadeDB:
                 raise TypeError("ParadeDB terms must be strings.")
             terms.append(term)
 
-        operator = OP_AND
-        if self._operator == "OR":
-            operator = OP_OR
-        return operator, tuple(terms)
+        return OP_AND, tuple(terms)
 
     @staticmethod
     def _quote_term(term: str) -> str:

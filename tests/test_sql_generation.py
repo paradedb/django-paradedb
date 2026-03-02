@@ -132,15 +132,13 @@ class TestExactLiteralDisjunction:
 
     def test_operator_invalid_with_phrase(self) -> None:
         with pytest.raises(
-            ValueError,
-            match=r"ParadeDB operator keyword is only supported via Match\(\.\.\., operator=\.\.\.\)\.",
+            TypeError,
+            match=r"unexpected keyword argument 'operator'",
         ):
             _ = ParadeDB(Phrase("text"), operator="OR")
 
-    def test_operator_none_with_phrase_is_allowed(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(Phrase("text"), operator=None)
-        )
+    def test_phrase_without_operator_is_allowed(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(Phrase("text")))
         assert "### 'text'" in str(queryset.query)
 
     def test_operator_invalid_value(self) -> None:
@@ -152,8 +150,8 @@ class TestExactLiteralDisjunction:
 
     def test_match_and_paradedb_operator_cannot_be_mixed(self) -> None:
         with pytest.raises(
-            ValueError,
-            match=r"ParadeDB operator keyword is only supported via Match\(\.\.\., operator=\.\.\.\)\.",
+            TypeError,
+            match=r"unexpected keyword argument 'operator'",
         ):
             _ = ParadeDB(Match("shoes", operator="OR"), operator="AND")
 
@@ -1661,10 +1659,10 @@ class TestFacets:
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.agg(\'{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}\', false) OVER () AS "facets" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
 
-    def test_facets_requires_paradedb_operator(self) -> None:
-        """facets() raises if no ParadeDB operator is present."""
+    def test_facets_requires_paradedb_search_condition(self) -> None:
+        """facets() raises if no ParadeDB search condition is present."""
         queryset = Product.objects.filter(rating=5).order_by("price")[:5]
-        with pytest.raises(ValueError, match="ParadeDB operator"):
+        with pytest.raises(ValueError, match="ParadeDB search condition"):
             queryset.facets("category")
 
     def test_facets_requires_order_by_and_limit(self) -> None:

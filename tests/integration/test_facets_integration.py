@@ -6,7 +6,7 @@ import pytest
 from django.db import utils as db_utils
 from tests.models import MockItem
 
-from paradedb.search import Match, ParadeDB
+from paradedb.search import Match, ParadeDB, Term
 
 pytestmark = [
     pytest.mark.integration,
@@ -117,3 +117,30 @@ class TestFacetsIntegration:
         assert len(rows) <= 3
         assert "buckets" in facets
         assert facets["buckets"] == []
+
+    def test_facets_agg_with_term_search(self) -> None:
+        """facets(agg=JSON_spec) with Term filter — docs/aggregates/facets.mdx snippet 1."""
+        rows, facets = (
+            MockItem.objects.filter(category=ParadeDB(Term("electronics")))
+            .order_by("-rating")[:3]
+            .facets(agg='{"value_count": {"field": "id"}}')
+        )
+        assert isinstance(rows, list)
+        assert len(rows) <= 3
+        assert isinstance(facets, dict)
+        assert "value" in facets
+        assert facets["value"] > 0
+
+    def test_facets_agg_with_match_search(self) -> None:
+        """facets(agg=JSON_spec) with Match filter — docs/aggregates/facets.mdx snippet 2."""
+        rows, facets = (
+            MockItem.objects.filter(
+                description=ParadeDB(Match("running shoes", operator="OR"))
+            )
+            .order_by("rating")[:5]
+            .facets(agg='{"value_count": {"field": "id"}}')
+        )
+        assert isinstance(rows, list)
+        assert isinstance(facets, dict)
+        assert "value" in facets
+        assert facets["value"] > 0

@@ -508,6 +508,19 @@ class Match:
             raise TypeError("Match tokenizer must be a string.")
 
         _validate_fuzzy_distance(distance)
+        fuzzy_enabled = _is_fuzzy_enabled(
+            distance=distance,
+            prefix=prefix,
+            transposition_cost_one=transposition_cost_one,
+        )
+        if tokenizer is not None and fuzzy_enabled:
+            raise ValueError("Match tokenizer cannot be combined with fuzzy options.")
+        if (
+            len(terms) > 1
+            and fuzzy_enabled
+            and (boost is not None or const is not None)
+        ):
+            raise ValueError("Multi-term fuzzy Match does not support boost or const.")
 
         object.__setattr__(self, "terms", tuple(terms))
         object.__setattr__(self, "operator", operator)
@@ -1008,6 +1021,27 @@ class ParadeDB:
                 rendered = f"{rendered}::pdb.query"
             scored = self._append_scoring(
                 rendered, boost=self._boost, const=self._const
+            )
+            return f"{lhs_sql} {operator} {scored}", []
+
+        # Multi-term with fuzzy: pdb.fuzzy[] (per-element cast) has no matching operator.
+        # Cast the whole ARRAY: ARRAY['term1', 'term2']::pdb.fuzzy(N) is valid.
+        # Use bare quoted terms (not literals, which already have per-element fuzzy applied).
+        if all(isinstance(t, str) for t in terms) and _is_fuzzy_enabled(
+            distance=self._distance,
+            prefix=self._prefix,
+            transposition_cost_one=self._transposition_cost_one,
+        ):
+            bare = [self._quote_term(t) for t in terms if isinstance(t, str)]
+            array_sql = f"ARRAY[{', '.join(bare)}]"
+            array_sql = self._append_fuzzy(
+                array_sql,
+                distance=self._distance,
+                prefix=self._prefix,
+                transposition_cost_one=self._transposition_cost_one,
+            )
+            scored = self._append_scoring(
+                array_sql, boost=self._boost, const=self._const
             )
             return f"{lhs_sql} {operator} {scored}", []
 

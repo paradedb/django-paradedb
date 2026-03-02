@@ -198,20 +198,23 @@ class TestDistanceValidation:
         term = Term("test", distance=1)
         assert term.distance == 1
 
-    def test_match_tokenizer_and_fuzzy_options_allowed(self) -> None:
-        match = Match("test", operator="AND", tokenizer="whitespace", distance=1)
-        assert match.tokenizer == "whitespace"
-        assert match.distance == 1
+    def test_match_tokenizer_and_fuzzy_options_rejected(self) -> None:
+        with pytest.raises(
+            ValueError, match="Match tokenizer cannot be combined with fuzzy options"
+        ):
+            Match("test", operator="AND", tokenizer="whitespace", distance=1)
 
-    def test_match_multi_term_fuzzy_with_boost_allowed(self) -> None:
-        match = Match("a", "b", operator="OR", distance=1, boost=2.0)
-        assert match.boost == 2.0
-        assert match.distance == 1
+    def test_match_multi_term_fuzzy_with_boost_rejected(self) -> None:
+        with pytest.raises(
+            ValueError, match="Multi-term fuzzy Match does not support boost or const"
+        ):
+            Match("a", "b", operator="OR", distance=1, boost=2.0)
 
-    def test_match_multi_term_fuzzy_with_const_allowed(self) -> None:
-        match = Match("a", "b", operator="OR", distance=1, const=1.0)
-        assert match.const == 1.0
-        assert match.distance == 1
+    def test_match_multi_term_fuzzy_with_const_rejected(self) -> None:
+        with pytest.raises(
+            ValueError, match="Multi-term fuzzy Match does not support boost or const"
+        ):
+            Match("a", "b", operator="OR", distance=1, const=1.0)
 
     def test_term_non_string_rejected(self) -> None:
         with pytest.raises(TypeError, match="Term text must be a string"):

@@ -8,6 +8,7 @@ from tests.models import MockItem
 
 from paradedb.functions import Snippet
 from paradedb.search import (
+    All,
     Match,
     MoreLikeThis,
     ParadeDB,
@@ -173,6 +174,25 @@ def test_fuzzy_conjunction() -> None:
     assert 3 in ids
 
 
+def test_fuzzy_multi_term_or() -> None:
+    """Multi-term Match with distance uses ARRAY['t1', 't2']::pdb.fuzzy(N) — docs snippet."""
+    qs = MockItem.objects.filter(
+        description=ParadeDB(Match("runing", "shose", operator="OR", distance=2))
+    )
+    ids = _ids(qs)
+    assert len(ids) > 0
+
+
+def test_fuzzy_multi_term_and() -> None:
+    """Multi-term Match AND with distance uses ARRAY['t1', 't2']::pdb.fuzzy(N)."""
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Match("runing", "shose", operator="AND", distance=2))
+        )
+    )
+    assert len(ids) > 0
+
+
 def test_fuzzy_term_form() -> None:
     ids = _ids(MockItem.objects.filter(description=ParadeDB(Term("shose", distance=2))))
     assert len(ids) > 0
@@ -194,6 +214,36 @@ def test_fuzzy_transposition_cost_one() -> None:
         )
     )
     assert len(ids) > 0
+
+
+def test_fuzzy_multi_term_prefix_and() -> None:
+    """Multi-term Match AND with distance + prefix — docs/full-text/fuzzy.mdx snippet 3."""
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                Match("slee", "rann", operator="AND", distance=1, prefix=True)
+            )
+        )
+    )
+    assert len(ids) > 0
+
+
+def test_all_query() -> None:
+    """All() matches every indexed document — docs/aggregates/overview.mdx snippet 4."""
+    count = MockItem.objects.filter(id=ParadeDB(All())).count()
+    assert count > 0
+
+
+def test_filter_category_in_with_paradedb() -> None:
+    """Term search with category__in filter — docs/filtering.mdx snippet 3."""
+    rows = list(
+        MockItem.objects.filter(
+            description=ParadeDB(Term("shoes")),
+            category__in=["Footwear", "Apparel"],
+        ).values("description", "rating", "category")
+    )
+    for row in rows:
+        assert row["category"] in ("Footwear", "Apparel")
 
 
 def test_tokenizer_override_match() -> None:
@@ -375,35 +425,37 @@ def test_const_multi_term_or_query() -> None:
     assert len(ids) > 0
 
 
-def test_match_tokenizer_and_distance_error_deferred_to_database() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="whitespace",
-                distance=1,
-            )
+def test_match_tokenizer_and_distance_rejected() -> None:
+    with pytest.raises(
+        ValueError, match="Match tokenizer cannot be combined with fuzzy options"
+    ):
+        Match(
+            "running shoes",
+            operator="AND",
+            tokenizer="whitespace",
+            distance=1,
         )
-    )
-    with pytest.raises(DatabaseError):
-        list(queryset)
 
 
-def test_multi_term_fuzzy_boost_error_deferred_to_database() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("a", "b", operator="OR", distance=1, boost=2.0))
-    )
-    with pytest.raises(DatabaseError):
-        list(queryset)
+def test_multi_term_fuzzy_tokenizer_rejected() -> None:
+    with pytest.raises(
+        ValueError, match="Match tokenizer cannot be combined with fuzzy options"
+    ):
+        Match("a", "b", operator="OR", tokenizer="whitespace", distance=1)
 
 
-def test_multi_term_fuzzy_const_error_deferred_to_database() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("a", "b", operator="OR", distance=1, const=1.0))
-    )
-    with pytest.raises(DatabaseError):
-        list(queryset)
+def test_multi_term_fuzzy_boost_rejected() -> None:
+    with pytest.raises(
+        ValueError, match="Multi-term fuzzy Match does not support boost or const"
+    ):
+        Match("a", "b", operator="OR", distance=1, boost=2.0)
+
+
+def test_multi_term_fuzzy_const_rejected() -> None:
+    with pytest.raises(
+        ValueError, match="Multi-term fuzzy Match does not support boost or const"
+    ):
+        Match("a", "b", operator="OR", distance=1, const=1.0)
 
 
 def test_boost_and_const_error_deferred_to_database() -> None:

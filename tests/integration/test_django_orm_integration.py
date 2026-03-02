@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import pytest
 from django.db.models import F, Q, Window
-from django.db.models.functions import RowNumber
+from django.db.models.functions import Lower, RowNumber
 from tests.models import MockItem
 
 from paradedb.functions import Score
-from paradedb.search import Match, ParadeDB, Phrase
+from paradedb.search import Match, ParadeDB, Phrase, Regex, Term
 
 pytestmark = [
     pytest.mark.integration,
@@ -389,3 +389,105 @@ class TestPhraseSearchIntegration:
         )
         for item in queryset:
             assert item.in_stock is True
+
+
+class TestTopNOrdering:
+    """Top N ordering patterns from docs/sorting/topn.mdx."""
+
+    def test_topn_tiebreaker_ordering(self) -> None:
+        """order_by('rating', 'id') tiebreaker — docs/sorting/topn.mdx snippet 2."""
+        rows = list(
+            MockItem.objects.filter(
+                description=ParadeDB(Match("running shoes", operator="OR"))
+            )
+            .order_by("rating", "id")
+            .values("description", "rating", "category")[:5]
+        )
+        assert len(rows) > 0
+        ratings = [r["rating"] for r in rows]
+        assert ratings == sorted(ratings)
+
+    def test_topn_lower_function_sort(self) -> None:
+        """order_by(Lower('description')) — docs/sorting/topn.mdx snippet 3."""
+        rows = list(
+            MockItem.objects.filter(
+                description=ParadeDB(Match("sleek running shoes", operator="OR"))
+            )
+            .order_by(Lower("description"))
+            .values("description", "rating", "category")[:5]
+        )
+        assert len(rows) > 0
+        descs = [r["description"].lower() for r in rows]
+        assert descs == sorted(descs)
+
+
+class TestBoostAndConstScoring:
+    """Boost and const scoring patterns from docs/sorting/boost.mdx."""
+
+    def test_boost_q_or_with_score_ordering(self) -> None:
+        """Q|Q with boost on one side + Score ordering — docs/sorting/boost.mdx snippet 1."""
+        rows = list(
+            MockItem.objects.filter(
+                Q(description=ParadeDB(Match("shoes", operator="OR", boost=2)))
+                | Q(category=ParadeDB(Match("footwear", operator="OR")))
+            )
+            .annotate(score=Score())
+            .values("id", "score", "description", "category")
+            .order_by("-score")[:5]
+        )
+        assert len(rows) > 0
+        scores = [r["score"] for r in rows]
+        assert scores == sorted(scores, reverse=True)
+
+    def test_boost_regex_with_score_ordering(self) -> None:
+        """Regex + boost + Score ordering — docs/sorting/boost.mdx snippet 2."""
+        rows = list(
+            MockItem.objects.filter(description=ParadeDB(Regex("key.*", boost=2)))
+            .annotate(score=Score())
+            .values("id", "description", "category", "score")
+            .order_by("-score")[:5]
+        )
+        assert len(rows) > 0
+
+    def test_boost_fuzzy_term_with_score_ordering(self) -> None:
+        """Term with fuzzy distance + boost + Score ordering — docs/sorting/boost.mdx snippet 3."""
+        rows = list(
+            MockItem.objects.filter(
+                description=ParadeDB(Term("shose", distance=2, boost=2))
+            )
+            .annotate(score=Score())
+            .values("id", "description", "category", "score")
+            .order_by("-score")[:5]
+        )
+        assert len(rows) > 0
+
+    def test_const_score_with_match(self) -> None:
+        """Match + const=1 + Score ordering — docs/sorting/boost.mdx snippet 4."""
+        rows = list(
+            MockItem.objects.filter(
+                description=ParadeDB(Match("shoes", operator="OR", const=1))
+            )
+            .annotate(score=Score())
+            .values("id", "score", "description", "category")
+            .order_by("-score")[:5]
+        )
+        assert len(rows) > 0
+        scores = [r["score"] for r in rows]
+        assert all(s == pytest.approx(1.0) for s in scores)
+
+
+class TestScoreWithQCombinations:
+    """Score annotation with Q object combinations — docs/sorting/score.mdx."""
+
+    def test_score_q_or_with_standard_filter(self) -> None:
+        """Q(ParadeDB) | Q(rating__lt=2) with Score ordering — docs/sorting/score.mdx snippet 2."""
+        rows = list(
+            MockItem.objects.filter(
+                Q(description=ParadeDB(Match("keyboard", operator="OR")))
+                | Q(rating__lt=2)
+            )
+            .annotate(score=Score())
+            .values("id", "score")
+            .order_by("score")[:5]
+        )
+        assert len(rows) > 0

@@ -13,7 +13,7 @@ from paradedb.functions import (
     paradedb_verify_all_indexes,
     paradedb_verify_index,
 )
-from paradedb.indexes import BM25Index
+from paradedb.indexes import BM25Index, IndexExpression
 from paradedb.queryset import ParadeDBManager, ParadeDBQuerySet
 from paradedb.search import (
     All,
@@ -49,6 +49,7 @@ __all__ = [
     "Empty",
     "Exists",
     "FuzzyTerm",
+    "IndexExpression",
     "Match",
     "MoreLikeThis",
     "ParadeDB",

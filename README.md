@@ -83,6 +83,47 @@ python manage.py makemigrations
 python manage.py migrate
 ```
 
+### Index Computed Expressions
+
+You can index computed expressions using `IndexExpression`. This allows indexing
+transformed values or combinations of fields:
+
+```python
+from django.db.models import F
+from django.db.models.functions import Lower
+from paradedb.indexes import BM25Index, IndexExpression
+
+class Article(models.Model):
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+    views = models.IntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            BM25Index(
+                fields={"id": {}, "title": {}, "body": {}},
+                expressions=[
+                    # Text expression with tokenizer
+                    IndexExpression(
+                        Lower("title"),
+                        alias="title_lower",
+                        tokenizer="simple",
+                    ),
+                    # Non-text expression with pdb.alias
+                    IndexExpression(
+                        F("views"),
+                        alias="views_indexed",
+                    ),
+                ],
+                key_field="id",
+                name="article_search_idx",
+            ),
+        ]
+```
+
+For text expressions, specify a tokenizer. For non-text expressions (integers,
+timestamps, etc.), omit the tokenizer to use `pdb.alias`.
+
 ### Generate Test Data
 
 To demonstrate search, we need to populate the table we just created.

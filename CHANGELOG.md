@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+### Added
+
+- `IndexExpression` class for indexing computed expressions in `BM25Index`.
+  Supports Django expressions (e.g., `Lower('title')`, `F('rating') + 1`) with
+  optional tokenizer configuration. For non-text expressions, uses `pdb.alias`.
+
 ## [0.3.0] - 2026-02-19
 
 ### Added

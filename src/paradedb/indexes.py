@@ -115,6 +115,25 @@ def _inline_compiled_params(
     return rendered_sql
 
 
+def _requires_expression_tokenizer(output_field: models.Field | None) -> bool:
+    if output_field is None:
+        return False
+    return isinstance(
+        output_field, (models.CharField, models.TextField, models.JSONField)
+    )
+
+
+def _expression_uses_text_or_json_sources(expression: Expression) -> bool:
+    if _requires_expression_tokenizer(getattr(expression, "output_field", None)):
+        return True
+
+    for source in expression.get_source_expressions():
+        if source is not None and _expression_uses_text_or_json_sources(source):
+            return True
+
+    return False
+
+
 @deconstructible(path="paradedb.indexes.IndexExpression")
 @dataclass
 class IndexExpression:
@@ -155,11 +174,6 @@ class IndexExpression:
                 IndexExpression(
                     F("rating") + 1,
                     alias="rating_plus_one",
-                ),
-                # JSON path expression
-                IndexExpression(
-                    F("metadata__word_count"),
-                    alias="word_count",
                 ),
             ],
             key_field="id",
@@ -346,6 +360,13 @@ class BM25Index(models.Index):
 
         # Resolve and compile the expression
         resolved = expr.resolve_expression(query, allow_joins=False, for_save=False)
+        if idx_expr.tokenizer is None and _expression_uses_text_or_json_sources(
+            resolved
+        ):
+            raise ValueError(
+                f"IndexExpression with alias {idx_expr.alias!r} uses a text or "
+                f"JSON source. Specify a tokenizer for text/JSON expressions."
+            )
         expr_sql, params = compiler.compile(resolved)
         expr_sql = _inline_compiled_params(expr_sql, params, schema_editor)
 

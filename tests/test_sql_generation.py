@@ -1556,7 +1556,7 @@ class TestBM25Index:
         )
 
     def test_index_expression_with_json_path_reference(self) -> None:
-        """IndexExpression with JSON path transform inlines compiled params."""
+        """JSON path expressions require a tokenizer on the source expression."""
         index = BM25Index(
             fields={"id": {}},
             expressions=[
@@ -1569,11 +1569,8 @@ class TestBM25Index:
             name="product_search_idx",
         )
         schema_editor = DummySchemaEditor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
-        assert (
-            sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((("tests_product"."metadata" -> \'word_count\'))::pdb.alias(\'word_count\'))\n)\nWITH (key_field=\'id\')'
-        )
+        with pytest.raises(ValueError, match="uses a text or JSON source"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
 
     def test_index_expression_with_string_field_reference(self) -> None:
         """IndexExpression with string field reference (converted to F())."""

@@ -9,9 +9,10 @@ from django.contrib.postgres.operations import (
 )
 from django.db import connection, migrations, models
 from django.db.migrations.state import ProjectState
-from django.db.models import Q
+from django.db.models import F, Q
+from django.db.models.functions import Lower
 
-from paradedb.indexes import BM25Index
+from paradedb.indexes import BM25Index, IndexExpression
 
 pytestmark = [
     pytest.mark.integration,
@@ -194,6 +195,99 @@ def test_apply_and_unapply_create_model_migration(
             with connection.schema_editor(atomic=True) as editor:
                 create_model.database_backwards(app_label, editor, to_state, from_state)
             # Schema editor commits on exit
+        else:
+            _drop_table_if_exists(table_name)
+            connection.commit()
+        assert not _table_exists(table_name)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_create_model_migration_with_index_expressions() -> None:
+    """CreateModel supports BM25 indexes with computed IndexExpression entries."""
+    app_label = "migtests"
+    table_name = "migtests_items_index_expression"
+    index_name = "migtests_items_index_expression_bm25_idx"
+
+    _drop_table_if_exists(table_name)
+    connection.commit()
+
+    create_model = migrations.CreateModel(
+        name="MigratedItemIndexExpression",
+        fields=[
+            ("id", models.AutoField(primary_key=True)),
+            ("title", models.TextField()),
+            ("rating", models.IntegerField(default=0)),
+            ("metadata", models.JSONField(default=dict)),
+        ],
+        options={
+            "db_table": table_name,
+            "indexes": [
+                BM25Index(
+                    fields={
+                        "id": {},
+                        "title": {"tokenizer": "unicode_words"},
+                        "rating": {},
+                        "metadata": {},
+                    },
+                    expressions=[
+                        IndexExpression(
+                            Lower("title"),
+                            alias="title_lower",
+                            tokenizer="simple",
+                        ),
+                        IndexExpression(
+                            F("rating") + 1,
+                            alias="rating_plus_one",
+                        ),
+                    ],
+                    key_field="id",
+                    name=index_name,
+                )
+            ],
+        },
+    )
+
+    from_state = ProjectState()
+    to_state = from_state.clone()
+    create_model.state_forwards(app_label, to_state)
+
+    forward_applied = False
+    with connection.schema_editor(atomic=True) as editor:
+        create_model.database_forwards(app_label, editor, from_state, to_state)
+        forward_applied = True
+
+    try:
+        assert _table_exists(table_name)
+        index_def = _fetch_index_definition(table_name, index_name)
+        assert index_def is not None, "Index was not created"
+        normalized_index_def = index_def.lower().replace('"', "").replace(" ", "")
+        assert "usingbm25" in normalized_index_def
+        assert "lower(title)" in normalized_index_def, index_def
+        assert "alias=title_lower" in normalized_index_def, index_def
+        assert "rating+1" in normalized_index_def, index_def
+        assert "rating_plus_one" in normalized_index_def, index_def
+        quoted_table = connection.ops.quote_name(table_name)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"INSERT INTO {quoted_table} (title, rating, metadata) VALUES "
+                f"('MiXeD Case Title', 4, '{{\"word_count\": 12}}'::jsonb), "
+                f"('another record', 2, '{{\"word_count\": 3}}'::jsonb), "
+                f"('third row', 9, '{{\"word_count\": 8}}'::jsonb);"
+            )
+            cursor.execute(
+                f"SELECT COUNT(*) FROM {quoted_table} "
+                f"WHERE ((LOWER(title))::pdb.alias('title_lower')) &&& 'mixed';"
+            )
+            (match_count,) = cursor.fetchone()
+        connection.commit()
+
+        assert match_count == 1
+        assert _verify_index_usage(table_name, index_name)
+
+    finally:
+        if forward_applied and _table_exists(table_name):
+            with connection.schema_editor(atomic=True) as editor:
+                create_model.database_backwards(app_label, editor, to_state, from_state)
         else:
             _drop_table_if_exists(table_name)
             connection.commit()

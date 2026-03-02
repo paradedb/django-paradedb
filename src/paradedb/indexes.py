@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from django.db import models
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
@@ -115,7 +115,7 @@ def _inline_compiled_params(
     return rendered_sql
 
 
-def _requires_expression_tokenizer(output_field: models.Field | None) -> bool:
+def _requires_expression_tokenizer(output_field: models.Field[Any, Any] | None) -> bool:
     if output_field is None:
         return False
     return isinstance(
@@ -344,13 +344,15 @@ class BM25Index(models.Index):
         schema_editor: BaseDatabaseSchemaEditor,
     ) -> str:
         """Build SQL for a computed expression with pdb.alias or tokenizer cast."""
-        expr = idx_expr.expression
+        raw_expr = idx_expr.expression
 
         # Handle string field references as F() expressions
-        if isinstance(expr, str):
+        if isinstance(raw_expr, str):
             from django.db.models import F
 
-            expr = F(expr)
+            expr = cast(Expression, F(raw_expr))
+        else:
+            expr = raw_expr
 
         # Compile the expression to SQL
         from django.db.models.sql import Query

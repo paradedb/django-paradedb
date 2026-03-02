@@ -46,7 +46,7 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: .venv/bin/python -m mypy --config-file=pyproject.toml src/paradedb
+        entry: uv run mypy --config-file=pyproject.toml src/paradedb
         language: system
         types: [python]
         pass_filenames: false
@@ -55,7 +55,7 @@ repos:
     hooks:
       - id: pytest
         name: pytest
-        entry: .venv/bin/python -m pytest -m "not integration"
+        entry: uv run pytest -m "not integration"
         language: system
         pass_filenames: false
         stages: [pre-push]

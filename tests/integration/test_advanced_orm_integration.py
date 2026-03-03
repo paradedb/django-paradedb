@@ -108,7 +108,6 @@ class TestComplexQComposition:
 
     def test_not_or_composition(self) -> None:
         """NOT (A OR B) - exclude multiple terms."""
-        all_items = _ids(MockItem.objects.all())
         excluded = _ids(
             MockItem.objects.filter(
                 ~(
@@ -117,13 +116,7 @@ class TestComplexQComposition:
                 )
             )
         )
-        shoes_keyboard = _ids(
-            MockItem.objects.filter(
-                Q(description=ParadeDB(Match("shoes", operator="AND")))
-                | Q(description=ParadeDB(Match("keyboard", operator="AND")))
-            )
-        )
-        assert excluded == all_items - shoes_keyboard
+        assert excluded == set(range(6, 42))
 
 
 class TestParadeDBWithStandardFilters:
@@ -482,17 +475,7 @@ class TestEdgeCasesRealDB:
             | Q(description=ParadeDB(Match("keyboard", operator="AND")))
         )
         ids = _ids(queryset)
-        shoes_ids = _ids(
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
-        )
-        keyboard_ids = _ids(
-            MockItem.objects.filter(
-                description=ParadeDB(Match("keyboard", operator="AND"))
-            )
-        )
-        assert ids == shoes_ids | keyboard_ids
+        assert ids == {1, 2, 3, 4, 5}
 
     def test_filter_after_annotation(self) -> None:
         """Filter applied after annotation works correctly."""

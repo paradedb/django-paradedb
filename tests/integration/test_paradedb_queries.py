@@ -106,35 +106,25 @@ def test_proximity_ordered() -> None:
 
 
 def test_proximity_with_boost() -> None:
-    baseline_ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Proximity("sleek running", distance=2, ordered=True))
-        )
-    )
-    boosted_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(
                 Proximity("sleek running", distance=2, ordered=True, boost=2.0)
             )
         )
     )
-    assert boosted_ids == baseline_ids
+    assert ids == {3}
 
 
 def test_proximity_with_const() -> None:
-    baseline_ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Proximity("sleek running", distance=2, ordered=True))
-        )
-    )
-    const_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(
                 Proximity("sleek running", distance=2, ordered=True, const=1.0)
             )
         )
     )
-    assert const_ids == baseline_ids
+    assert ids == {3}
 
 
 def test_proximity_regex_query() -> None:
@@ -436,15 +426,12 @@ def test_phrase_tokenizer_invalid_identifier() -> None:
 
 
 def test_boost_does_not_change_result_set() -> None:
-    baseline_ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(Match("shoes", operator="AND")))
-    )
-    boosted_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(Match("shoes", operator="AND", boost=2.0))
         )
     )
-    assert boosted_ids == baseline_ids
+    assert ids == {3, 4, 5}
 
 
 def test_boost_with_fuzzy_integration() -> None:
@@ -459,72 +446,51 @@ def test_boost_with_fuzzy_integration() -> None:
 
 
 def test_const_with_fuzzy_integration() -> None:
-    baseline_ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("shose", operator="OR", distance=2))
-        )
-    )
-    const_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(Match("shose", operator="OR", distance=2, const=1.0))
         )
     )
-    assert const_ids == baseline_ids
+    assert ids == {3, 4, 5}
 
 
 def test_const_with_phrase_slop_integration() -> None:
     # Verifies pdb.slop::pdb.query::pdb.const executes (previously failed with
     # "cannot cast type pdb.slop to pdb.const").
-    baseline_ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(Phrase("running shoes", slop=2)))
-    )
-    const_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(Phrase("running shoes", slop=2, const=1.0))
         )
     )
-    assert const_ids == baseline_ids
+    assert ids == {3}
 
 
 def test_const_does_not_change_result_set() -> None:
-    baseline_ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(Match("shoes", operator="AND")))
-    )
-    const_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(Match("shoes", operator="AND", const=1.0))
         )
     )
-    assert const_ids == baseline_ids
+    assert ids == {3, 4, 5}
 
 
 def test_boost_multi_term_or_query() -> None:
     # Verifies ARRAY['shoes', 'boots']::pdb.boost(2.0) is valid SQL and executes.
-    baseline_ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", "boots", operator="OR"))
-        )
-    )
-    boosted_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(Match("shoes", "boots", operator="OR", boost=2.0))
         )
     )
-    assert boosted_ids == baseline_ids
+    assert ids == {3, 4, 5, 13}
 
 
 def test_const_multi_term_or_query() -> None:
-    baseline_ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", "boots", operator="OR"))
-        )
-    )
-    const_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(Match("shoes", "boots", operator="OR", const=1.5))
         )
     )
-    assert const_ids == baseline_ids
+    assert ids == {3, 4, 5, 13}
 
 
 def test_match_tokenizer_and_distance_rejected() -> None:
@@ -604,39 +570,30 @@ def test_phrase_prefix_query() -> None:
 
 
 def test_phrase_prefix_with_max_expansion() -> None:
-    baseline_ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(PhrasePrefix("running", "sh")))
-    )
-    expanded_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(PhrasePrefix("running", "sh", max_expansion=100))
         )
     )
-    assert expanded_ids == baseline_ids
+    assert ids == {3}
 
 
 def test_phrase_prefix_with_boost() -> None:
-    baseline_ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(PhrasePrefix("running", "sh")))
-    )
-    boosted_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(PhrasePrefix("running", "sh", boost=2.0))
         )
     )
-    assert boosted_ids == baseline_ids
+    assert ids == {3}
 
 
 def test_phrase_prefix_with_const() -> None:
-    baseline_ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(PhrasePrefix("running", "sh")))
-    )
-    const_ids = _ids(
+    ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(PhrasePrefix("running", "sh", const=1.0))
         )
     )
-    assert const_ids == baseline_ids
+    assert ids == {3}
 
 
 def test_regex_phrase_query() -> None:
@@ -880,7 +837,6 @@ def test_more_like_this_with_word_length() -> None:
 
 def test_more_like_this_stopwords_reversible() -> None:
     """Verify stopwords effect is consistent and reversible."""
-    # First query with stopwords
     ids_with = _ids(
         MockItem.objects.filter(
             MoreLikeThis(
@@ -891,7 +847,6 @@ def test_more_like_this_stopwords_reversible() -> None:
         )
     )
 
-    # Second query without stopwords (baseline)
     ids_without = _ids(
         MockItem.objects.filter(
             MoreLikeThis(
@@ -901,29 +856,8 @@ def test_more_like_this_stopwords_reversible() -> None:
         )
     )
 
-    # Third query with same stopwords again - should be consistent
-    ids_with_again = _ids(
-        MockItem.objects.filter(
-            MoreLikeThis(
-                product_id=3,
-                fields=["description"],
-                stopwords=["shoes"],
-            )
-        )
-    )
-
-    # Stopwords should produce consistent results (deterministic)
-    assert ids_with == ids_with_again, "Same stopwords should produce same results"
-
-    # With "shoes" as stopword, we should have fewer or equal matches
-    # (excluding the main matching term reduces similarity matches)
-    assert len(ids_with) <= len(ids_without), (
-        "Stopwords should not increase match count"
-    )
-
-    # Source item always included regardless of stopwords
-    assert 3 in ids_with
-    assert 3 in ids_without
+    assert ids_with == {3}
+    assert ids_without == {3, 4, 5}
 
 
 def test_metadata_color_literal_search() -> None:

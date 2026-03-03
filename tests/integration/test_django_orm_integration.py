@@ -83,19 +83,20 @@ class TestQObjectIntegration:
         rhs_q = Q(
             description=ParadeDB(Match("wireless", "keyboard", operator=rhs_operator))
         )
-
-        lhs_ids = _ids(MockItem.objects.filter(lhs_q))
-        rhs_ids = _ids(MockItem.objects.filter(rhs_q))
-
-        if combiner == "AND":
-            combined_q = lhs_q & rhs_q
-            expected = lhs_ids & rhs_ids
-        else:
-            combined_q = lhs_q | rhs_q
-            expected = lhs_ids | rhs_ids
+        expected_ids = {
+            ("AND", "AND", "AND"): set(),
+            ("AND", "AND", "OR"): {3},
+            ("AND", "OR", "AND"): set(),
+            ("AND", "OR", "OR"): {1, 2, 3, 12},
+            ("OR", "AND", "AND"): set(),
+            ("OR", "AND", "OR"): {3, 4, 5},
+            ("OR", "OR", "AND"): set(),
+            ("OR", "OR", "OR"): {1, 2, 3, 4, 5, 12},
+        }
+        combined_q = lhs_q & rhs_q if combiner == "AND" else lhs_q | rhs_q
 
         actual = _ids(MockItem.objects.filter(combined_q))
-        assert actual == expected
+        assert actual == expected_ids[(lhs_operator, rhs_operator, combiner)]
 
     def test_same_column_nested_grouped_boolean(self) -> None:
         """Grouped mixed boolean logic can reuse the same field with multiple Match clauses."""
@@ -106,13 +107,6 @@ class TestQObjectIntegration:
         boots = Q(description=ParadeDB(Match("boots", operator="AND")))
 
         actual = _ids(MockItem.objects.filter((running_or_wireless & shoes) | boots))
-
-        expected = (
-            _ids(MockItem.objects.filter(running_or_wireless))
-            & _ids(MockItem.objects.filter(shoes))
-        ) | _ids(MockItem.objects.filter(boots))
-
-        assert actual == expected
         assert actual == {3, 13}
 
 
@@ -138,17 +132,12 @@ class TestNegationIntegration:
 
     def test_double_negation(self) -> None:
         """Double negation ~~Q should equal original."""
-        direct = _ids(
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
-        )
-        double_neg = _ids(
+        ids = _ids(
             MockItem.objects.filter(
                 ~~Q(description=ParadeDB(Match("shoes", operator="AND")))
             )
         )
-        assert direct == double_neg
+        assert ids == {3, 4, 5}
 
 
 class TestStandardFiltersIntegration:
@@ -375,11 +364,7 @@ class TestPhraseSearchIntegration:
                 Q(description=ParadeDB(Phrase("running shoes"))) | Q(rating=5)
             )
         )
-        phrase_ids = _ids(
-            MockItem.objects.filter(description=ParadeDB(Phrase("running shoes")))
-        )
-        rating_ids = _ids(MockItem.objects.filter(rating=5))
-        assert ids == phrase_ids | rating_ids
+        assert ids == {3, 6, 11, 12, 18, 21, 24, 28, 29, 33, 36, 39}
 
     def test_phrase_with_slop_and_filter(self) -> None:
         """Phrase with slop combined with standard filter."""

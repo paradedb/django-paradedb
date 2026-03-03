@@ -84,8 +84,8 @@ All notable changes to this project will be documented in this file. The format 
 
 - `BM25Index` for declarative BM25 index creation in Django models
 - `ParadeDB` lookup wrapper with `&&&`, `|||`, `###` operators
-- `PQ` query object for boolean composition (AND/OR)
-- Search expressions: `Phrase`, `Fuzzy`, `Parse`, `Term`, `Regex`, `All`
+- Boolean composition support via Django `Q` objects
+- Search expressions: `Phrase`, `FuzzyTerm`, `Parse`, `Term`, `Regex`, `All`
 - `MoreLikeThis` query filter for similarity search
 - `Score` annotation for BM25 relevance scores
 - `Snippet` annotation for highlighted text excerpts

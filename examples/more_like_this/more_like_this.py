@@ -13,10 +13,10 @@ Use cases:
 import sys
 from pathlib import Path
 
-# Add parent directory to path for importing common utilities
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import MockItem, setup_mock_items
+from django.db.utils import DatabaseError
 
 from paradedb.functions import Score
 from paradedb.search import MoreLikeThis
@@ -220,8 +220,9 @@ def demo_multifield_similarity() -> None:
         ).exclude(id=source_id)[:3]
         for item in by_both:
             print(f"  {item.id}: {item.description[:40]}... [{item.category}]")
-    except Exception:
+    except DatabaseError as exc:
         print("  (Skipped: category field may not be stored in BM25 index)")
+        print(f"  Database error: {exc}")
         print("  Note: Only 'description' is stored by default in mock_items")
 
 

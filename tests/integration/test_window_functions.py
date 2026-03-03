@@ -36,6 +36,9 @@ class TestRowNumberWindow:
 
     def test_row_number_no_partition(self) -> None:
         """ROW_NUMBER() OVER (ORDER BY score DESC)."""
+        expected_count = MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", operator="AND"))
+        ).count()
         queryset = (
             MockItem.objects.filter(
                 description=ParadeDB(Match("shoes", operator="AND"))
@@ -50,7 +53,8 @@ class TestRowNumberWindow:
             .order_by("row_num")
         )
         results = list(queryset)
-        assert len(results) > 0
+        assert len(results) == expected_count
+        assert expected_count > 0
         for i, item in enumerate(results, start=1):
             assert item.row_num == i
 

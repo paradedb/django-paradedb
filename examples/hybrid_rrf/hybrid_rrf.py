@@ -12,7 +12,7 @@ Reference: https://www.paradedb.com/blog/hybrid-search-in-postgresql-the-missing
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import MockItemWithEmbedding as MockItem
 from django.db.models import F, FloatField, Sum, Window
 from django.db.models.expressions import ExpressionWrapper, Value
@@ -30,9 +30,9 @@ if MockItem is None:
     )
 
 
-def get_query_embedding(text: str) -> str:
-    """Get pre-computed embedding for query text, returned as a string."""
-    sys.path.insert(0, str(Path(__file__).parent))
+def get_query_embedding(text: str) -> list[float]:
+    """Get pre-computed embedding for query text."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     from setup import QUERY_EMBEDDINGS
 
     return QUERY_EMBEDDINGS[text]
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     print("\nSingle-query CTE: BM25 (keyword) + Vector (semantic)")
     print("RRF formula: score = sum(1 / (k + rank)) across all rankings")
 
-    sys.path.insert(0, str(Path(__file__).parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     from setup import setup
 
     setup()

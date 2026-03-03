@@ -8,16 +8,10 @@ query using the ParadeDBQuerySet.facets() helper (Top-N rows + buckets).
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import MockItem, setup_mock_items
 
 from paradedb.search import Match, ParadeDB
-
-try:
-    from paradedb.queryset import ParadeDBQuerySet
-except Exception:  # pragma: no cover - runtime fallback for type checking
-    ParadeDBQuerySet = None  # type: ignore[assignment]
 
 
 def demo_facets_with_rows(query: str) -> None:

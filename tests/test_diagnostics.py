@@ -181,6 +181,31 @@ def test_paradedb_verify_index_all_options_sql() -> None:
     assert kwargs == {"using": "search"}
 
 
+@pytest.mark.parametrize("sample_rate", [-0.1, 1.1])
+def test_paradedb_verify_index_rejects_invalid_sample_rate(sample_rate: float) -> None:
+    with (
+        patch.object(
+            paradedb_functions, "_execute_table_function", return_value=[]
+        ) as mocked,
+        pytest.raises(ValueError, match=r"sample_rate must be between 0\.0 and 1\.0"),
+    ):
+        paradedb_verify_index("search_idx", sample_rate=sample_rate)
+    mocked.assert_not_called()
+
+
+def test_paradedb_verify_index_rejects_boolean_sample_rate() -> None:
+    with (
+        patch.object(
+            paradedb_functions, "_execute_table_function", return_value=[]
+        ) as mocked,
+        pytest.raises(
+            TypeError, match=r"sample_rate must be a float between 0\.0 and 1\.0"
+        ),
+    ):
+        paradedb_verify_index("search_idx", sample_rate=True)  # type: ignore[arg-type]
+    mocked.assert_not_called()
+
+
 def test_paradedb_verify_all_indexes_minimal_sql() -> None:
     with patch.object(
         paradedb_functions, "_execute_table_function", return_value=[]
@@ -221,6 +246,33 @@ def test_paradedb_verify_all_indexes_all_options_sql() -> None:
     )
     assert params == ["public", "%bm25%", True, 0.1, True, True]
     assert kwargs == {"using": "search"}
+
+
+@pytest.mark.parametrize("sample_rate", [-0.1, 1.1])
+def test_paradedb_verify_all_indexes_rejects_invalid_sample_rate(
+    sample_rate: float,
+) -> None:
+    with (
+        patch.object(
+            paradedb_functions, "_execute_table_function", return_value=[]
+        ) as mocked,
+        pytest.raises(ValueError, match=r"sample_rate must be between 0\.0 and 1\.0"),
+    ):
+        paradedb_verify_all_indexes(sample_rate=sample_rate)
+    mocked.assert_not_called()
+
+
+def test_paradedb_verify_all_indexes_rejects_boolean_sample_rate() -> None:
+    with (
+        patch.object(
+            paradedb_functions, "_execute_table_function", return_value=[]
+        ) as mocked,
+        pytest.raises(
+            TypeError, match=r"sample_rate must be a float between 0\.0 and 1\.0"
+        ),
+    ):
+        paradedb_verify_all_indexes(sample_rate=True)  # type: ignore[arg-type]
+    mocked.assert_not_called()
 
 
 def test_paradedb_indexes_command_parser_and_handle() -> None:

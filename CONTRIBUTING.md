@@ -10,7 +10,7 @@ Before submitting a pull request, please review this document, which outlines wh
 
 All external contributions should be associated with a GitHub issue. If there is no open issue for the bug or feature that you'd like to work on, please open one first. When selecting an issue to work on, we recommend focusing on issues labeled `good first issue`.
 
-Ideal issues for external contributors include well-scoped, individual features as those are less likely to conflict with our general development process. We welcome small documentation contributions that accompany a feature, correct wrong information or fix typos, but will not accept "general improvement" documentation PRs.
+Ideal issues for external contributors include well-scoped, individual features as those are less likely to conflict with our general development process. We welcome documentation contributions that accompany a feature, correct wrong information, improve clarity, or fix typos.
 
 ### Claiming GitHub Issues
 

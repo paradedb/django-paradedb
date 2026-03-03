@@ -85,6 +85,25 @@ def check_type(schema: str, qualified_name: str) -> bool:
     return bool(re.search(pattern, schema, re.IGNORECASE))
 
 
+def normalize_ignored_symbols(ignored: dict, kind: str) -> set[str]:
+    """Return ignored symbols for a kind from list- or grouped-dict layouts."""
+    raw_value = ignored.get(kind, [])
+    if isinstance(raw_value, list):
+        return set(raw_value)
+    if isinstance(raw_value, dict):
+        normalized: set[str] = set()
+        for group_name, symbols in raw_value.items():
+            if not isinstance(group_name, str):
+                raise ValueError(f"Ignore group key for {kind!r} must be a string.")
+            if not isinstance(symbols, list):
+                raise ValueError(
+                    f"Ignore group {group_name!r} for {kind!r} must be a list."
+                )
+            normalized.update(symbols)
+        return normalized
+    raise ValueError(f"apiignore section {kind!r} must be a list or object.")
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print(f"Usage: {sys.argv[0]} <schema.sql> <api.json>", file=sys.stderr)
@@ -143,7 +162,7 @@ def main() -> int:
     uncovered: list[tuple[str, str]] = []
     for kind in ("functions", "operators", "types"):
         api_set = set(deps.get(kind, []))
-        ignore_set = set(ignored.get(kind, []))
+        ignore_set = normalize_ignored_symbols(ignored, kind)
         for sym in schema_symbols.get(kind, []):
             if sym not in api_set and sym not in ignore_set:
                 uncovered.append((kind, sym))

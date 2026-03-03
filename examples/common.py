@@ -50,7 +50,7 @@ def configure_django() -> None:
         }
 
     settings.configure(
-        DEBUG=True,
+        DEBUG=os.environ.get("DJANGO_DEBUG", "0") == "1",
         DATABASES={"default": database_settings},
         INSTALLED_APPS=["django.contrib.contenttypes"],
         DEFAULT_AUTO_FIELD="django.db.models.BigAutoField",
@@ -79,7 +79,8 @@ def setup_mock_items() -> int:
     return MockItem.objects.count()
 
 
-# Initialize Django when this module is imported
+# Examples are standalone scripts, so this module intentionally configures Django
+# at import time to keep per-example boilerplate minimal.
 configure_django()
 
 # Import models after Django is configured

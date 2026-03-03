@@ -92,13 +92,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          npm install semver
-          LATEST=$(gh release list --jq '.[] | select(.isLatest == true) | .name' --json=name,isLatest | sed 's/^v//' || echo "0.0.0")
-          if npx semver -r ">${LATEST:-0.0.0}" "$VERSION"; then
-            echo "is_latest=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_latest=false" >> $GITHUB_OUTPUT
-          fi
+          LATEST=$(gh release list --json=tagName,isLatest --jq '.[] | select(.isLatest == true) | .tagName' | sed 's/^v//' || true)
+          export LATEST
+          python - <<'PY'
+          import os
+          from packaging.version import InvalidVersion, Version
+
+          version = os.environ["VERSION"]
+          latest = os.environ.get("LATEST", "").strip() or None
+
+          try:
+              current_version = Version(version)
+          except InvalidVersion as exc:
+              raise SystemExit(f"❌ Invalid version input: {version}") from exc
+
+          if latest is None:
+              is_latest = True
+          else:
+              try:
+                  latest_version = Version(latest)
+              except InvalidVersion:
+                  latest_version = None
+              is_latest = latest_version is None or current_version > latest_version
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"is_latest={'true' if is_latest else 'false'}\n")
+          PY
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

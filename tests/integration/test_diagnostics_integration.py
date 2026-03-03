@@ -54,7 +54,7 @@ def test_paradedb_indexes_helper_returns_mock_items_index() -> None:
 
 def test_paradedb_index_segments_helper_returns_segments() -> None:
     rows = paradedb_index_segments("mock_items_bm25_idx")
-    assert len(rows) > 0
+    assert rows
     first = rows[0]
     assert "segment_idx" in first
     assert "segment_id" in first
@@ -62,7 +62,7 @@ def test_paradedb_index_segments_helper_returns_segments() -> None:
 
 def test_paradedb_verify_index_helper_returns_checks() -> None:
     rows = paradedb_verify_index("mock_items_bm25_idx", sample_rate=0.1)
-    assert len(rows) > 0
+    assert rows
     first = rows[0]
     assert "check_name" in first
     assert "passed" in first
@@ -71,7 +71,7 @@ def test_paradedb_verify_index_helper_returns_checks() -> None:
 
 def test_paradedb_verify_all_indexes_helper_filters_by_pattern() -> None:
     rows = paradedb_verify_all_indexes(index_pattern="mock_items_bm25_idx")
-    assert len(rows) > 0
+    assert rows
     first = rows[0]
     assert "check_name" in first
     assert "passed" in first
@@ -88,7 +88,7 @@ def test_paradedb_index_segments_command() -> None:
     stdout = StringIO()
     call_command("paradedb_index_segments", "mock_items_bm25_idx", stdout=stdout)
     payload = json.loads(stdout.getvalue())
-    assert len(payload) > 0
+    assert payload
 
 
 def test_paradedb_verify_index_command() -> None:
@@ -100,7 +100,7 @@ def test_paradedb_verify_index_command() -> None:
         stdout=stdout,
     )
     payload = json.loads(stdout.getvalue())
-    assert len(payload) > 0
+    assert payload
     assert "check_name" in payload[0]
 
 
@@ -112,5 +112,5 @@ def test_paradedb_verify_all_indexes_command() -> None:
         stdout=stdout,
     )
     payload = json.loads(stdout.getvalue())
-    assert len(payload) > 0
+    assert payload
     assert "check_name" in payload[0]

@@ -7,8 +7,7 @@ from pathlib import Path
 from paradedb.functions import Score
 from paradedb.search import ParadeDB, Parse
 
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from models import AutocompleteItem
 
 
@@ -57,7 +56,7 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # Import setup here to avoid circular import issues
-    sys.path.insert(0, str(Path(__file__).parent))
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     from setup import setup_autocomplete_table
 
     # Ensure table and index exist before running the demo.

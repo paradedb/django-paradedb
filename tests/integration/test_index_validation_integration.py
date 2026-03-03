@@ -1,4 +1,4 @@
-"""Integration-marked tests for BM25Index config validation errors."""
+"""Unit tests for BM25Index config validation errors."""
 
 from __future__ import annotations
 
@@ -10,11 +10,9 @@ from tests.models import Product
 
 from paradedb.indexes import BM25Index
 
-pytestmark = [pytest.mark.integration]
-
 
 class DummySchemaEditor(BaseDatabaseSchemaEditor):
-    """Minimal schema editor for SQL generation in integration-marked tests."""
+    """Minimal schema editor for SQL generation in unit tests."""
 
     def __init__(self) -> None:
         connection = Mock()

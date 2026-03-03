@@ -37,10 +37,10 @@ During this phase:
 
 ## Support Matrix
 
-- **Django**: Current LTS and previous LTS.
-- **ParadeDB**: Latest minor and previous minor (while ParadeDB is pre-1.0).
-- **Postgres**: Versions supported by ParadeDB.
-- **Python**: Versions required by supported Django releases.
+- **Django**: 4.2, 5.2, 6.0
+- **ParadeDB**: 0.21.x+
+- **Postgres**: 17+ (with ParadeDB `pg_search`)
+- **Python**: 3.10-3.14
 
 Update this matrix whenever support policy changes.
 

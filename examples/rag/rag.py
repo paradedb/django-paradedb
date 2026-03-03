@@ -8,8 +8,7 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import MockItem, setup_mock_items
 
 from paradedb.functions import Score
@@ -76,7 +75,7 @@ Provide a helpful, concise answer. If the products don't match what the customer
         )
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"]
-    except Exception as e:
+    except (httpx.HTTPError, KeyError, IndexError, TypeError) as e:
         return f"(OpenRouter error: {e}. Check your API key)"
 
 

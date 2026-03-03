@@ -272,7 +272,7 @@ def test_fuzzy_multi_term_or() -> None:
         description=ParadeDB(Match("runing", "shose", operator="OR", distance=2))
     )
     ids = _ids(qs)
-    assert len(ids) > 0
+    assert 3 in ids
 
 
 def test_fuzzy_multi_term_and() -> None:
@@ -282,12 +282,12 @@ def test_fuzzy_multi_term_and() -> None:
             description=ParadeDB(Match("runing", "shose", operator="AND", distance=2))
         )
     )
-    assert len(ids) > 0
+    assert 3 in ids
 
 
 def test_fuzzy_term_form() -> None:
     ids = _ids(MockItem.objects.filter(description=ParadeDB(Term("shose", distance=2))))
-    assert len(ids) > 0
+    assert 3 in ids
 
 
 def test_fuzzy_prefix() -> None:
@@ -305,7 +305,7 @@ def test_fuzzy_transposition_cost_one() -> None:
             description=ParadeDB(Term("shose", distance=1, transposition_cost_one=True))
         )
     )
-    assert len(ids) > 0
+    assert 3 in ids
 
 
 def test_fuzzy_multi_term_prefix_and() -> None:
@@ -500,21 +500,31 @@ def test_const_does_not_change_result_set() -> None:
 
 def test_boost_multi_term_or_query() -> None:
     # Verifies ARRAY['shoes', 'boots']::pdb.boost(2.0) is valid SQL and executes.
-    ids = _ids(
+    baseline_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", "boots", operator="OR"))
+        )
+    )
+    boosted_ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(Match("shoes", "boots", operator="OR", boost=2.0))
         )
     )
-    assert len(ids) > 0
+    assert boosted_ids == baseline_ids
 
 
 def test_const_multi_term_or_query() -> None:
-    ids = _ids(
+    baseline_ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(Match("shoes", "boots", operator="OR"))
+        )
+    )
+    const_ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(Match("shoes", "boots", operator="OR", const=1.5))
         )
     )
-    assert len(ids) > 0
+    assert const_ids == baseline_ids
 
 
 def test_match_tokenizer_and_distance_rejected() -> None:

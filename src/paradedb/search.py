@@ -870,11 +870,6 @@ class MoreLikeThis(Expression):
         return f"{FN_MORE_LIKE_THIS}({', '.join(args)}{options})", params
 
     @staticmethod
-    def _quote_term(value: str) -> str:
-        escaped = value.replace("'", "''")
-        return f"'{escaped}'"
-
-    @staticmethod
     def _render_options(options: dict[str, object | None]) -> tuple[str, list[Any]]:
         """Render options for more_like_this function with parameterized values.
 
@@ -1225,13 +1220,8 @@ class ParadeDB:
                 raise TypeError("Proximity cannot be mixed with other terms.")
             return OP_SEARCH, (term,)
 
-        terms: list[str] = []
-        for term in self._terms:
-            if not isinstance(term, str):
-                raise TypeError("ParadeDB terms must be strings.")
-            terms.append(term)
-
-        return OP_AND, tuple(terms)
+        # Plain string terms are rejected in __init__, so this path is unreachable.
+        raise RuntimeError("Unreachable ParadeDB term resolution branch.")
 
     @staticmethod
     def _quote_term(term: str) -> str:

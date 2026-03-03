@@ -4,8 +4,7 @@
 import sys
 from pathlib import Path
 
-# Add parent directory to path to import common module
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import MockItem, setup_mock_items
 
 from paradedb.functions import Score, Snippet

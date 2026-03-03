@@ -6,6 +6,9 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   set -euo pipefail
 else
   RUNNING=0
+  __paradedb_shell_opts="$(set +o)"
+  trap 'eval "$__paradedb_shell_opts"; trap - RETURN' RETURN
+  set -euo pipefail
 fi
 
 IMAGE="${PARADEDB_IMAGE:-paradedb/paradedb:0.21.10-pg18}"

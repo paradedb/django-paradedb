@@ -113,15 +113,10 @@ class TestTransactionErrorRecovery:
 
     def test_error_recovery_with_atomic_block(self) -> None:
         """Errors inside atomic block can be caught and recovered."""
-        try:
-            with transaction.atomic():
-                list(
-                    MockItem.objects.filter(
-                        description=ParadeDB(Parse("AND AND invalid"))
-                    )
-                )
-        except DatabaseError:
-            pass
+        with pytest.raises(DatabaseError), transaction.atomic():
+            list(
+                MockItem.objects.filter(description=ParadeDB(Parse("AND AND invalid")))
+            )
 
         assert MockItem.objects.filter(
             description=ParadeDB(Match("shoes", operator="AND"))
@@ -131,16 +126,10 @@ class TestTransactionErrorRecovery:
         """Savepoints allow partial rollback after search errors."""
         initial_count = MockItem.objects.count()
 
-        try:
-            with transaction.atomic():  # noqa: SIM117 - nested for savepoint test
-                with transaction.atomic():
-                    list(
-                        MockItem.objects.filter(
-                            description=ParadeDB(Parse("BAD QUERY SYNTAX"))
-                        )
-                    )
-        except DatabaseError:
-            pass
+        with pytest.raises(DatabaseError), transaction.atomic(), transaction.atomic():
+            list(
+                MockItem.objects.filter(description=ParadeDB(Parse("BAD QUERY SYNTAX")))
+            )
 
         assert MockItem.objects.count() == initial_count
 

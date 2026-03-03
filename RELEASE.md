@@ -1,7 +1,6 @@
 # Release Management and Compatibility
 
-This document describes how `django-paradedb` versions are released and what
-compatibility guarantees the project provides.
+This document describes how `django-paradedb` versions are released and what compatibility guarantees the project provides.
 
 ## Goals
 
@@ -37,8 +36,7 @@ During this phase:
 
 ## Support Matrix
 
-The canonical support matrix lives in `README.md` under **Requirements & Compatibility**.
-Keep that section up to date, and treat it as the source of truth for supported versions.
+The canonical support matrix lives in `README.md` under **Requirements & Compatibility** and should be kept up to date.
 
 ## Release Cadence
 

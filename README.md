@@ -126,7 +126,7 @@ timestamps, etc.), omit the tokenizer to use `pdb.alias`.
 
 ### Generate Test Data
 
-To demonstrate search, populate `mock_items_django` directly with sample rows.
+To demonstrate search, we need to populate the table we just created.
 First, open a Python shell:
 
 ```bash
@@ -141,51 +141,15 @@ from django.db import connection
 cursor = connection.cursor()
 
 cursor.execute("""
-    INSERT INTO public.mock_items_django (
-      description,
-      rating,
-      category,
-      in_stock,
-      metadata,
-      created_at,
-      last_updated_date,
-      latest_available_time,
-      weight_range
-    )
-    VALUES
-      (
-        'Lightweight running shoes',
-        5,
-        'Footwear',
-        true,
-        '{"color":"blue","location":"US"}'::jsonb,
-        NOW(),
-        '2026-01-15'::date,
-        '09:00'::time,
-        '[5,10]'::int4range
-      ),
-      (
-        'Wireless noise-cancelling earbuds',
-        4,
-        'Electronics',
-        true,
-        '{"color":"black","location":"US"}'::jsonb,
-        NOW(),
-        '2026-01-16'::date,
-        '14:30'::time,
-        '[1,2]'::int4range
-      ),
-      (
-        'Trail running backpack',
-        4,
-        'Outdoors',
-        false,
-        '{"color":"green","location":"CA"}'::jsonb,
-        NOW(),
-        '2026-01-17'::date,
-        '08:15'::time,
-        '[2,6]'::int4range
-      );
+    CALL paradedb.create_bm25_test_table(
+      schema_name => 'public',
+      table_name  => 'mock_items'
+    );
+""")
+
+cursor.execute("""
+    INSERT INTO public.mock_items_django
+    SELECT * FROM public.mock_items;
 """)
 
 cursor.close()

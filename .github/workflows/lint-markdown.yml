@@ -34,7 +34,7 @@ jobs:
         run: npm install -g prettier markdownlint-cli
 
       - name: Run Markdown Lint
-        run: markdownlint "**/*.{md,mdx}"
+        run: markdownlint "**/*.md"
 
       - name: Run Prettier
         run: prettier --check "{**/*.md,**/*.mdx}"

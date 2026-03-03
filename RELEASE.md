@@ -37,12 +37,8 @@ During this phase:
 
 ## Support Matrix
 
-- **Django**: 4.2, 5.2, 6.0
-- **ParadeDB**: 0.21.x+
-- **Postgres**: 17+ (with ParadeDB `pg_search`)
-- **Python**: 3.10-3.14
-
-Update this matrix whenever support policy changes.
+The canonical support matrix lives in `README.md` under **Requirements & Compatibility**.
+Keep that section up to date, and treat it as the source of truth for supported versions.
 
 ## Release Cadence
 

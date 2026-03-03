@@ -4,7 +4,7 @@ Welcome to the **ParadeDB for Django** examples! This directory contains a colle
 
 Think of this as a **cookbook**: whether you need simple keyword search, an e-commerce filtering system, or a cutting-edge RAG (Retrieval-Augmented Generation) pipeline, you'll find a recipe here.
 
-## Getting Started
+## 🚀 Getting Started
 
 Before running any example, you need to set up your environment.
 
@@ -33,7 +33,7 @@ source scripts/run_paradedb.sh
 
 ---
 
-## The Examples
+## 📚 The Examples
 
 We've organized the examples into three categories:
 
@@ -41,7 +41,7 @@ We've organized the examples into three categories:
 2. **Smart Features**: UX enhancements like autocomplete and recommendations.
 3. **AI & Vectors**: Advanced semantic search and generative AI flows.
 
-### Essentials
+### 🔹 Essentials
 
 #### 1. Quickstart (`quickstart/quickstart.py`)
 
@@ -79,7 +79,7 @@ uv run python examples/faceted_search/faceted_search.py
 
 ---
 
-### Smart Features
+### 🔹 Smart Features
 
 #### 3. Autocomplete (`autocomplete/`)
 
@@ -113,7 +113,7 @@ uv run python examples/more_like_this/more_like_this.py
 
 ---
 
-### AI & Vectors
+### 🔹 AI & Vectors
 
 #### 5. Hybrid Search with RRF (`hybrid_rrf/`)
 
@@ -151,7 +151,7 @@ uv run python examples/rag/rag.py
 
 ---
 
-## Under the Hood: `common.py`
+## 🛠 Under the Hood: `common.py`
 
 You might notice that many examples import from `common`. This is a helper module located at `examples/common.py`. It handles the boring stuff so the examples remain focused:
 

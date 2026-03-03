@@ -390,6 +390,26 @@ class TestDjangoOrmAggExecution:
         assert "agg" in result
         assert _agg_dict(result["agg"])["value"] > 0
 
+    def test_agg_filter_conditional_aggregation(self) -> None:
+        """Agg(filter=Q(...)) — conditional aggregation with FILTER (WHERE ...)."""
+        from django.db.models import Q
+
+        result = MockItem.objects.aggregate(
+            electronics_count=Agg(
+                '{"value_count": {"field": "id"}}',
+                filter=Q(category=ParadeDB(Term("electronics"))),
+            ),
+            footwear_count=Agg(
+                '{"value_count": {"field": "id"}}',
+                filter=Q(category=ParadeDB(Term("footwear"))),
+            ),
+        )
+        assert isinstance(result, dict)
+        assert "electronics_count" in result
+        assert "footwear_count" in result
+        assert _agg_dict(result["electronics_count"])["value"] > 0
+        assert _agg_dict(result["footwear_count"])["value"] > 0
+
     def test_agg_terms_on_json_subfield(self) -> None:
         """Agg terms on indexed JSON subfield via ORM aggregate."""
         result = MockItem.objects.filter(id=ParadeDB(All())).aggregate(

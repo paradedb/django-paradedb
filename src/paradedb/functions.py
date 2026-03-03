@@ -197,23 +197,69 @@ class SnippetPositions(Func):
 
 
 class Agg(Func):
-    """Aggregate annotation for ParadeDB facets."""
+    """Aggregate annotation for ParadeDB facets.
+
+    Supports an optional ``filter`` keyword (a ``Q`` object) to emit
+    ``FILTER (WHERE ...)`` clauses, enabling conditional aggregations such as::
+
+        MockItem.objects.aggregate(
+            electronics=Agg(
+                '{"value_count": {"field": "id"}}',
+                filter=Q(category=ParadeDB(Term("electronics"))),
+            ),
+            footwear=Agg(
+                '{"value_count": {"field": "id"}}',
+                filter=Q(category=ParadeDB(Term("footwear"))),
+            ),
+        )
+    """
 
     function = FN_AGG
     output_field = JSONField()
     contains_aggregate = True
     window_compatible = True
 
-    def __init__(self, json_spec: str, *, exact: bool | None = None) -> None:
+    def __init__(
+        self,
+        json_spec: str,
+        *,
+        exact: bool | None = None,
+        filter: Any | None = None,
+    ) -> None:
         if exact is not None and not isinstance(exact, bool):
             raise TypeError("Agg exact must be a boolean when provided.")
         self._json_spec = json_spec
         self._exact = exact
+        self._filter = filter
         super().__init__()
+
+    _resolved_where: Any | None = None
+
+    def resolve_expression(
+        self,
+        query: Any = None,
+        allow_joins: bool = True,
+        reuse: set[str] | None = None,
+        summarize: bool = False,
+        for_save: bool = False,
+    ) -> Agg:
+        c = super().resolve_expression(query, allow_joins, reuse, summarize, for_save)
+        if self._filter is not None:
+            from django.db.models.sql import Query
+
+            if isinstance(query, Query):
+                where, _ = query.build_filter(
+                    self._filter,
+                    can_reuse=reuse,
+                    allow_joins=allow_joins,
+                    summarize=summarize,
+                )
+                c._resolved_where = where
+        return c
 
     def as_sql(  # type: ignore[override]
         self,
-        _compiler: SQLCompiler,
+        compiler: SQLCompiler,
         _connection: BaseDatabaseWrapper,
         **_extra_context: Any,
     ) -> tuple[str, list[Any]]:
@@ -222,7 +268,15 @@ class Agg(Func):
             sql = f"{self.function}({json_literal}, false)"
         else:
             sql = f"{self.function}({json_literal})"
-        return sql, []
+
+        params: list[Any] = []
+        resolved_where = getattr(self, "_resolved_where", None)
+        if resolved_where is not None:
+            filter_sql, filter_params = compiler.compile(resolved_where)
+            sql = f"{sql} FILTER (WHERE {filter_sql})"
+            params.extend(filter_params)
+
+        return sql, params
 
 
 def _execute_table_function(

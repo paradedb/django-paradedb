@@ -128,7 +128,7 @@ class TestTransactionErrorRecovery:
 
         with pytest.raises(DatabaseError), transaction.atomic(), transaction.atomic():
             list(
-                MockItem.objects.filter(description=ParadeDB(Parse("BAD QUERY SYNTAX")))
+                MockItem.objects.filter(description=ParadeDB(Parse("AND AND invalid")))
             )
 
         assert MockItem.objects.count() == initial_count

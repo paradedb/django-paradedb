@@ -13,15 +13,18 @@ from django.db.models.sql.compiler import SQLCompiler
 
 from paradedb.api import (
     FN_AGG,
-    FN_INDEX_SEGMENTS,
-    FN_INDEXES,
     FN_SCORE,
     FN_SNIPPET,
     FN_SNIPPET_POSITIONS,
     FN_SNIPPETS,
-    FN_VERIFY_ALL_INDEXES,
-    FN_VERIFY_INDEX,
 )
+
+# These diagnostic functions were removed from the pg_search schema but
+# django-paradedb keeps the wrappers for backwards compatibility.
+FN_INDEXES = "pdb.indexes"
+FN_INDEX_SEGMENTS = "pdb.index_segments"
+FN_VERIFY_INDEX = "pdb.verify_index"
+FN_VERIFY_ALL_INDEXES = "pdb.verify_all_indexes"
 
 
 def _quote_term(value: str) -> str:

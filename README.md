@@ -1,13 +1,28 @@
 # django-paradedb
 
 [![PyPI](https://img.shields.io/pypi/v/django-paradedb)](https://pypi.org/project/django-paradedb/)
+[![Downloads](https://img.shields.io/pypi/dm/django-paradedb)](https://pypi.org/project/django-paradedb/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/django-paradedb)](https://pypi.org/project/django-paradedb/)
 [![Codecov](https://codecov.io/gh/paradedb/django-paradedb/graph/badge.svg)](https://codecov.io/gh/paradedb/django-paradedb)
 [![CI](https://github.com/paradedb/django-paradedb/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/paradedb/django-paradedb/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/paradedb/django-paradedb?color=blue)](https://github.com/paradedb/django-paradedb?tab=MIT-1-ov-file#readme)
 [![Slack URL](https://img.shields.io/badge/Join%20Slack-purple?logo=slack&link=https%3A%2F%2Fjoin.slack.com%2Ft%2Fparadedbcommunity%2Fshared_invite%2Fzt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)
 [![X URL](https://img.shields.io/twitter/url?url=https%3A%2F%2Ftwitter.com%2Fparadedb&label=Follow%20%40paradedb)](https://x.com/paradedb)
 
-[ParadeDB](https://paradedb.com) — simple, Elastic-quality search for Postgres — integration for Django ORM.
+The official Python client for [ParadeDB](https://paradedb.com) — Elastic-quality full-text, similarity, and hybrid search inside Postgres — built for the Django ORM.
+
+## Features
+
+- BM25 index management through Django migrations
+- Full-text search with `Match`, `Term`, `FuzzyTerm`, `Regex`, `PhrasePrefix`, and more
+- Faceted search and aggregations (`TopN`, `TopNWithCount`, `Percentile`, `Stats`, and custom `Agg`)
+- Relevance scoring with `Score()` annotation
+- Hybrid search via Reciprocal Rank Fusion (RRF)
+- More Like This queries for document similarity
+- Autocomplete with prefix matching and fuzzy tolerance
+- Composable with Django's `Q` objects, `filter()`, `exclude()`, and custom managers
+- Diagnostic management commands for index health and verification
+- Type-safe with `py.typed` marker and full type stubs
 
 ## Requirements & Compatibility
 
@@ -19,6 +34,12 @@
 | PostgreSQL | 15+ (with ParadeDB extension) |
 
 ## Installation
+
+```bash
+pip install django-paradedb
+```
+
+or with [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv add django-paradedb

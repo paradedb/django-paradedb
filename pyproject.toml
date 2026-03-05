@@ -26,7 +26,7 @@ keywords = [
     "facets",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "Framework :: Django",
     "Framework :: Django :: 4.2",
@@ -41,8 +41,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Database",
     "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Indexing",
 ]
 dependencies = [
     "Django>=4.2",
@@ -72,8 +75,9 @@ examples = [
 [project.urls]
 Homepage = "https://paradedb.com"
 Documentation = "https://docs.paradedb.com"
-Repository = "https://github.com/paradedb/django-paradedb"
+"Source Code" = "https://github.com/paradedb/django-paradedb"
 Issues = "https://github.com/paradedb/django-paradedb/issues"
+Changelog = "https://github.com/paradedb/django-paradedb/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/paradedb"]

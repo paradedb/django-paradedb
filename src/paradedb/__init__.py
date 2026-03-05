@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 from importlib import import_module
+from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
-__version__ = "0.4.0"
+try:
+    __version__ = version("django-paradedb")
+except PackageNotFoundError:
+    __version__ = "0+unknown"
 
 __all__ = [
     "Agg",

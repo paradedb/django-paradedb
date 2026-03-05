@@ -41,8 +41,8 @@ uv sync --extra dev
 # Install prek hooks
 uvx prek install
 
-# Run tests
-uv run pytest
+# Run unit tests (no database required)
+uv run pytest -m "not integration"
 
 # Run integration tests (requires Docker)
 bash scripts/run_integration_tests.sh

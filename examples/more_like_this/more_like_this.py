@@ -221,9 +221,9 @@ def demo_multifield_similarity() -> None:
         for item in by_both:
             print(f"  {item.id}: {item.description[:40]}... [{item.category}]")
     except DatabaseError as exc:
-        print("  (Skipped: category field may not be stored in BM25 index)")
+        print("  (Skipped: category field is not available in your BM25 index config)")
         print(f"  Database error: {exc}")
-        print("  Note: Only 'description' is stored by default in mock_items")
+        print("  Note: examples/common.py indexes both 'description' and 'category'.")
 
 
 if __name__ == "__main__":

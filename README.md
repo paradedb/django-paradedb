@@ -16,7 +16,7 @@
 | Python     | 3.10+                         |
 | Django     | 4.2+                          |
 | ParadeDB   | 0.21.0+                       |
-| PostgreSQL | 17+ (with ParadeDB extension) |
+| PostgreSQL | 18+ (with ParadeDB extension) |
 
 ## Installation
 

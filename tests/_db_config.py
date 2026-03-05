@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 def database_settings() -> dict[str, object]:
     dsn = os.environ.get(
-        "PARADEDB_TEST_DSN", "postgres://postgres@localhost:5432/postgres"
+        "PARADEDB_TEST_DSN", "postgresql://postgres@localhost:5432/postgres"
     )
     parsed = urlparse(dsn)
     return {

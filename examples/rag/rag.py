@@ -17,9 +17,6 @@ from paradedb.search import ParadeDB, Parse
 load_dotenv()
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-if not OPENROUTER_API_KEY:
-    raise ValueError("OPENROUTER_API_KEY not found in environment. Add it to .env file")
-
 MODEL = os.environ.get("RAG_MODEL", "anthropic/claude-3-haiku")
 
 
@@ -51,6 +48,10 @@ def format_context(items: list[MockItem]) -> str:
 
 def generate(query: str, context: str) -> str:
     """Generate answer using OpenRouter."""
+    api_key = OPENROUTER_API_KEY or os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        return "(Set OPENROUTER_API_KEY to enable generation.)"
+
     prompt = f"""You are a helpful product assistant. Answer the customer's question based only on the product information provided below.
 
 Product Catalog:
@@ -64,7 +65,7 @@ Provide a helpful, concise answer. If the products don't match what the customer
         response = httpx.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
             json={
@@ -105,6 +106,8 @@ if __name__ == "__main__":
     print("=" * 60)
     print(f"Using model: {MODEL}")
     print("Set RAG_MODEL env var to use a different model")
+    if not OPENROUTER_API_KEY:
+        print("OPENROUTER_API_KEY is not set; generation responses will be skipped.")
 
     count = setup_mock_items()
     print(f"Loaded {count} products")

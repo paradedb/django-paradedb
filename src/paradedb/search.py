@@ -146,6 +146,8 @@ def _is_fuzzy_enabled(
 def _validate_fuzzy_distance(distance: int | None) -> None:
     if distance is None:
         return
+    if isinstance(distance, bool) or not isinstance(distance, int):
+        raise TypeError("Distance must be an integer between 0 and 2, inclusive.")
     if distance < 0 or distance > 2:
         raise ValueError("Distance must be between 0 and 2, inclusive.")
 
@@ -160,6 +162,16 @@ def _validate_non_negative_int(name: str, value: int) -> None:
 def _validate_string(name: str, value: str) -> None:
     if not isinstance(value, str):
         raise TypeError(f"{name} must be a string.")
+
+
+def _validate_optional_string(name: str, value: str | None) -> None:
+    if value is not None:
+        _validate_string(name, value)
+
+
+def _validate_optional_bool(name: str, value: bool | None) -> None:
+    if value is not None and not isinstance(value, bool):
+        raise TypeError(f"{name} must be a boolean.")
 
 
 @dataclass(frozen=True)
@@ -179,8 +191,10 @@ class Phrase:
     const: float | None = None
 
     def __post_init__(self) -> None:
-        if self.slop is not None and self.slop < 0:
-            raise ValueError("Phrase slop must be zero or positive.")
+        _validate_string("Phrase text", self.text)
+        if self.slop is not None:
+            _validate_non_negative_int("Phrase slop", self.slop)
+        _validate_optional_string("Phrase tokenizer", self.tokenizer)
 
 
 @dataclass(frozen=True)
@@ -194,8 +208,10 @@ class Proximity:
     const: float | None = None
 
     def __post_init__(self) -> None:
-        if self.distance < 0:
-            raise ValueError("Proximity distance must be zero or positive.")
+        _validate_string("Proximity text", self.text)
+        _validate_non_negative_int("Proximity distance", self.distance)
+        if not isinstance(self.ordered, bool):
+            raise TypeError("Proximity ordered must be a boolean.")
 
 
 @dataclass(frozen=True)
@@ -207,6 +223,11 @@ class Parse:
     conjunction_mode: bool | None = None
     boost: float | None = None
     const: float | None = None
+
+    def __post_init__(self) -> None:
+        _validate_string("Parse query", self.query)
+        _validate_optional_bool("Parse lenient", self.lenient)
+        _validate_optional_bool("Parse conjunction_mode", self.conjunction_mode)
 
 
 @dataclass(frozen=True)
@@ -227,6 +248,10 @@ class PhrasePrefix:
     ) -> None:
         if not phrases:
             raise ValueError("PhrasePrefix requires at least one phrase term.")
+        for phrase in phrases:
+            _validate_string("PhrasePrefix phrase", phrase)
+        if max_expansion is not None:
+            _validate_non_negative_int("PhrasePrefix max_expansion", max_expansion)
         object.__setattr__(self, "phrases", tuple(phrases))
         object.__setattr__(self, "max_expansion", max_expansion)
         object.__setattr__(self, "boost", boost)
@@ -253,8 +278,12 @@ class RegexPhrase:
     ) -> None:
         if not regexes:
             raise ValueError("RegexPhrase requires at least one regex term.")
-        if slop is not None and slop < 0:
-            raise ValueError("RegexPhrase slop must be zero or positive.")
+        for regex in regexes:
+            _validate_string("RegexPhrase regex", regex)
+        if slop is not None:
+            _validate_non_negative_int("RegexPhrase slop", slop)
+        if max_expansions is not None:
+            _validate_non_negative_int("RegexPhrase max_expansions", max_expansions)
         object.__setattr__(self, "regexes", tuple(regexes))
         object.__setattr__(self, "slop", slop)
         object.__setattr__(self, "max_expansions", max_expansions)
@@ -406,6 +435,10 @@ class Term:
     def __post_init__(self) -> None:
         if not isinstance(self.text, str):
             raise TypeError("Term text must be a string.")
+        if not isinstance(self.prefix, bool):
+            raise TypeError("Term prefix must be a boolean.")
+        if not isinstance(self.transposition_cost_one, bool):
+            raise TypeError("Term transposition_cost_one must be a boolean.")
         _validate_fuzzy_distance(self.distance)
 
 
@@ -416,6 +449,9 @@ class Regex:
     pattern: str
     boost: float | None = None
     const: float | None = None
+
+    def __post_init__(self) -> None:
+        _validate_string("Regex pattern", self.pattern)
 
 
 @dataclass(frozen=True)
@@ -451,6 +487,11 @@ class FuzzyTerm:
     const: float | None = None
 
     def __post_init__(self) -> None:
+        _validate_optional_string("FuzzyTerm value", self.value)
+        _validate_optional_bool(
+            "FuzzyTerm transposition_cost_one", self.transposition_cost_one
+        )
+        _validate_optional_bool("FuzzyTerm prefix", self.prefix)
         _validate_fuzzy_distance(self.distance)
 
 
@@ -463,6 +504,13 @@ class ParseWithField:
     conjunction_mode: bool | None = None
     boost: float | None = None
     const: float | None = None
+
+    def __post_init__(self) -> None:
+        _validate_string("ParseWithField query", self.query)
+        _validate_optional_bool("ParseWithField lenient", self.lenient)
+        _validate_optional_bool(
+            "ParseWithField conjunction_mode", self.conjunction_mode
+        )
 
 
 @dataclass(frozen=True)
@@ -481,6 +529,7 @@ class Range:
     const: float | None = None
 
     def __post_init__(self) -> None:
+        _validate_string("Range range", self.range)
         _validate_range_type(self.range_type)
 
 
@@ -567,6 +616,10 @@ class Match:
             raise TypeError("Match terms must be strings.")
         if tokenizer is not None and not isinstance(tokenizer, str):
             raise TypeError("Match tokenizer must be a string.")
+        if not isinstance(prefix, bool):
+            raise TypeError("Match prefix must be a boolean.")
+        if not isinstance(transposition_cost_one, bool):
+            raise TypeError("Match transposition_cost_one must be a boolean.")
 
         _validate_fuzzy_distance(distance)
         fuzzy_enabled = _is_fuzzy_enabled(
@@ -959,7 +1012,7 @@ class ParadeDB:
         ...
 
     @overload
-    def __init__(self, __prox1: Proximity, *prox: Proximity) -> None:
+    def __init__(self, __proximity: Proximity) -> None:
         """Proximity search with a single Proximity object."""
         ...
 
@@ -1225,6 +1278,8 @@ class ParadeDB:
 
     @staticmethod
     def _quote_term(term: str) -> str:
+        if not isinstance(term, str):
+            raise TypeError("Search term literal must be a string.")
         escaped = term.replace("'", "''")
         return f"'{escaped}'"
 

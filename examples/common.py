@@ -113,7 +113,8 @@ class MockItem(models.Model):
 
     This unmanaged model maps to the mock_items table created by
     paradedb.create_bm25_test_table(). It contains sample product
-    data with a pre-configured BM25 index on the description field.
+    data with a pre-configured BM25 index on description, rating,
+    category, and selected metadata keys.
     """
 
     id = models.IntegerField(primary_key=True)

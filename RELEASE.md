@@ -60,13 +60,15 @@ Use this format:
 
 ## Testing and CI Expectations
 
-CI should cover the published support matrix:
+CI should cover the published support matrix. As of March 2026, the required
+CI coverage is:
 
-- Django: current LTS and previous LTS.
-- ParadeDB: latest minor and previous minor.
-- Postgres: ParadeDB-supported versions.
+- Django: 4.2, 5.2, and 6.0.
+- Python: 3.10 through 3.14 (per Django compatibility).
+- ParadeDB/Postgres: `paradedb/paradedb:0.21.10-pg18`.
 
-Optional non-blocking jobs may include ParadeDB nightly or pre-release builds.
+If the support matrix expands (for example, additional ParadeDB/Postgres image
+variants), update both CI workflows and `README.md` in the same PR.
 
 ## Decisions for ParadeDB 1.0
 

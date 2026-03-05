@@ -25,6 +25,7 @@ from paradedb.search import (
     Parse,
     ParseWithField,
     Phrase,
+    PhrasePrefix,
     Proximity,
     ProximityArray,
     ProximityRegex,
@@ -170,6 +171,18 @@ class TestPhraseValidation:
         phrase = Phrase("test", slop=100)
         assert phrase.slop == 100
 
+    def test_phrase_text_must_be_string(self) -> None:
+        with pytest.raises(TypeError, match="Phrase text must be a string"):
+            Phrase(123)  # type: ignore[arg-type]
+
+    def test_phrase_slop_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="Phrase slop must be an integer"):
+            Phrase("test", slop=True)  # type: ignore[arg-type]
+
+    def test_phrase_tokenizer_must_be_string(self) -> None:
+        with pytest.raises(TypeError, match="Phrase tokenizer must be a string"):
+            Phrase("test", tokenizer=1)  # type: ignore[arg-type]
+
     def test_phrase_invalid_tokenizer_deferred_to_database(self) -> None:
         """Phrase tokenizer names are quoted in SQL; validity is deferred to database execution."""
         queryset = Product.objects.filter(
@@ -197,9 +210,17 @@ class TestDistanceValidation:
         with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
             Match("test", operator="AND", distance=10)
 
+    def test_match_distance_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="Distance must be an integer"):
+            Match("test", operator="AND", distance=True)  # type: ignore[arg-type]
+
     def test_term_distance_validation(self) -> None:
         term = Term("test", distance=1)
         assert term.distance == 1
+
+    def test_term_distance_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="Distance must be an integer"):
+            Term("test", distance=True)  # type: ignore[arg-type]
 
     def test_match_tokenizer_and_fuzzy_options_rejected(self) -> None:
         with pytest.raises(
@@ -231,6 +252,14 @@ class TestDistanceValidation:
         with pytest.raises(TypeError, match="Match tokenizer must be a string"):
             Match("ok", operator="AND", tokenizer=123)  # type: ignore[arg-type]
 
+    def test_match_prefix_must_be_boolean(self) -> None:
+        with pytest.raises(TypeError, match="Match prefix must be a boolean"):
+            Match("ok", operator="AND", prefix=1)  # type: ignore[arg-type]
+
+    def test_term_prefix_must_be_boolean(self) -> None:
+        with pytest.raises(TypeError, match="Term prefix must be a boolean"):
+            Term("ok", prefix=1)  # type: ignore[arg-type]
+
 
 class TestExpressionValidation:
     """Validation coverage for expression dataclasses."""
@@ -240,10 +269,30 @@ class TestExpressionValidation:
         assert proximity.boost == 1.0
         assert proximity.const == 1.0
 
+    def test_proximity_text_must_be_string(self) -> None:
+        with pytest.raises(TypeError, match="Proximity text must be a string"):
+            Proximity(1, distance=1)  # type: ignore[arg-type]
+
+    def test_proximity_distance_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="Proximity distance must be an integer"):
+            Proximity("a b", distance=True)  # type: ignore[arg-type]
+
+    def test_proximity_ordered_must_be_boolean(self) -> None:
+        with pytest.raises(TypeError, match="Proximity ordered must be a boolean"):
+            Proximity("a b", distance=1, ordered=1)  # type: ignore[arg-type]
+
     def test_parse_boost_and_const_deferred_to_database(self) -> None:
         parsed = Parse("query", boost=1.0, const=1.0)
         assert parsed.boost == 1.0
         assert parsed.const == 1.0
+
+    def test_parse_query_must_be_string(self) -> None:
+        with pytest.raises(TypeError, match="Parse query must be a string"):
+            Parse(123)  # type: ignore[arg-type]
+
+    def test_parse_lenient_must_be_boolean(self) -> None:
+        with pytest.raises(TypeError, match="Parse lenient must be a boolean"):
+            Parse("query", lenient="yes")  # type: ignore[arg-type]
 
     def test_regex_phrase_requires_terms(self) -> None:
         with pytest.raises(ValueError, match="requires at least one regex term"):
@@ -253,10 +302,34 @@ class TestExpressionValidation:
         with pytest.raises(ValueError, match="slop must be zero or positive"):
             RegexPhrase("a.*", slop=-1)
 
+    def test_regex_phrase_terms_must_be_strings(self) -> None:
+        with pytest.raises(TypeError, match="RegexPhrase regex must be a string"):
+            RegexPhrase(123)  # type: ignore[arg-type]
+
+    def test_regex_phrase_max_expansions_must_be_integer(self) -> None:
+        with pytest.raises(
+            TypeError, match="RegexPhrase max_expansions must be an integer"
+        ):
+            RegexPhrase("a.*", max_expansions=True)  # type: ignore[arg-type]
+
     def test_regex_phrase_boost_and_const_deferred_to_database(self) -> None:
         regex_phrase = RegexPhrase("a.*", boost=1.0, const=1.0)
         assert regex_phrase.boost == 1.0
         assert regex_phrase.const == 1.0
+
+    def test_phrase_prefix_terms_must_be_strings(self) -> None:
+        with pytest.raises(TypeError, match="PhrasePrefix phrase must be a string"):
+            PhrasePrefix("ok", 1)  # type: ignore[arg-type]
+
+    def test_phrase_prefix_max_expansion_must_be_integer(self) -> None:
+        with pytest.raises(
+            TypeError, match="PhrasePrefix max_expansion must be an integer"
+        ):
+            PhrasePrefix("ok", "term", max_expansion=True)  # type: ignore[arg-type]
+
+    def test_regex_pattern_must_be_string(self) -> None:
+        with pytest.raises(TypeError, match="Regex pattern must be a string"):
+            Regex(123)  # type: ignore[arg-type]
 
     def test_proximity_regex_negative_distance_raises(self) -> None:
         with pytest.raises(ValueError, match="distance must be zero or positive"):
@@ -761,6 +834,10 @@ class TestFuzzyTermExpression:
         expr = FuzzyTerm(value="shoes")
         assert expr.value == "shoes"
 
+    def test_fuzzy_term_value_must_be_string(self) -> None:
+        with pytest.raises(TypeError, match="FuzzyTerm value must be a string"):
+            FuzzyTerm(value=123)  # type: ignore[arg-type]
+
     def test_fuzzy_term_with_all_options(self) -> None:
         expr = FuzzyTerm(
             value="shoes",
@@ -801,6 +878,14 @@ class TestFuzzyTermExpression:
         with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
             FuzzyTerm(value="test", distance=100)
 
+    def test_fuzzy_term_distance_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="Distance must be an integer"):
+            FuzzyTerm(value="test", distance=True)  # type: ignore[arg-type]
+
+    def test_fuzzy_term_prefix_must_be_boolean(self) -> None:
+        with pytest.raises(TypeError, match="FuzzyTerm prefix must be a boolean"):
+            FuzzyTerm(value="test", prefix=1)  # type: ignore[arg-type]
+
     def test_fuzzy_term_is_frozen(self) -> None:
         expr = FuzzyTerm(value="shoes")
         with pytest.raises(AttributeError):
@@ -840,6 +925,14 @@ class TestParseWithFieldExpression:
         expr = ParseWithField(query="test", conjunction_mode=False)
         assert expr.conjunction_mode is False
 
+    def test_parse_with_field_query_must_be_string(self) -> None:
+        with pytest.raises(TypeError, match="ParseWithField query must be a string"):
+            ParseWithField(query=1)  # type: ignore[arg-type]
+
+    def test_parse_with_field_lenient_must_be_boolean(self) -> None:
+        with pytest.raises(TypeError, match="ParseWithField lenient must be a boolean"):
+            ParseWithField(query="test", lenient=1)  # type: ignore[arg-type]
+
     def test_parse_with_field_is_frozen(self) -> None:
         expr = ParseWithField(query="test")
         with pytest.raises(AttributeError):
@@ -875,6 +968,10 @@ class TestRangeExpression:
     def test_range_invalid_type_raises(self) -> None:
         with pytest.raises(ValueError, match="Range type must be one of"):
             Range(range="[1, 10]", range_type="badtype")  # type: ignore[arg-type]
+
+    def test_range_literal_must_be_string(self) -> None:
+        with pytest.raises(TypeError, match="Range range must be a string"):
+            Range(range=10, range_type="int4range")  # type: ignore[arg-type]
 
     def test_range_with_boost_and_const(self) -> None:
         expr = Range(range="(0, 100)", range_type="numrange", boost=1.5, const=2.0)

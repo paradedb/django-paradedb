@@ -58,7 +58,7 @@ jobs:
         run: bash scripts/smoke_wheel_install.sh
 
   matrix-tests:
-    name: Python ${{ matrix.python-version }} / Django ${{ matrix.django-version }}
+    name: Python ${{ matrix.python-version }} / Django ${{ matrix.django-version }} / PG ${{ matrix.postgres-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -67,28 +67,47 @@ jobs:
           # Django 4 supports Python 3.8-3.12, but we only support Python 3.10+
           - django-version: "4.2"
             python-version: "3.10"
+            postgres-version: "18"
           - django-version: "4.2"
             python-version: "3.11"
+            postgres-version: "18"
           - django-version: "4.2"
             python-version: "3.12"
+            postgres-version: "18"
           # Django 5 supports Python 3.10-3.12
           - django-version: "5.2"
             python-version: "3.10"
+            postgres-version: "18"
           - django-version: "5.2"
             python-version: "3.11"
+            postgres-version: "18"
           - django-version: "5.2"
             python-version: "3.12"
+            postgres-version: "18"
           # Django 6 supports Python 3.12-3.14
           - django-version: "6.0"
             python-version: "3.12"
+            postgres-version: "18"
           - django-version: "6.0"
             python-version: "3.13"
+            postgres-version: "18"
           - django-version: "6.0"
             python-version: "3.14"
+            postgres-version: "18"
+          # Postgres compatibility coverage for supported older versions
+          - django-version: "5.2"
+            python-version: "3.12"
+            postgres-version: "15"
+          - django-version: "5.2"
+            python-version: "3.12"
+            postgres-version: "16"
+          - django-version: "5.2"
+            python-version: "3.12"
+            postgres-version: "17"
 
     services:
       paradedb:
-        image: paradedb/paradedb:0.21.10-pg18
+        image: paradedb/paradedb:0.21.10-pg${{ matrix.postgres-version }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -138,7 +157,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
-          flags: django-paradedb,py${{ matrix.python-version }},dj${{ matrix.django-version }}
+          flags: django-paradedb,py${{ matrix.python-version }},dj${{ matrix.django-version }},pg${{ matrix.postgres-version }}
           fail_ci_if_error: false
           verbose: true
         env:

@@ -65,7 +65,8 @@ CI coverage is:
 
 - Django: 4.2, 5.2, and 6.0.
 - Python: 3.10 through 3.14 (per Django compatibility).
-- ParadeDB/Postgres: `paradedb/paradedb:0.21.10-pg18`.
+- ParadeDB/Postgres: `paradedb/paradedb:0.21.10-pg15` through
+  `paradedb/paradedb:0.21.10-pg18`.
 
 If the support matrix expands (for example, additional ParadeDB/Postgres image
 variants), update both CI workflows and `README.md` in the same PR.

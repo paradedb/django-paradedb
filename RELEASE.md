@@ -62,9 +62,7 @@ Use this format:
 
 CI should cover the published support matrix.
 
-The source of truth is the matrix in `.github/workflows/ci.yml`.
-When compatibility changes, update that matrix first and keep `README.md`
-in sync in the same PR.
+The source of truth is the matrix in `.github/workflows/ci.yml`. When compatibility changes, update that matrix first and keep `README.md` in sync in the same PR.
 
 ## Decisions for ParadeDB 1.0
 

@@ -32,12 +32,7 @@
     "FN_SNIPPET":          "pdb.snippet",
     "FN_SNIPPETS":         "pdb.snippets",
     "FN_SNIPPET_POSITIONS": "pdb.snippet_positions",
-    "FN_AGG":              "pdb.agg",
-
-    "FN_INDEXES":           "pdb.indexes",
-    "FN_INDEX_SEGMENTS":    "pdb.index_segments",
-    "FN_VERIFY_INDEX":      "pdb.verify_index",
-    "FN_VERIFY_ALL_INDEXES": "pdb.verify_all_indexes"
+    "FN_AGG":              "pdb.agg"
   },
 
   "types": {
@@ -49,7 +44,6 @@
 
     "PDB_TYPE_TOKENIZER_ALIAS":              "pdb.alias",
     "PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE": "pdb.chinese_compatible",
-    "PDB_TYPE_TOKENIZER_ICU":                "pdb.icu",
     "PDB_TYPE_TOKENIZER_JIEBA":              "pdb.jieba",
     "PDB_TYPE_TOKENIZER_LINDERA":            "pdb.lindera",
     "PDB_TYPE_TOKENIZER_LITERAL":            "pdb.literal",

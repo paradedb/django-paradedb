@@ -35,7 +35,7 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 
 - BM25 index management through Django migrations
 - Full-text search with `Match`, `Term`, `FuzzyTerm`, `Regex`, `PhrasePrefix`, and more
-- Faceted search and aggregations (`TopN`, `TopNWithCount`, `Percentile`, `Stats`, and custom `Agg`)
+- Faceted search and aggregations (`TopK`, `TopKWithCount`, `Percentile`, `Stats`, and custom `Agg`)
 - Relevance scoring with `Score()` annotation
 - Hybrid search via Reciprocal Rank Fusion (RRF)
 - More Like This queries for document similarity

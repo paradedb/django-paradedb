@@ -376,11 +376,11 @@ class TestPhraseSearchIntegration:
             assert item.in_stock is True
 
 
-class TestTopNOrdering:
-    """Top N ordering patterns from docs/sorting/topn.mdx."""
+class TestTopKOrdering:
+    """Top K ordering patterns from docs/sorting/topk.mdx."""
 
-    def test_topn_tiebreaker_ordering(self) -> None:
-        """order_by('rating', 'id') tiebreaker — docs/sorting/topn.mdx snippet 2."""
+    def test_topk_tiebreaker_ordering(self) -> None:
+        """order_by('rating', 'id') tiebreaker — docs/sorting/topk.mdx snippet 2."""
         rows = list(
             MockItem.objects.filter(
                 description=ParadeDB(Match("running shoes", operator="OR"))
@@ -392,8 +392,8 @@ class TestTopNOrdering:
         ratings = [r["rating"] for r in rows]
         assert ratings == sorted(ratings)
 
-    def test_topn_lower_function_sort(self) -> None:
-        """order_by(Lower('description')) — docs/sorting/topn.mdx snippet 3."""
+    def test_topk_lower_function_sort(self) -> None:
+        """order_by(Lower('description')) — docs/sorting/topk.mdx snippet 3."""
         rows = list(
             MockItem.objects.filter(
                 description=ParadeDB(Match("sleek running shoes", operator="OR"))

@@ -2,7 +2,7 @@
 """Faceted search example using ParadeDB's facets() helper.
 
 This example demonstrates how to fetch faceted counts alongside a search
-query using the ParadeDBQuerySet.facets() helper (Top-N rows + buckets).
+query using the ParadeDBQuerySet.facets() helper (Top-K rows + buckets).
 """
 
 import sys
@@ -15,8 +15,8 @@ from paradedb.search import Match, ParadeDB
 
 
 def demo_facets_with_rows(query: str) -> None:
-    """Fetch Top-N rows with facet buckets using a window aggregation."""
-    print("\n--- Facets + Rows (Top-N) ---")
+    """Fetch Top-K rows with facet buckets using a window aggregation."""
+    print("\n--- Facets + Rows (Top-K) ---")
     queryset = MockItem.objects.filter(
         description=ParadeDB(Match(query, operator="AND"))
     ).order_by("-rating")[:5]

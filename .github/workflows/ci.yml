@@ -14,6 +14,10 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 env:
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: postgres

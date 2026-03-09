@@ -17,6 +17,10 @@ on:
         description: "ParadeDB version to check against"
         required: true
 
+concurrency:
+  group: schema-compat-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 env:
   PARADEDB_VERSION: ${{ inputs.version || github.event.client_payload.version }}
 

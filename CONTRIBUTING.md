@@ -4,7 +4,7 @@ Welcome! We're excited that you're interested in contributing to django-paradedb
 
 ## Technical Info
 
-Before submitting a pull request, please review this document, which outlines what conventions to follow when submitting changes. If you have any questions not covered in this document, please reach out to us in the [ParadeDB Community Slack](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw) or via [email](mailto:support@paradedb.com).
+Before submitting a pull request, please review this document, which outlines what conventions to follow when submitting changes. If you have any questions not covered in this document, please reach out to us in the [ParadeDB Community Slack](https://paradedb.com/slack) or via [email](mailto:support@paradedb.com).
 
 ### Selecting GitHub Issues
 
@@ -22,7 +22,7 @@ This repository has a workflow to assign issues to new contributors automaticall
 
 2. To claim an unassigned issue, comment `/take` on the issue. This will automatically assign the issue to you.
 
-If you find yourself unable to make progress, don't hesitate to seek help in the issue comments or the [ParadeDB Community Slack](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw). If you no longer wish to work on the issue(s) you self-assigned, please remove yourself from the Assignees list in the sidebar to release it.
+If you find yourself unable to make progress, don't hesitate to seek help in the issue comments or the [ParadeDB Community Slack](https://paradedb.com/slack). If you no longer wish to work on the issue(s) you self-assigned, please remove yourself from the Assignees list in the sidebar to release it.
 
 ### Development Workflow
 
@@ -85,7 +85,7 @@ In order for us, ParadeDB, Inc., to accept patches and other contributions from 
 
 ParadeDB uses a tool called CLA Assistant to help us track contributors' CLA status. CLA Assistant will automatically post a comment to your pull request indicating whether you have signed the CLA. If you have not signed the CLA, you must do so before we can accept your contribution. Signing the CLA is a one-time process for this repository, is valid for all future contributions to django-paradedb, and can be done in under a minute by signing in with your GitHub account.
 
-If you have any questions about the CLA, please reach out to us in the [ParadeDB Community Slack](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw) or via email at [legal@paradedb.com](mailto:legal@paradedb.com).
+If you have any questions about the CLA, please reach out to us in the [ParadeDB Community Slack](https://paradedb.com/slack) or via email at [legal@paradedb.com](mailto:legal@paradedb.com).
 
 ### License
 

@@ -25,7 +25,7 @@
 [![Downloads](https://img.shields.io/pypi/dm/django-paradedb)](https://pypi.org/project/django-paradedb/)
 [![Codecov](https://codecov.io/gh/paradedb/django-paradedb/graph/badge.svg)](https://codecov.io/gh/paradedb/django-paradedb)
 [![License](https://img.shields.io/github/license/paradedb/django-paradedb?color=blue)](https://github.com/paradedb/django-paradedb?tab=MIT-1-ov-file#readme)
-[![Slack URL](https://img.shields.io/badge/Join%20Slack-purple?logo=slack&link=https%3A%2F%2Fjoin.slack.com%2Ft%2Fparadedbcommunity%2Fshared_invite%2Fzt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)
+[![Slack URL](https://img.shields.io/badge/Join%20Slack-purple?logo=slack&link=https%3A%2F%2Fparadedb.com%2Fslack)](https://paradedb.com/slack)
 [![X URL](https://img.shields.io/twitter/url?url=https%3A%2F%2Ftwitter.com%2Fparadedb&label=Follow%20%40paradedb)](https://x.com/paradedb)
 
 The official Python client for [ParadeDB](https://paradedb.com) — Elastic-quality full-text, similarity, and hybrid search inside Postgres — built for the Django ORM.
@@ -370,7 +370,7 @@ If you're missing a feature or have found a bug, please open a
 
 To get community support, you can:
 
-- Post a question in the [ParadeDB Slack Community](https://join.slack.com/t/paradedbcommunity/shared_invite/zt-32abtyjg4-yoYoi~RPh9MSW8tDbl0BQw)
+- Post a question in the [ParadeDB Slack Community](https://paradedb.com/slack)
 - Ask for help on our [GitHub Discussions](https://github.com/paradedb/paradedb/discussions)
 
 If you need commercial support, please [contact the ParadeDB team](mailto:sales@paradedb.com).

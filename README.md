@@ -285,7 +285,7 @@ CREATE EXTENSION pg_search;
 CALL paradedb.create_bm25_test_table(schema_name=>'public', table_name=>'mock_items');
 ALTER TABLE public.mock_items OWNER TO paradedb_test_user;
 CREATE INDEX mock_items_bm25 ON public.mock_items
-    USING bm25 (id, description, category, rating, in_stock, metadata)
+    USING bm25 (id, description, category, metadata)
     WITH (key_field='id');
 ```
 

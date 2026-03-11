@@ -19,10 +19,10 @@ from django.db.models.functions import (
     Rank,
     RowNumber,
 )
-from tests.models import MockItem
 
 from paradedb.functions import Score, Snippet
 from paradedb.search import Match, ParadeDB, Phrase
+from tests.models import MockItem
 
 pytestmark = [
     pytest.mark.integration,

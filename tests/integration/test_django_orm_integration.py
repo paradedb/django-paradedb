@@ -10,10 +10,10 @@ from __future__ import annotations
 import pytest
 from django.db.models import F, Q, Window
 from django.db.models.functions import Lower, RowNumber
-from tests.models import MockItem
 
 from paradedb.functions import Score
 from paradedb.search import Match, ParadeDB, Phrase, Regex, Term
+from tests.models import MockItem
 
 pytestmark = [
     pytest.mark.integration,

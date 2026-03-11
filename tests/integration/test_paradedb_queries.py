@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 from django.db import DatabaseError, connection
-from tests.models import MockItem
 
 from paradedb.functions import Snippet
 from paradedb.search import (
@@ -24,6 +23,7 @@ from paradedb.search import (
     RegexPhrase,
     Term,
 )
+from tests.models import MockItem
 
 pytestmark = [
     pytest.mark.integration,

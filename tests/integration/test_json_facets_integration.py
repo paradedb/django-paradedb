@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from tests.models import JsonItem, JsonItemNoExpand
 
 from paradedb.search import All, ParadeDB
+from tests.models import JsonItem, JsonItemNoExpand
 
 pytestmark = [
     pytest.mark.integration,

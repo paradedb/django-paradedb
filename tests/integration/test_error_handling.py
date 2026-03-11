@@ -9,9 +9,9 @@ from __future__ import annotations
 import pytest
 from django.db import connection, transaction
 from django.db.utils import DatabaseError
-from tests.models import MockItem
 
 from paradedb.search import Match, MoreLikeThis, ParadeDB, Parse, Regex
+from tests.models import MockItem
 
 pytestmark = [
     pytest.mark.integration,

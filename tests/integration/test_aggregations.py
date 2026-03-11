@@ -11,10 +11,10 @@ import json
 
 import pytest
 from django.db.models import Window
-from tests.models import MockItem, Product
 
 from paradedb.functions import Agg
 from paradedb.search import All, Match, ParadeDB, Term
+from tests.models import MockItem, Product
 
 pytestmark = [
     pytest.mark.integration,

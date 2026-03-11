@@ -9,10 +9,10 @@ from __future__ import annotations
 import pytest
 from django.db.models import Avg, Count, Max, Min, Q, Sum
 from django.db.models.functions import Coalesce, Lower
-from tests.models import MockItem
 
 from paradedb.functions import Score, Snippet
 from paradedb.search import Match, ParadeDB, Parse, Phrase, Regex, Term
+from tests.models import MockItem
 
 pytestmark = [
     pytest.mark.integration,

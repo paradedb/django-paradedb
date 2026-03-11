@@ -273,32 +273,6 @@ class MockItemDjango(models.Model):
     objects = CustomManagerWithParadeDB()
 ```
 
-## Running the Demo Django Project
-
-A demo Django project is provided for ease of testing. First, create a database with `pg_search`:
-
-```sql
-CREATE USER paradedb_test_user WITH PASSWORD 'my_secret' CREATEDB;
-CREATE DATABASE paradedb_test WITH OWNER paradedb_test_user;
-\c paradedb_test
-CREATE EXTENSION pg_search;
-CALL paradedb.create_bm25_test_table(schema_name=>'public', table_name=>'mock_items');
-ALTER TABLE public.mock_items OWNER TO paradedb_test_user;
-CREATE INDEX mock_items_bm25 ON public.mock_items
-    USING bm25 (id, description, category, metadata)
-    WITH (key_field='id');
-```
-
-Then run migrations and start Django's `runserver`:
-
-```bash
-export PARADEDB_TEST_DSN=postgresql://paradedb_test_user:my_secret@localhost:5432/paradedb_test
-python manage.py migrate
-python manage.py runserver
-```
-
-You can now use your browser with a demo interface for search.
-
 ## Diagnostics Helpers and Commands
 
 `django-paradedb` includes helper functions for ParadeDB diagnostic table functions and

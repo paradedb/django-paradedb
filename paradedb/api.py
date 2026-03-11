@@ -46,7 +46,7 @@ def _load_api() -> dict[str, dict[str, str]]:
         )
 
     # In editable/source checkouts, fall back to the repository-root file.
-    source_api = Path(__file__).resolve().parents[2] / "api.json"
+    source_api = Path(__file__).resolve().parents[1] / "api.json"
     if source_api.is_file():
         return _validate_api_payload(json.loads(source_api.read_text(encoding="utf-8")))
 

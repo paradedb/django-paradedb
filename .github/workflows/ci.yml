@@ -53,7 +53,7 @@ jobs:
         run: uv run --no-sync ruff format --check .
 
       - name: Type check
-        run: uv run --no-sync mypy src/paradedb
+        run: uv run --no-sync mypy paradedb
 
       - name: Check API stub sync
         run: uv run --no-sync python scripts/check_api_stub_sync.py
@@ -129,7 +129,7 @@ jobs:
       PARADEDB_TEST_DSN: postgresql://postgres:postgres@localhost:5432/postgres
       PGPASSWORD: postgres
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-      PYTHONPATH: ${{ github.workspace }}/src
+      PYTHONPATH: ${{ github.workspace }}
       DJANGO_SPEC: Django~=${{ matrix.django-version }}.0
 
     steps:

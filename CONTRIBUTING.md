@@ -52,7 +52,7 @@ uv run ruff check .
 uv run ruff format .
 
 # Run type checking
-uv run mypy src/paradedb
+uv run mypy paradedb
 ```
 
 ### Pull Request Workflow

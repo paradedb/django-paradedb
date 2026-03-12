@@ -1,8 +1,8 @@
 import pytest
-from tests.models import MockItem
 
 from paradedb.functions import SnippetPositions, Snippets
 from paradedb.search import Match, ParadeDB
+from tests.models import MockItem
 
 pytestmark = [
     pytest.mark.integration,

@@ -6,9 +6,9 @@ from unittest.mock import Mock
 
 import pytest
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
-from tests.models import Product
 
 from paradedb.indexes import BM25Index
+from tests.models import Product
 
 
 class DummySchemaEditor(BaseDatabaseSchemaEditor):

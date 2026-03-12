@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
-from tests.models import MockItem
 
 from paradedb.functions import Score, Snippet
 from paradedb.search import Match, ParadeDB
+from tests.models import MockItem
 
 pytestmark = [
     pytest.mark.integration,

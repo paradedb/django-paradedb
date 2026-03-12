@@ -80,7 +80,7 @@ Issues = "https://github.com/paradedb/django-paradedb/issues"
 Changelog = "https://github.com/paradedb/django-paradedb/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/paradedb"]
+packages = ["paradedb"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "api.json" = "paradedb/api.json"
@@ -88,7 +88,7 @@ packages = ["src/paradedb"]
 [tool.ruff]
 target-version = "py310"
 line-length = 88
-src = ["src", "tests"]
+src = [".", "tests"]
 
 [tool.ruff.lint]
 select = [
@@ -122,7 +122,7 @@ django_settings_module = "tests.settings"
 strict_settings = false
 
 [tool.pytest.ini_options]
-pythonpath = ["src", "."]
+pythonpath = ["."]
 testpaths = ["tests"]
 django_find_project = false
 DJANGO_SETTINGS_MODULE = "tests.settings"
@@ -135,7 +135,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["src/paradedb"]
+source = ["paradedb"]
 branch = true
 
 [tool.coverage.report]

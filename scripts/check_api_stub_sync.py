@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that api.json and src/paradedb/api.pyi expose the same constants."""
+"""Validate that api.json and paradedb/api.pyi expose the same constants."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def _load_stub_symbols(stub_path: Path) -> set[str]:
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     api_path = root / "api.json"
-    stub_path = root / "src" / "paradedb" / "api.pyi"
+    stub_path = root / "paradedb" / "api.pyi"
 
     if not api_path.is_file():
         print(f"❌ api.json not found at {api_path}", file=sys.stderr)

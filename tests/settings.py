@@ -14,4 +14,19 @@ DATABASES = {"default": database_settings()}
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SECRET_KEY = "tests-secret-key"
-MIGRATION_MODULES = {"tests": None}
+ALLOWED_HOSTS = ["*"]
+
+ROOT_URLCONF = "tests.urls"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+            ],
+        },
+    },
+]

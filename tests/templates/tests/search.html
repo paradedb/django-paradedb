@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>django-paradedb Search Demo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+</head>
+<body>
+  <div class="container">
+    <h1 class="mb-1">django-paradedb Search Demo</h1>
+    <p>
+        This is a simple demonstration of the django-paradedb search functionality of
+        the <code>mock_items</code> table.
+    </p>
+
+    <form method="get" class="d-flex gap-2 mb-4">
+      <input type="text" name="q" value="{{ query }}" placeholder="e.g. shoes, running, keyboard …"
+             class="form-control" autofocus>
+      <button type="submit" class="btn btn-primary">Search</button>
+      {% if query %}<a href="?" class="btn btn-outline-secondary">Clear</a>{% endif %}
+    </form>
+
+    {% if error %}
+      <div class="alert alert-danger">
+        <strong>Error:</strong> {{ error }}<br>
+        <small>Make sure the ParadeDB test table exists and a BM25 index is created on it.</small>
+      </div>
+    {% elif results %}
+      <p class="text-muted">
+        {{ results|length }} result(s){% if query %} for <strong>{{ query }}</strong>{% endif %}
+      </p>
+      <table class="table table-sm table-hover table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Description</th>
+            <th>Category</th>
+            <th>Rating</th>
+            <th>In&nbsp;stock</th>
+            {% if query %}<th>Score</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in results %}
+          <tr>
+            <td>{{ item.id }}</td>
+            <td>
+              {% if query and item.snippet %}
+                {{ item.snippet|safe }}
+              {% else %}
+                {{ item.description|truncatechars:80 }}
+              {% endif %}
+            </td>
+            <td>{{ item.category }}</td>
+            <td>{{ item.rating }}</td>
+            <td>{{ item.in_stock|yesno:"✓,✗" }}</td>
+            {% if query %}<td class="text-muted small">{{ item.score|floatformat:4 }}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="text-muted fst-italic">No results{% if query %} for <strong>{{ query }}</strong>{% endif %}.</p>
+    {% endif %}
+  </div>
+</body>
+</html>

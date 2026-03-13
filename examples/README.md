@@ -4,6 +4,8 @@ Welcome to the **ParadeDB for Django** examples! This directory contains a colle
 
 Think of this as a **cookbook**: whether you need simple keyword search, an e-commerce filtering system, or a cutting-edge RAG (Retrieval-Augmented Generation) pipeline, you'll find a recipe here.
 
+This repository also includes a functional Django website with a basic view. Installation instructions are provided at the end of this README.
+
 ## 🚀 Getting Started
 
 Before running any example, you need to set up your environment.
@@ -160,3 +162,29 @@ You might notice that many examples import from `common`. This is a helper modul
 - **`setup_mock_items()`**: Populates the database with dummy data.
 
 Feel free to read `common.py` if you're curious how to set up standalone Django scripts!
+
+## 🚀 Running the Demo Django Project
+
+A demo Django project is provided for ease of testing. First, create a database with `pg_search`:
+
+```sql
+CREATE USER paradedb_test_user WITH PASSWORD 'my_secret' CREATEDB;
+CREATE DATABASE paradedb_test WITH OWNER paradedb_test_user;
+\c paradedb_test
+CREATE EXTENSION pg_search;
+CALL paradedb.create_bm25_test_table(schema_name=>'public', table_name=>'mock_items');
+ALTER TABLE public.mock_items OWNER TO paradedb_test_user;
+CREATE INDEX mock_items_bm25 ON public.mock_items
+    USING bm25 (id, description, category, metadata)
+    WITH (key_field='id');
+```
+
+Then run migrations and start Django's `runserver`:
+
+```bash
+export PARADEDB_TEST_DSN=postgresql://paradedb_test_user:my_secret@localhost:5432/paradedb_test
+python manage.py migrate
+python manage.py runserver
+```
+
+You can now use your browser with a demo interface for search.

@@ -81,7 +81,7 @@ from django.contrib.postgres.fields import IntegerRangeField
 from paradedb.indexes import BM25Index
 from paradedb.queryset import ParadeDBManager
 
-class MockItemDjango(models.Model):
+class MockItem(models.Model):
     description = models.TextField(null=True, blank=True)
     rating = models.IntegerField(null=True, blank=True)
     category = models.CharField(max_length=255, null=True, blank=True)
@@ -203,22 +203,22 @@ Search with a simple query:
 from paradedb.search import ParadeDB, Match, Term
 
 # Single term
-MockItemDjango.objects.filter(description=ParadeDB(Match('shoes', operator='AND')))
+MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND')))
 
 # Multiple terms (explicit AND)
-MockItemDjango.objects.filter(description=ParadeDB(Match('running', 'shoes', operator='AND')))
+MockItem.objects.filter(description=ParadeDB(Match('running', 'shoes', operator='AND')))
 
 # OR across terms
-MockItemDjango.objects.filter(description=ParadeDB(Match('shoes', 'boots', operator='OR')))
+MockItem.objects.filter(description=ParadeDB(Match('shoes', 'boots', operator='OR')))
 
 # Fuzzy search (typo tolerance via distance)
-MockItemDjango.objects.filter(description=ParadeDB(Match('shoez', operator='OR', distance=1)))
+MockItem.objects.filter(description=ParadeDB(Match('shoez', operator='OR', distance=1)))
 
 # Fuzzy prefix (distance + prefix matching)
-MockItemDjango.objects.filter(description=ParadeDB(Term('runn', distance=1, prefix=True)))
+MockItem.objects.filter(description=ParadeDB(Term('runn', distance=1, prefix=True)))
 
 # Fuzzy transposition-cost-one
-MockItemDjango.objects.filter(description=ParadeDB(Term('shose', distance=1, transposition_cost_one=True)))
+MockItem.objects.filter(description=ParadeDB(Term('shose', distance=1, transposition_cost_one=True)))
 ```
 
 Annotate with BM25 relevance score and sort by it:
@@ -226,7 +226,7 @@ Annotate with BM25 relevance score and sort by it:
 ```python
 from paradedb.functions import Score
 
-MockItemDjango.objects.filter(
+MockItem.objects.filter(
     description=ParadeDB(Match('shoes', operator='AND'))
 ).annotate(
     score=Score()
@@ -242,12 +242,12 @@ from django.db.models import Q
 from paradedb.search import ParadeDB, Match
 
 # Combine with Q objects
-MockItemDjango.objects.filter(
+MockItem.objects.filter(
     Q(description=ParadeDB(Match('shoes', operator='AND'))) & Q(rating__gte=4)
 )
 
 # Chain with standard filters
-MockItemDjango.objects.filter(
+MockItem.objects.filter(
     description=ParadeDB(Match('shoes', operator='AND'))
 ).filter(
     category='footwear'
@@ -269,7 +269,7 @@ class CustomManager(models.Manager):
 
 CustomManagerWithParadeDB = CustomManager.from_queryset(ParadeDBQuerySet)
 
-class MockItemDjango(models.Model):
+class MockItem(models.Model):
     objects = CustomManagerWithParadeDB()
 ```
 
@@ -317,10 +317,10 @@ Notes:
 
 ```python
 # ❌ Missing ParadeDB filter
-MockItemDjango.objects.filter(rating__lt=4).order_by('id')[:10].facets('category')
+MockItem.objects.filter(rating__lt=4).order_by('id')[:10].facets('category')
 
 # ✅ Add a ParadeDB search filter
-MockItemDjango.objects.filter(
+MockItem.objects.filter(
     rating__gte=4,
     description=ParadeDB(Match('shoes', operator='AND'))
 ).order_by('id')[:10].facets('category')
@@ -330,14 +330,14 @@ MockItemDjango.objects.filter(
 
 ```python
 # ❌ Missing ordering or limit
-MockItemDjango.objects.filter(description=ParadeDB(Match('shoes', operator='AND')))[:10].facets('category')
-MockItemDjango.objects.filter(description=ParadeDB(Match('shoes', operator='AND'))).order_by('id').facets('category')
+MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND')))[:10].facets('category')
+MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND'))).order_by('id').facets('category')
 
 # ✅ Both ordering and limit
-MockItemDjango.objects.filter(description=ParadeDB(Match('shoes', operator='AND'))).order_by('id')[:10].facets('category')
+MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND'))).order_by('id')[:10].facets('category')
 
 # ✅ Or skip rows entirely
-MockItemDjango.objects.filter(description=ParadeDB(Match('shoes', operator='AND'))).facets('category', include_rows=False)
+MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND'))).facets('category', include_rows=False)
 ```
 
 ## Security

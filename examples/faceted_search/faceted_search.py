@@ -21,7 +21,7 @@ def demo_facets_with_rows(query: str) -> None:
         description=ParadeDB(Match(query, operator="AND"))
     ).order_by("-rating")[:5]
     rows, facets = queryset.facets(  # type: ignore[attr-defined]
-        "category", "rating", "metadata_color", include_rows=True
+        "category", "rating", "metadata.color", include_rows=True
     )
 
     print("Top results:")

@@ -23,10 +23,13 @@ jobs:
       - name: Checkout Git Repository
         uses: actions/checkout@v6
 
-      # The `skip` parameter is a total mess, read up before adding.
-      # https://github.com/codespell-project/codespell/issues/1915
-      - name: Check Typo using codespell
-        uses: codespell-project/actions-codespell@v2
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          check_filenames: true
-          ignore_words_file: .codespellignore
+          python-version: "3.13"
+
+      - name: Install codespell
+        run: python -m pip install codespell
+
+      - name: Check Typo using codespell
+        run: codespell --config .codespellrc --check-filenames

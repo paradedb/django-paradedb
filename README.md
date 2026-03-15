@@ -104,7 +104,7 @@ class MockItem(models.Model):
                     "category": {"tokenizer": "literal"},
                     "rating": {},
                     "in_stock": {},
-                    "metadata": {},
+                    "metadata": {"json_fields": {"fast": True}},
                     "created_at": {},
                     "last_updated_date": {},
                     "latest_available_time": {},
@@ -122,6 +122,9 @@ Run migrations to create the index:
 python manage.py makemigrations
 python manage.py migrate
 ```
+
+The `json_fields` option enables native dotted-path access for JSON subfields
+such as `metadata.color` in facets and aggregations.
 
 ### Index Computed Expressions
 

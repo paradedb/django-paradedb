@@ -123,6 +123,53 @@ def test_json_key_without_tokenizer_raises_value_error() -> None:
         index.create_sql(model=Product, schema_editor=DummySchemaEditor())
 
 
+def test_native_json_fields_on_non_json_field_raises_value_error() -> None:
+    index = BM25Index(
+        fields={
+            "id": {},
+            "description": {
+                "json_fields": {"fast": True},
+            },
+        },
+        key_field="id",
+        name="product_search_idx",
+    )
+    with pytest.raises(ValueError, match="is not a JSONField"):
+        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
+
+
+def test_native_json_fields_cannot_mix_with_legacy_json_keys() -> None:
+    index = BM25Index(
+        fields={
+            "id": {},
+            "metadata": {
+                "json_fields": {"fast": True},
+                "json_keys": {"color": {"tokenizer": "literal"}},
+            },
+        },
+        key_field="id",
+        name="product_search_idx",
+    )
+    with pytest.raises(ValueError, match="cannot mix 'json_fields'"):
+        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
+
+
+def test_stemmer_filter_without_stemmer_language_raises_value_error() -> None:
+    index = BM25Index(
+        fields={
+            "id": {},
+            "description": {
+                "tokenizer": "simple",
+                "filters": ["stemmer"],
+            },
+        },
+        key_field="id",
+        name="product_search_idx",
+    )
+    with pytest.raises(ValueError, match="requires a stemmer language"):
+        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
+
+
 def test_pre_rendered_tokenizer_string_with_named_args_is_rendered_verbatim() -> None:
     index = BM25Index(
         fields={

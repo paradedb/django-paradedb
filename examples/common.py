@@ -95,12 +95,7 @@ def _mock_items_indexes() -> list[BM25Index]:
                 "description": {},
                 "rating": {},
                 "category": {"tokenizer": "literal", "alias": "category"},
-                "metadata": {
-                    "json_keys": {
-                        "color": {"tokenizer": "literal"},
-                        "location": {"tokenizer": "literal"},
-                    }
-                },
+                "metadata": {"json_fields": {"fast": True}},
             },
             key_field="id",
             name="mock_items_bm25_idx",
@@ -114,7 +109,7 @@ class MockItem(models.Model):
     This unmanaged model maps to the mock_items table created by
     paradedb.create_bm25_test_table(). It contains sample product
     data with a pre-configured BM25 index on description, rating,
-    category, and selected metadata keys.
+    category, and native metadata subfields like ``metadata.color``.
     """
 
     id = models.IntegerField(primary_key=True)

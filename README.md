@@ -49,7 +49,7 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 | ---------- | ----------------------------- |
 | Python     | 3.10+                         |
 | Django     | 4.2+                          |
-| ParadeDB   | 0.21.10+                     |
+| ParadeDB   | 0.21.10+                    |
 | PostgreSQL | 15+ (with ParadeDB extension) |
 
 ## Installation

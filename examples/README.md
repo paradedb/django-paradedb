@@ -95,9 +95,11 @@ Standard search requires hitting "Enter". Autocomplete gives immediate feedback.
 **Run it:**
 
 ```bash
-uv run python examples/autocomplete/setup.py          # Step 1: Create table with ngram index
-uv run python examples/autocomplete/autocomplete.py   # Step 2: Run the search demo
+uv run python examples/autocomplete/autocomplete.py
 ```
+
+`autocomplete.py` bootstraps its own setup. Run `examples/autocomplete/setup.py`
+only if you want to inspect or prepare the demo data separately.
 
 #### 4. More Like This (`more_like_this/more_like_this.py`)
 
@@ -128,9 +130,12 @@ Keyword search (BM25) is great for exact matches ("Part #123"). Vector search is
 **Run it:**
 
 ```bash
-uv run python examples/hybrid_rrf/setup.py         # Loads pre-computed embeddings into the DB
-uv run python examples/hybrid_rrf/hybrid_rrf.py    # Performs the hybrid search
+uv run python examples/hybrid_rrf/hybrid_rrf.py
 ```
+
+`hybrid_rrf.py` runs its setup step automatically. Run
+`examples/hybrid_rrf/setup.py` on its own only when you want to preload the
+sample embeddings before the demo.
 
 #### 6. RAG: Retrieval-Augmented Generation (`rag/`)
 

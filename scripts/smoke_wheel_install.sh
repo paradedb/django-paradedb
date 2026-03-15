@@ -21,7 +21,11 @@ if [[ -z "${PYTHON_BIN}" ]]; then
 fi
 
 DIST_DIR="${WORK_DIR}/dist"
-"${PYTHON_BIN}" -m pip wheel . --no-deps -w "${DIST_DIR}"
+if command -v uv >/dev/null 2>&1; then
+  uv build --wheel --out-dir "${DIST_DIR}"
+else
+  "${PYTHON_BIN}" -m pip wheel . --no-build-isolation --no-deps -w "${DIST_DIR}"
+fi
 
 "${PYTHON_BIN}" -m venv "${WORK_DIR}/venv"
 PYTHON_BIN="${WORK_DIR}/venv/bin/python"

@@ -41,7 +41,7 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 - Autocomplete with prefix matching and fuzzy tolerance
 - Composable with Django's `Q` objects, `filter()`, `exclude()`, and custom managers
 - Diagnostic management commands for index health and verification
-- Type-safe with `py.typed` marker and full type stubs
+- Type-aware with a `py.typed` package marker and typed public APIs
 
 ## Requirements & Compatibility
 
@@ -49,7 +49,7 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 | ---------- | ----------------------------- |
 | Python     | 3.10+                         |
 | Django     | 4.2+                          |
-| ParadeDB   | 0.21.0+                       |
+| ParadeDB   | 0.21.10+                     |
 | PostgreSQL | 15+ (with ParadeDB extension) |
 
 ## Installation

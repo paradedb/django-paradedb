@@ -1264,7 +1264,7 @@ class ParadeDB:
         if any(isinstance(term, Proximity) for term in self._terms):
             if len(self._terms) != 1:
                 raise ValueError(
-                    "Proximity queries must be a single term. Proximity arrays are not supported yet."
+                    "Proximity queries accept a single Proximity term. Use ProximityArray for multiple proximity clauses."
                 )
             term = self._terms[0]
             if not isinstance(term, Proximity):

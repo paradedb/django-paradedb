@@ -11,7 +11,7 @@ import pytest
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.migrations.writer import MigrationWriter
 from django.db.models import F, Q, TextField, Value, Window
-from django.db.models.functions import Concat, Lower, RowNumber
+from django.db.models.functions import Concat, Length, Lower, RowNumber
 
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index, IndexExpression
@@ -1152,6 +1152,28 @@ class TestBM25Index:
             == "CREATE INDEX \"product_search_idx\" ON \"tests_product\"\nUSING bm25 (\n    \"id\",\n    ((\"metadata\"->>'title')::pdb.simple('alias=metadata_title,lowercase=true')),\n    ((\"metadata\"->>'brand')::pdb.simple('alias=metadata_brand'))\n)\nWITH (key_field='id')"
         )
 
+    def test_json_field_native_json_fields(self) -> None:
+        """Native json_fields config is emitted via WITH (...) and indexes the column."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "metadata": {
+                    "json_fields": {
+                        "fast": True,
+                        "expand_dots": False,
+                    }
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "metadata"\n)\nWITH (key_field=\'id\', json_fields=\'{"metadata":{"expand_dots":false,"fast":true}}\')'
+        )
+
     def test_field_filters_without_tokenizer_raises(self) -> None:
         """Specifying filters or stemmer without a tokenizer raises ValueError."""
         index = BM25Index(
@@ -1164,6 +1186,23 @@ class TestBM25Index:
         )
         schema_editor = DummySchemaEditor()
         with pytest.raises(ValueError, match="no tokenizer"):
+            index.create_sql(model=Product, schema_editor=schema_editor)
+
+    def test_stemmer_filter_requires_stemmer_language(self) -> None:
+        """The stemmer filter must be paired with an explicit stemmer language."""
+        index = BM25Index(
+            fields={
+                "id": {},
+                "description": {
+                    "tokenizer": "simple",
+                    "filters": ["stemmer"],
+                },
+            },
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        with pytest.raises(ValueError, match="requires a stemmer language"):
             index.create_sql(model=Product, schema_editor=schema_editor)
 
     def test_field_filters_only_without_tokenizer_raises(self) -> None:
@@ -1508,6 +1547,20 @@ class TestBM25Index:
         assert sql.startswith('CREATE INDEX CONCURRENTLY "product_search_idx"')
         assert sql.endswith('WHERE "description" IS NOT NULL')
 
+    def test_create_sql_with_native_json_fields_and_condition(self) -> None:
+        """json_fields and condition can both be emitted in the same CREATE INDEX."""
+        index = BM25Index(
+            fields={"id": {}, "metadata": {"json_fields": {"fast": True}}},
+            key_field="id",
+            name="product_search_idx",
+            condition=Q(description__isnull=False),
+        )
+        schema_editor = DummySchemaEditor()
+        index._get_condition_sql = Mock(return_value='"description" IS NOT NULL')
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert 'json_fields=\'{"metadata":{"fast":true}}\'' in sql
+        assert sql.endswith('WHERE "description" IS NOT NULL')
+
     def test_create_sql_without_condition_no_where(self) -> None:
         """create_sql without condition does not append WHERE clause."""
         index = BM25Index(
@@ -1603,6 +1656,28 @@ class TestBM25Index:
             == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    (((("tests_product"."rating" + 1)))::pdb.alias(\'rating_plus_one\'))\n)\nWITH (key_field=\'id\')'
         )
 
+    def test_index_expression_non_text_transform_from_text_source_uses_alias(
+        self,
+    ) -> None:
+        """Non-text outputs from text fields should use pdb.alias without a tokenizer."""
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[
+                IndexExpression(
+                    Length("description"),
+                    alias="description_length",
+                ),
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((LENGTH("tests_product"."description"))::pdb.alias(\'description_length\'))\n)\nWITH (key_field=\'id\')'
+        )
+
     def test_index_expression_with_json_path_reference(self) -> None:
         """JSON path expressions require a tokenizer on the source expression."""
         index = BM25Index(
@@ -1617,7 +1692,7 @@ class TestBM25Index:
             name="product_search_idx",
         )
         schema_editor = DummySchemaEditor()
-        with pytest.raises(ValueError, match="uses a text or JSON source"):
+        with pytest.raises(ValueError, match="resolves to a text or JSON value"):
             index.create_sql(model=Product, schema_editor=schema_editor)
 
     def test_index_expression_with_string_field_reference(self) -> None:

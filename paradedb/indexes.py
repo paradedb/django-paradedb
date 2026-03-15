@@ -2,15 +2,21 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from django.db import models
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
 from django.db.models.expressions import Expression
 from django.utils.deconstruct import deconstructible
+
+if TYPE_CHECKING:
+    ModelField = models.Field[Any, Any]
+else:
+    ModelField = models.Field
 
 
 def _quote_term(value: str) -> str:
@@ -82,7 +88,11 @@ def _build_tokenizer_config(
     if filters:
         for name in filters:
             safe_name = _validate_config_key(name, context="Tokenizer filter names")
-            if name == "stemmer" and stemmer:
+            if name == "stemmer":
+                if stemmer is None:
+                    raise ValueError(
+                        "Tokenizer filter 'stemmer' requires a stemmer language."
+                    )
                 config_parts.setdefault("stemmer", stemmer)
             else:
                 config_parts.setdefault(safe_name, True)
@@ -138,7 +148,7 @@ def _inline_compiled_params(
     return rendered_sql
 
 
-def _requires_expression_tokenizer(output_field: models.Field[Any, Any] | None) -> bool:
+def _requires_expression_tokenizer(output_field: ModelField | None) -> bool:
     if output_field is None:
         return False
     return isinstance(
@@ -146,15 +156,70 @@ def _requires_expression_tokenizer(output_field: models.Field[Any, Any] | None) 
     )
 
 
-def _expression_uses_text_or_json_sources(expression: Expression) -> bool:
-    if _requires_expression_tokenizer(getattr(expression, "output_field", None)):
-        return True
+def _expression_requires_tokenizer(expression: Expression) -> bool:
+    output_field = getattr(expression, "output_field", None)
+    if output_field is not None:
+        return _requires_expression_tokenizer(output_field)
 
     for source in expression.get_source_expressions():
-        if source is not None and _expression_uses_text_or_json_sources(source):
+        if source is not None and _expression_requires_tokenizer(source):
             return True
 
     return False
+
+
+def _render_native_json_fields_json(json_fields: dict[str, dict[str, Any]]) -> str:
+    return json.dumps(json_fields, separators=(",", ":"), sort_keys=True)
+
+
+def _validate_native_json_field_config(
+    *,
+    field: ModelField,
+    field_name: str,
+    json_fields: Any,
+) -> dict[str, Any]:
+    if not isinstance(field, models.JSONField):
+        raise ValueError(
+            f"Field {field_name!r} uses 'json_fields' but is not a JSONField."
+        )
+    if not isinstance(json_fields, dict):
+        raise ValueError(
+            f"Field {field_name!r} 'json_fields' must be a dictionary of options."
+        )
+    return cast(dict[str, Any], json_fields)
+
+
+def _validate_native_json_field_conflicts(
+    *,
+    field_name: str,
+    json_fields: Any,
+    json_keys: Any,
+    tokenizers: Any,
+    tokenizer: Any,
+    args: Any,
+    named_args: Any,
+    filters: Any,
+    stemmer: Any,
+    alias: Any,
+) -> None:
+    if json_fields is None:
+        return
+
+    if (
+        json_keys is not None
+        or tokenizers is not None
+        or tokenizer is not None
+        or args is not None
+        or named_args is not None
+        or filters is not None
+        or stemmer is not None
+        or alias is not None
+    ):
+        raise ValueError(
+            f"Field {field_name!r} cannot mix 'json_fields' with "
+            f"'json_keys', 'tokenizers', 'tokenizer', 'args', 'named_args', "
+            f"'filters', 'stemmer', or 'alias'."
+        )
 
 
 @deconstructible(path="paradedb.indexes.IndexExpression")
@@ -252,8 +317,14 @@ class BM25Index(models.Index):
         table = schema_editor.quote_name(model._meta.db_table)
         index_name = schema_editor.quote_name(self.name)
 
-        expressions = self._build_index_expressions(model, schema_editor)
+        expressions, json_fields = self._build_index_expressions(model, schema_editor)
         expr_sql = ",\n    ".join(expressions)
+        storage_params = [f"key_field={_quote_term(self.key_field)}"]
+        if json_fields:
+            storage_params.append(
+                "json_fields="
+                + _quote_term(_render_native_json_fields_json(json_fields))
+            )
 
         create_stmt = "CREATE INDEX"
         if concurrently:
@@ -263,7 +334,7 @@ class BM25Index(models.Index):
             "USING bm25 (\n"
             "    %(expressions)s\n"
             ")\n"
-            "WITH (key_field=%(key_field)s)"
+            f"WITH ({', '.join(storage_params)})"
         )
 
         condition_sql = self._get_condition_sql(model, schema_editor)  # type: ignore[attr-defined]
@@ -275,19 +346,49 @@ class BM25Index(models.Index):
             name=index_name,
             table=table,
             expressions=expr_sql,
-            key_field=_quote_term(self.key_field),
         )
 
     def _build_index_expressions(
         self, model: type[models.Model], schema_editor: BaseDatabaseSchemaEditor
-    ) -> list[str]:
+    ) -> tuple[list[str], dict[str, dict[str, Any]]]:
         expressions: list[str] = []
+        json_fields: dict[str, dict[str, Any]] = {}
         for field_name, config in self.fields_config.items():
             field = model._meta.get_field(field_name)
             column_name: str = getattr(field, "column")  # noqa: B009
             column: str = schema_editor.quote_name(column_name)
 
             json_keys = config.get("json_keys")
+            tokenizers = config.get("tokenizers")
+            tokenizer = config.get("tokenizer")
+            args = config.get("args")
+            named_args = self._extract_named_args(config, field_name)
+            filters = config.get("filters")
+            stemmer = config.get("stemmer")
+            alias = config.get("alias")
+            native_json_fields = config.get("json_fields")
+
+            _validate_native_json_field_conflicts(
+                field_name=field_name,
+                json_fields=native_json_fields,
+                json_keys=json_keys,
+                tokenizers=tokenizers,
+                tokenizer=tokenizer,
+                args=args,
+                named_args=named_args,
+                filters=filters,
+                stemmer=stemmer,
+                alias=alias,
+            )
+            if native_json_fields is not None:
+                expressions.append(column)
+                json_fields[field_name] = _validate_native_json_field_config(
+                    field=cast(ModelField, field),
+                    field_name=field_name,
+                    json_fields=native_json_fields,
+                )
+                continue
+
             if json_keys:
                 expressions.extend(
                     self._build_json_key_expressions(
@@ -296,13 +397,6 @@ class BM25Index(models.Index):
                 )
                 continue
 
-            tokenizers = config.get("tokenizers")
-            tokenizer = config.get("tokenizer")
-            args = config.get("args")
-            named_args = self._extract_named_args(config, field_name)
-            filters = config.get("filters")
-            stemmer = config.get("stemmer")
-            alias = config.get("alias")
             if tokenizers is not None:
                 if (
                     tokenizer is not None
@@ -358,7 +452,7 @@ class BM25Index(models.Index):
                 self._build_computed_expression(idx_expr, model, schema_editor)
             )
 
-        return expressions
+        return expressions, json_fields
 
     def _build_computed_expression(
         self,
@@ -385,12 +479,10 @@ class BM25Index(models.Index):
 
         # Resolve and compile the expression
         resolved = expr.resolve_expression(query, allow_joins=False, for_save=False)
-        if idx_expr.tokenizer is None and _expression_uses_text_or_json_sources(
-            resolved
-        ):
+        if idx_expr.tokenizer is None and _expression_requires_tokenizer(resolved):
             raise ValueError(
-                f"IndexExpression with alias {idx_expr.alias!r} uses a text or "
-                f"JSON source. Specify a tokenizer for text/JSON expressions."
+                f"IndexExpression with alias {idx_expr.alias!r} resolves to a text or "
+                f"JSON value. Specify a tokenizer for text/JSON expressions."
             )
         expr_sql, params = compiler.compile(resolved)
         expr_sql = _inline_compiled_params(expr_sql, params, schema_editor)

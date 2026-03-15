@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file. The format 
 - **BREAKING**: Renamed `ProximityArray` keyword arguments from `right_term` and
   `right_pattern` to `anchor` and `anchor_pattern`.
 
+
 ## [0.4.0] - 2026-02-28
 
 ### Added

@@ -5,7 +5,6 @@ OP_OR: str
 OP_PHRASE: str
 OP_PROXIMITY: str
 OP_PROXIMITY_ORD: str
-OP_TERM: str
 
 # Functions
 FN_ALL: str

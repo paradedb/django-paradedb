@@ -1,4 +1,4 @@
-"""Unit tests for BM25Index config validation errors."""
+"""Unit tests for BM25Index configuration validation errors."""
 
 from __future__ import annotations
 

@@ -311,7 +311,7 @@ class TestProximitySearch:
         )
         with pytest.raises(
             ValueError,
-            match=r"Proximity queries must be a single term\. Proximity arrays are not supported yet\.",
+            match=r"Proximity queries accept a single Proximity term\. Use ProximityArray for multiple proximity clauses\.",
         ):
             _ = str(queryset.query)
 

@@ -100,6 +100,14 @@ jobs:
             echo "is_latest=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          uv tool run --from twine twine upload dist/*
+          echo "✅ Published django-paradedb ${VERSION} to PyPI"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -108,16 +116,10 @@ jobs:
           prerelease: ${{ github.event.inputs.beta }}
           make_latest: ${{ steps.latest.outputs.is_latest }}
           generate_release_notes: true
+          files: |
+            dist/*
         env:
           GITHUB_TOKEN: ${{ github.token }}
-
-      - name: Publish to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          uv tool run --from twine twine upload dist/*
-          echo "✅ Published django-paradedb ${VERSION} to PyPI"
 
       - name: Summary
         run: |

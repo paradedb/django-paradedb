@@ -46,13 +46,32 @@ jobs:
             exit 1
           fi
 
-      - name: Print Modified Files
+      - name: Check for Missing Final Newlines
         run: |
-          FILES=$(git ls-files --modified)
-          if [[ ! -z "$FILES" ]]; then
-            echo "The following files have incorrect trailing newlines:"
-            echo "$FILES"
-            echo "Please fix them using:"
-            echo -e 'if [[ -f "$1" ]]; then\n  echo -n "$1"\n  if (diff /dev/null "$1" || true) | tail -1 | grep -q "^\\ No newline"; then\n    echo >> "$1"\n    echo "...fixed"\n  else\n    echo ""\n  fi\nfi'
-            false
-          fi
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          ignored_suffixes = {".nix", ".sql", ".out", ".rs"}
+          ignored_prefixes = ("docker/manifests/",)
+          missing_newline: list[str] = []
+
+          output = subprocess.check_output(["git", "ls-files", "-z"], text=False)
+          for raw_path in output.decode().split("\0"):
+              if not raw_path:
+                  continue
+              path = Path(raw_path)
+              if raw_path.startswith(ignored_prefixes) or path.suffix in ignored_suffixes:
+                  continue
+              data = path.read_bytes()
+              if b"\0" in data:
+                  continue
+              if data and not data.endswith(b"\n"):
+                  missing_newline.append(raw_path)
+
+          if missing_newline:
+              print("The following files are missing a trailing newline:")
+              print("\n".join(missing_newline))
+              sys.exit(1)
+          PY

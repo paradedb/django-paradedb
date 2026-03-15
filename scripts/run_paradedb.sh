@@ -11,7 +11,9 @@ else
   set -euo pipefail
 fi
 
-IMAGE="${PARADEDB_IMAGE:-paradedb/paradedb:0.21.10-pg18}"
+PARADEDB_VERSION="${PARADEDB_VERSION:-0.21.10}"
+PARADEDB_POSTGRES_VERSION="${PARADEDB_POSTGRES_VERSION:-18}"
+IMAGE="${PARADEDB_IMAGE:-paradedb/paradedb:${PARADEDB_VERSION}-pg${PARADEDB_POSTGRES_VERSION}}"
 CONTAINER_NAME="${PARADEDB_CONTAINER_NAME:-paradedb-integration}"
 
 # Allow overriding connection details via env vars

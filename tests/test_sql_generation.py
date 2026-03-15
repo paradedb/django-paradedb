@@ -1558,7 +1558,7 @@ class TestBM25Index:
         schema_editor = DummySchemaEditor()
         index._get_condition_sql = Mock(return_value='"description" IS NOT NULL')
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
-        assert "json_fields='{\"metadata\":{\"fast\":true}}'" in sql
+        assert 'json_fields=\'{"metadata":{"fast":true}}\'' in sql
         assert sql.endswith('WHERE "description" IS NOT NULL')
 
     def test_create_sql_without_condition_no_where(self) -> None:
@@ -1656,7 +1656,9 @@ class TestBM25Index:
             == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    (((("tests_product"."rating" + 1)))::pdb.alias(\'rating_plus_one\'))\n)\nWITH (key_field=\'id\')'
         )
 
-    def test_index_expression_non_text_transform_from_text_source_uses_alias(self) -> None:
+    def test_index_expression_non_text_transform_from_text_source_uses_alias(
+        self,
+    ) -> None:
         """Non-text outputs from text fields should use pdb.alias without a tokenizer."""
         index = BM25Index(
             fields={"id": {}},

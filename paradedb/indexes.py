@@ -5,13 +5,18 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from django.db import models
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
 from django.db.models.expressions import Expression
 from django.utils.deconstruct import deconstructible
+
+if TYPE_CHECKING:
+    ModelField = models.Field[Any, Any]
+else:
+    ModelField = models.Field
 
 
 def _quote_term(value: str) -> str:
@@ -143,7 +148,7 @@ def _inline_compiled_params(
     return rendered_sql
 
 
-def _requires_expression_tokenizer(output_field: models.Field[Any, Any] | None) -> bool:
+def _requires_expression_tokenizer(output_field: ModelField | None) -> bool:
     if output_field is None:
         return False
     return isinstance(
@@ -169,7 +174,7 @@ def _render_native_json_fields_json(json_fields: dict[str, dict[str, Any]]) -> s
 
 def _validate_native_json_field_config(
     *,
-    field: models.Field[Any, Any],
+    field: ModelField,
     field_name: str,
     json_fields: Any,
 ) -> dict[str, Any]:
@@ -378,7 +383,7 @@ class BM25Index(models.Index):
             if native_json_fields is not None:
                 expressions.append(column)
                 json_fields[field_name] = _validate_native_json_field_config(
-                    field=cast(models.Field[Any, Any], field),
+                    field=cast(ModelField, field),
                     field_name=field_name,
                     json_fields=native_json_fields,
                 )

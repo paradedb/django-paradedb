@@ -328,43 +328,43 @@ class ProxRegex:
 class ProximityArray:
     """Proximity array query expression."""
 
-    left_terms: tuple[str | ProxRegex, ...]
-    right_term: str
+    terms: tuple[str | ProxRegex, ...]
+    anchor: str
     distance: int
     ordered: bool = False
-    right_pattern: str | None = None
+    anchor_pattern: str | None = None
     max_expansions: int = 50
     boost: float | None = None
     const: float | None = None
 
     def __init__(
         self,
-        *left_terms: str | ProxRegex,
-        right_term: str,
+        *terms: str | ProxRegex,
+        anchor: str,
         distance: int,
         ordered: bool = False,
-        right_pattern: str | None = None,
+        anchor_pattern: str | None = None,
         max_expansions: int = 50,
         boost: float | None = None,
         const: float | None = None,
     ) -> None:
-        if not left_terms:
+        if not terms:
             raise ValueError("ProximityArray requires at least one left-side term.")
-        for left_term in left_terms:
+        for left_term in terms:
             if not isinstance(left_term, str | ProxRegex):
                 raise TypeError(
-                    "ProximityArray left_terms must be strings or ProxRegex instances."
+                    "ProximityArray terms must be strings or ProxRegex instances."
                 )
-        _validate_string("ProximityArray right_term", right_term)
+        _validate_string("ProximityArray anchor", anchor)
         _validate_non_negative_int("ProximityArray distance", distance)
         _validate_non_negative_int("ProximityArray max_expansions", max_expansions)
-        if right_pattern is not None:
-            _validate_string("ProximityArray right_pattern", right_pattern)
-        object.__setattr__(self, "left_terms", tuple(left_terms))
-        object.__setattr__(self, "right_term", right_term)
+        if anchor_pattern is not None:
+            _validate_string("ProximityArray anchor_pattern", anchor_pattern)
+        object.__setattr__(self, "terms", tuple(terms))
+        object.__setattr__(self, "anchor", anchor)
         object.__setattr__(self, "distance", distance)
         object.__setattr__(self, "ordered", ordered)
-        object.__setattr__(self, "right_pattern", right_pattern)
+        object.__setattr__(self, "anchor_pattern", anchor_pattern)
         object.__setattr__(self, "max_expansions", max_expansions)
         object.__setattr__(self, "boost", boost)
         object.__setattr__(self, "const", const)
@@ -1413,7 +1413,7 @@ class ParadeDB:
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, ProximityArray):
             left_parts: list[str] = []
-            for lt in term.left_terms:
+            for lt in term.terms:
                 if isinstance(lt, ProxRegex):
                     left_parts.append(
                         f"{FN_PROX_REGEX}({self._quote_term(lt.pattern)}, {lt.max_expansions})"
@@ -1422,9 +1422,9 @@ class ParadeDB:
                     left_parts.append(self._quote_term(lt))
             left_sql = ", ".join(left_parts)
             operator = OP_PROXIMITY_ORD if term.ordered else OP_PROXIMITY
-            right_sql = self._quote_term(term.right_term)
-            if term.right_pattern is not None:
-                right_sql = f"{FN_PROX_REGEX}({self._quote_term(term.right_pattern)}, {term.max_expansions})"
+            right_sql = self._quote_term(term.anchor)
+            if term.anchor_pattern is not None:
+                right_sql = f"{FN_PROX_REGEX}({self._quote_term(term.anchor_pattern)}, {term.max_expansions})"
             rendered = (
                 f"{FN_PROXIMITY}("
                 f"{FN_PROX_ARRAY}({left_sql}) {operator} {term.distance} {operator} {right_sql}"

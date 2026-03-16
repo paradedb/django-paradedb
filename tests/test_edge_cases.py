@@ -348,31 +348,31 @@ class TestExpressionValidation:
 
     def test_proximity_array_requires_left_terms(self) -> None:
         with pytest.raises(ValueError, match="requires at least one left-side term"):
-            ProximityArray(right_term="right", distance=1)
+            ProximityArray(anchor="right", distance=1)
 
     def test_proximity_array_negative_distance_raises(self) -> None:
         with pytest.raises(ValueError, match="distance must be zero or positive"):
-            ProximityArray("left", right_term="right", distance=-1)
+            ProximityArray("left", anchor="right", distance=-1)
 
     def test_proximity_array_negative_max_expansions_raises(self) -> None:
         with pytest.raises(ValueError, match="max_expansions must be zero or positive"):
-            ProximityArray("left", right_term="right", distance=1, max_expansions=-1)
+            ProximityArray("left", anchor="right", distance=1, max_expansions=-1)
 
     def test_proximity_array_boost_and_const_deferred_to_database(self) -> None:
         proximity_array = ProximityArray(
-            "left", right_term="right", distance=1, boost=1.0, const=1.0
+            "left", anchor="right", distance=1, boost=1.0, const=1.0
         )
         assert proximity_array.boost == 1.0
         assert proximity_array.const == 1.0
 
     def test_proximity_array_accepts_prox_regex_items(self) -> None:
         proximity_array = ProximityArray(
-            "chicken", ProxRegex("r..s"), right_term="delicious", distance=1
+            "chicken", ProxRegex("r..s"), anchor="delicious", distance=1
         )
-        assert len(proximity_array.left_terms) == 2
-        assert proximity_array.left_terms[0] == "chicken"
-        assert isinstance(proximity_array.left_terms[1], ProxRegex)
-        assert proximity_array.left_terms[1].pattern == "r..s"
+        assert len(proximity_array.terms) == 2
+        assert proximity_array.terms[0] == "chicken"
+        assert isinstance(proximity_array.terms[1], ProxRegex)
+        assert proximity_array.terms[1].pattern == "r..s"
 
     def test_prox_regex_negative_max_expansions_raises(self) -> None:
         with pytest.raises(ValueError, match="max_expansions must be zero or positive"):
@@ -394,9 +394,9 @@ class TestExpressionValidation:
     def test_proximity_array_left_terms_must_be_strings_or_proxregex(self) -> None:
         with pytest.raises(
             TypeError,
-            match="left_terms must be strings or ProxRegex instances",
+            match="terms must be strings or ProxRegex instances",
         ):
-            ProximityArray(123, right_term="right", distance=1)  # type: ignore[arg-type]
+            ProximityArray(123, anchor="right", distance=1)  # type: ignore[arg-type]
 
 
 class TestMoreLikeThisValidation:

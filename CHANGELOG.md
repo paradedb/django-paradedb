@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file. The format 
   Supports Django expressions (e.g., `Lower('title')`, `F('rating') + 1`) with
   optional tokenizer configuration. For non-text expressions, uses `pdb.alias`.
 
+### Changed
+
+- **BREAKING**: Renamed `ProximityArray` keyword arguments from `right_term` and
+  `right_pattern` to `anchor` and `anchor_pattern`.
+
 ## [0.4.0] - 2026-02-28
 
 ### Added

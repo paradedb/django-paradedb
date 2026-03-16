@@ -627,7 +627,7 @@ class TestProximityAdvancedQuery:
     def test_proximity_array_query(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                ProximityArray("sleek", "running", right_term="shoes", distance=1)
+                ProximityArray("sleek", "running", anchor="shoes", distance=1)
             )
         )
         assert (
@@ -641,7 +641,7 @@ class TestProximityAdvancedQuery:
                 ProximityArray(
                     "chicken",
                     ProxRegex("r..s"),
-                    right_term="delicious",
+                    anchor="delicious",
                     distance=1,
                 )
             )
@@ -657,7 +657,7 @@ class TestProximityAdvancedQuery:
                 ProximityArray(
                     ProxRegex("sl.*", max_expansions=100),
                     "white",
-                    right_term="shoes",
+                    anchor="shoes",
                     distance=1,
                 )
             )
@@ -672,8 +672,8 @@ class TestProximityAdvancedQuery:
             description=ParadeDB(
                 ProximityArray(
                     "running",
-                    right_term="unused",
-                    right_pattern="sho.*",
+                    anchor="unused",
+                    anchor_pattern="sho.*",
                     distance=1,
                     max_expansions=80,
                 )

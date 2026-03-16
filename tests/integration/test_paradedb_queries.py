@@ -140,7 +140,7 @@ def test_proximity_array_query() -> None:
     ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(
-                ProximityArray("sleek", "running", right_term="shoes", distance=1)
+                ProximityArray("sleek", "running", anchor="shoes", distance=1)
             )
         )
     )
@@ -154,7 +154,7 @@ def test_proximity_array_with_mixed_prox_regex_items() -> None:
                 ProximityArray(
                     "sleek",
                     ProxRegex("run.*"),
-                    right_term="shoes",
+                    anchor="shoes",
                     distance=1,
                 )
             )
@@ -170,7 +170,7 @@ def test_proximity_array_with_mixed_prox_regex_items_ordered() -> None:
                 ProximityArray(
                     "sleek",
                     ProxRegex("run.*"),
-                    right_term="shoes",
+                    anchor="shoes",
                     distance=1,
                     ordered=True,
                 )
@@ -184,7 +184,7 @@ def test_proximity_array_with_only_prox_regex_left_term() -> None:
     ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(
-                ProximityArray(ProxRegex("run.*"), right_term="shoes", distance=1)
+                ProximityArray(ProxRegex("run.*"), anchor="shoes", distance=1)
             )
         )
     )
@@ -197,7 +197,7 @@ def test_proximity_array_with_prox_regex_custom_max_expansions() -> None:
             description=ParadeDB(
                 ProximityArray(
                     ProxRegex("run.*", max_expansions=100),
-                    right_term="shoes",
+                    anchor="shoes",
                     distance=1,
                 )
             )
@@ -224,16 +224,16 @@ def test_proximity_array_with_prox_regex_non_string_pattern() -> None:
 def test_proximity_array_with_non_string_left_term() -> None:
     with pytest.raises(
         TypeError,
-        match="ProximityArray left_terms must be strings or ProxRegex instances",
+        match="ProximityArray terms must be strings or ProxRegex instances",
     ):
-        ProximityArray(123, right_term="shoes", distance=1)  # type: ignore[arg-type]
+        ProximityArray(123, anchor="shoes", distance=1)  # type: ignore[arg-type]
 
 
 def test_proximity_array_with_invalid_prox_regex_pattern_raises() -> None:
     with pytest.raises(DatabaseError, match="regex parse error"):
         MockItem.objects.filter(
             description=ParadeDB(
-                ProximityArray(ProxRegex("[invalid"), right_term="shoes", distance=1)
+                ProximityArray(ProxRegex("[invalid"), anchor="shoes", distance=1)
             )
         ).exists()
 

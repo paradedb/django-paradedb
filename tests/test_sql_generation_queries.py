@@ -251,6 +251,10 @@ class TestDjangoIntegration:
 class TestFacets:
     """Test facets SQL generation helpers."""
 
+    def test_agg_rejects_non_boolean_exact(self) -> None:
+        with pytest.raises(TypeError, match="Agg exact must be a boolean"):
+            Agg("{}", exact="nope")  # type: ignore[arg-type]
+
     def test_facets_window_annotation(self) -> None:
         """Facets window annotation uses pdb.agg() OVER ()."""
         json_spec = '{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}'

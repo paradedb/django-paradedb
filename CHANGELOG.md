@@ -19,6 +19,11 @@ All notable changes to this project will be documented in this file. The format 
 - **BREAKING**: More like this queries now go through the main `ParadeDB` path like all other queries
 - **BREAKING**: Proximity queries have a new API that exposes the full SQL api: `Proximity("running").within(1, ProxRegex("sho.*"), ordered=True).within(2, "stores").boost(1.2)`
 
+### Removed
+
+- Unsupported diagnostics helpers and management commands for `pdb.indexes()`,
+  `pdb.index_segments()`, `pdb.verify_index()`, and `pdb.verify_all_indexes()`.
+
 ## [0.4.0] - 2026-02-28
 
 ### Added

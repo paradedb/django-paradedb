@@ -43,10 +43,6 @@ __all__ = [
     "Snippets",
     "Term",
     "TermSet",
-    "paradedb_index_segments",
-    "paradedb_indexes",
-    "paradedb_verify_all_indexes",
-    "paradedb_verify_index",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
@@ -55,13 +51,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "Snippet": ("paradedb.functions", "Snippet"),
     "SnippetPositions": ("paradedb.functions", "SnippetPositions"),
     "Snippets": ("paradedb.functions", "Snippets"),
-    "paradedb_index_segments": ("paradedb.functions", "paradedb_index_segments"),
-    "paradedb_indexes": ("paradedb.functions", "paradedb_indexes"),
-    "paradedb_verify_all_indexes": (
-        "paradedb.functions",
-        "paradedb_verify_all_indexes",
-    ),
-    "paradedb_verify_index": ("paradedb.functions", "paradedb_verify_index"),
     "BM25Index": ("paradedb.indexes", "BM25Index"),
     "IndexExpression": ("paradedb.indexes", "IndexExpression"),
     "ParadeDBManager": ("paradedb.queryset", "ParadeDBManager"),

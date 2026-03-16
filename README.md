@@ -40,7 +40,6 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 - More Like This queries for document similarity
 - Autocomplete with prefix matching and fuzzy tolerance
 - Composable with Django's `Q` objects, `filter()`, `exclude()`, and custom managers
-- Diagnostic management commands for index health and verification
 - Type-aware with a `py.typed` package marker and typed public APIs
 
 ## Requirements & Compatibility
@@ -275,43 +274,6 @@ CustomManagerWithParadeDB = CustomManager.from_queryset(ParadeDBQuerySet)
 class MockItem(models.Model):
     objects = CustomManagerWithParadeDB()
 ```
-
-## Diagnostics Helpers and Commands
-
-`django-paradedb` includes helper functions for ParadeDB diagnostic table functions and
-optional Django management commands:
-
-- `paradedb_indexes()`
-- `paradedb_index_segments()`
-- `paradedb_verify_index()`
-- `paradedb_verify_all_indexes()`
-
-Python helper example:
-
-```python
-from paradedb.functions import paradedb_indexes, paradedb_verify_index
-
-# Uses Django's default DB alias ("default")
-rows = paradedb_indexes()
-
-# Multi-DB: run against a specific database alias
-checks = paradedb_verify_index("search_idx", using="search")
-```
-
-Management command examples:
-
-```bash
-# Uses Django's default DB alias ("default")
-python manage.py paradedb_indexes
-
-# Multi-DB: target a specific database alias
-python manage.py paradedb_verify_index search_idx --database search
-```
-
-Notes:
-
-- Management commands are discovered by Django only when `"paradedb"` is in `INSTALLED_APPS`.
-- The selected database must have ParadeDB's `pg_search` extension installed, and the target BM25 index must exist there.
 
 ## Common Errors
 

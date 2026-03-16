@@ -2,25 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import Any, Literal
 
 from django.contrib.postgres.fields import ArrayField
-from django.db import DEFAULT_DB_ALIAS, connections
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import CharField, F, FloatField, Func, IntegerField, JSONField
 from django.db.models.sql.compiler import SQLCompiler
 
 from paradedb.api import (
     FN_AGG,
-    FN_INDEX_SEGMENTS,
-    FN_INDEXES,
     FN_SCORE,
     FN_SNIPPET,
     FN_SNIPPET_POSITIONS,
     FN_SNIPPETS,
-    FN_VERIFY_ALL_INDEXES,
-    FN_VERIFY_INDEX,
 )
 
 
@@ -36,15 +30,6 @@ def _validate_non_negative_int(name: str, value: int | None) -> None:
         raise TypeError(f"{name} must be an integer.")
     if value < 0:
         raise ValueError(f"{name} must be zero or positive.")
-
-
-def _validate_sample_rate(sample_rate: float | None) -> None:
-    if sample_rate is None:
-        return
-    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int | float):
-        raise TypeError("sample_rate must be a float between 0.0 and 1.0.")
-    if sample_rate < 0 or sample_rate > 1:
-        raise ValueError("sample_rate must be between 0.0 and 1.0.")
 
 
 class Score(Func):
@@ -278,125 +263,10 @@ class Agg(Func):
 
         return sql, params
 
-
-def _execute_table_function(
-    sql: str,
-    params: Sequence[Any],
-    *,
-    using: str = DEFAULT_DB_ALIAS,
-) -> list[dict[str, Any]]:
-    with connections[using].cursor() as cursor:
-        cursor.execute(sql, params)
-        if cursor.description is None:
-            return []
-        columns = [column[0] for column in cursor.description]
-        rows = cursor.fetchall()
-    return [dict(zip(columns, row, strict=False)) for row in rows]
-
-
-def paradedb_indexes(*, using: str = DEFAULT_DB_ALIAS) -> list[dict[str, Any]]:
-    """Return metadata for all BM25 indexes from ``pdb.indexes()``."""
-    return _execute_table_function(f"SELECT * FROM {FN_INDEXES}()", (), using=using)
-
-
-def paradedb_index_segments(
-    index: str, *, using: str = DEFAULT_DB_ALIAS
-) -> list[dict[str, Any]]:
-    """Return segment metadata for a BM25 index from ``pdb.index_segments()``."""
-    return _execute_table_function(
-        f"SELECT * FROM {FN_INDEX_SEGMENTS}(%s::regclass)", (index,), using=using
-    )
-
-
-def paradedb_verify_index(
-    index: str,
-    *,
-    heapallindexed: bool = False,
-    sample_rate: float | None = None,
-    report_progress: bool = False,
-    verbose: bool = False,
-    on_error_stop: bool = False,
-    segment_ids: Sequence[int] | None = None,
-    using: str = DEFAULT_DB_ALIAS,
-) -> list[dict[str, Any]]:
-    """Run ``pdb.verify_index()`` for one BM25 index."""
-    _validate_sample_rate(sample_rate)
-    sql = [f"SELECT * FROM {FN_VERIFY_INDEX}(%s::regclass"]
-    params: list[Any] = [index]
-    if heapallindexed:
-        sql.append(", heapallindexed => %s::boolean")
-        params.append(heapallindexed)
-    if sample_rate is not None:
-        sql.append(", sample_rate => %s::double precision")
-        params.append(sample_rate)
-    if report_progress:
-        sql.append(", report_progress => %s::boolean")
-        params.append(report_progress)
-    if verbose:
-        sql.append(", verbose => %s::boolean")
-        params.append(verbose)
-    if on_error_stop:
-        sql.append(", on_error_stop => %s::boolean")
-        params.append(on_error_stop)
-    if segment_ids is not None:
-        sql.append(", segment_ids => %s::int[]")
-        params.append(list(segment_ids))
-    sql.append(")")
-    return _execute_table_function("".join(sql), params, using=using)
-
-
-def paradedb_verify_all_indexes(
-    *,
-    schema_pattern: str | None = None,
-    index_pattern: str | None = None,
-    heapallindexed: bool = False,
-    sample_rate: float | None = None,
-    report_progress: bool = False,
-    on_error_stop: bool = False,
-    using: str = DEFAULT_DB_ALIAS,
-) -> list[dict[str, Any]]:
-    """Run ``pdb.verify_all_indexes()`` across BM25 indexes."""
-    _validate_sample_rate(sample_rate)
-    sql = [f"SELECT * FROM {FN_VERIFY_ALL_INDEXES}("]
-    params: list[Any] = []
-    named_params: list[tuple[str, str, Any]] = []
-    if schema_pattern is not None:
-        named_params.append(("schema_pattern", "text", schema_pattern))
-    if index_pattern is not None:
-        named_params.append(("index_pattern", "text", index_pattern))
-    if heapallindexed:
-        named_params.append(("heapallindexed", "boolean", heapallindexed))
-    if sample_rate is not None:
-        named_params.append(("sample_rate", "double precision", sample_rate))
-    if report_progress:
-        named_params.append(("report_progress", "boolean", report_progress))
-    if on_error_stop:
-        named_params.append(("on_error_stop", "boolean", on_error_stop))
-
-    if named_params:
-        sql.append(
-            ", ".join(
-                f"{parameter_name} => %s::{parameter_type}"
-                for parameter_name, parameter_type, _parameter_value in named_params
-            )
-        )
-        params.extend(
-            parameter_value
-            for _parameter_name, _parameter_type, parameter_value in named_params
-        )
-
-    sql.append(")")
-    return _execute_table_function("".join(sql), params, using=using)
-
-
 __all__ = [
     "Agg",
     "Score",
     "Snippet",
     "SnippetPositions",
     "Snippets",
-    "paradedb_index_segments",
-    "paradedb_indexes",
-    "paradedb_verify_all_indexes",
-    "paradedb_verify_index",
 ]

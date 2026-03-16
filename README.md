@@ -49,13 +49,8 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 | ---------- | ----------------------------- |
 | Python     | 3.10+                         |
 | Django     | 4.2+                          |
-| ParadeDB   | 0.21.0+                       |
+| ParadeDB   | 0.22.0+                       |
 | PostgreSQL | 15+ (with ParadeDB extension) |
-
-Some newer capabilities are version-gated:
-
-- Windowed aggregations such as `.facets(include_rows=True)` require ParadeDB `0.21.10+`.
-- Native `json_fields` BM25 indexing requires ParadeDB `0.21.10+`.
 
 ## Installation
 

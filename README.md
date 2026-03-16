@@ -34,7 +34,7 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 
 - BM25 index management through Django migrations
 - Full-text search with `Match`, `Term`, `FuzzyTerm`, `Regex`, `PhrasePrefix`, and more
-- Faceted search and aggregations (`TopK`, `TopKWithCount`, `Percentile`, `Stats`, and custom `Agg`)
+- Faceted search and aggregations via `.facets()` and custom `Agg(...)` specifications
 - Relevance scoring with `Score()` annotation
 - Hybrid search via Reciprocal Rank Fusion (RRF)
 - More Like This queries for document similarity
@@ -52,6 +52,11 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 | ParadeDB   | 0.21.0+                       |
 | PostgreSQL | 15+ (with ParadeDB extension) |
 
+Some newer capabilities are version-gated:
+
+- Windowed aggregations such as `.facets(include_rows=True)` require ParadeDB `0.21.10+`.
+- Native `json_fields` BM25 indexing requires ParadeDB `0.21.10+`.
+
 ## Installation
 
 ```bash
@@ -68,8 +73,8 @@ uv add django-paradedb
 
 ### Prerequisites
 
-This guide assumes you have installed `pg_search`, and have configured your Django project with
-the Postgres database where `pg_search` is installed.
+This guide assumes you have installed ParadeDB's `pg_search` extension and
+configured your Django project to use the PostgreSQL database where it is installed.
 
 ### Create an Index
 
@@ -311,8 +316,8 @@ python manage.py paradedb_verify_index search_idx --database search
 Notes:
 
 - Management commands are discovered by Django only when `"paradedb"` is in `INSTALLED_APPS`.
-- The selected database must have ParadeDB (`pg_search`) installed, and the target BM25 index must exist there.
-- Some diagnostics functions may not be available on older `pg_search` versions.
+- The selected database must have ParadeDB's `pg_search` extension installed, and the target BM25 index must exist there.
+- These helpers call the underlying `pdb.*` functions directly, so availability depends on the installed ParadeDB extension version.
 
 ## Common Errors
 
@@ -358,7 +363,7 @@ django-paradedb uses SQL literal escaping (rather than parameterized queries) fo
 
 ## Documentation
 
-- **Package Documentation**: <https://paradedb.github.io/django-paradedb>
+- **Project README**: <https://github.com/paradedb/django-paradedb#readme>
 - **ParadeDB Official Docs**: <https://docs.paradedb.com>
 - **ParadeDB Website**: <https://paradedb.com>
 

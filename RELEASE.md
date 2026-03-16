@@ -38,9 +38,10 @@ During this phase:
 
 The canonical support matrix lives in `README.md` under **Requirements & Compatibility** and should be kept up to date.
 
-Today, the maintained minimum ParadeDB version is `0.21.10`. Update the README
-matrix, CI image tags, helper scripts, and any version-gated feature notes in
-the same PR whenever that floor changes.
+Today, the maintained minimum ParadeDB version is `0.21.0`. CI currently runs
+against ParadeDB `0.22.0` as the latest release. Update the README matrix, CI
+notes, helper scripts, and any version-gated feature notes in the same PR
+whenever the support floor or current CI target changes.
 
 ## Release Cadence
 
@@ -64,7 +65,7 @@ Use this format:
 
 Current feature notes:
 
-- `TopK` aggregations with `ORDER BY ... LIMIT`: ParadeDB >= `0.21.10`
+- Windowed `pdb.agg()` / `.facets(include_rows=True)`: ParadeDB >= `0.21.10`
 - Native `json_fields` BM25 indexing: ParadeDB >= `0.21.10`
 
 ## Testing and CI Expectations

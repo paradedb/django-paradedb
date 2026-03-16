@@ -39,6 +39,8 @@ if ! docker ps -a --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
     -e "POSTGRES_DB=${DB}" \
     -p "${PORT}:5432" \
     "${IMAGE}" >/dev/null
+elif docker ps --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
+  echo "Container ${CONTAINER_NAME} is already running."
 else
   echo "Container ${CONTAINER_NAME} already exists; starting it..."
   docker start "${CONTAINER_NAME}" >/dev/null

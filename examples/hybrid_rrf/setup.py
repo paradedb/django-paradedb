@@ -12,6 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import MockItemWithEmbedding as MockItem
 from common import setup_mock_items
 
+if MockItem is None:
+    raise ImportError(
+        "pgvector is required for this example. Install the example extras with "
+        "'uv sync --extra examples'."
+    )
+
 # Pre-computed query embeddings for the hybrid_rrf.py demo queries
 # Generated using sentence-transformers/paraphrase-minilm-l6-v2
 QUERY_EMBEDDINGS: dict[str, list[float]] = {

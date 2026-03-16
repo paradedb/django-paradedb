@@ -50,13 +50,12 @@ class TestMoreLikeThis:
                 MoreLikeThis(id=5, min_term_freq=2, max_query_terms=10, min_doc_freq=1)
             )
         )
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(5, min_term_frequency => 2, max_query_terms => 10, min_doc_frequency => 1)'
-        )
+        sql, params = queryset.query.sql_with_params()
+        assert "pdb.more_like_this(%s, min_term_frequency => 2, max_query_terms => 10, min_doc_frequency => 1)" in sql
+        assert params == (5,)
 
     def test_mlt_by_document(self) -> None:
-        """MLT by document uses JSON input."""
+        """MLT by document uses JSON as a parameter, not inline SQL."""
         queryset = Product.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
@@ -67,9 +66,12 @@ class TestMoreLikeThis:
                 )
             )
         )
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this({"description": "comfortable running shoes", "category": "footwear"})'
+        sql, params = queryset.query.sql_with_params()
+        assert "pdb.more_like_this(%s)" in sql
+        assert params == (
+            json.dumps(
+                {"description": "comfortable running shoes", "category": "footwear"}
+            ),
         )
 
     def test_mlt_with_word_length(self) -> None:
@@ -77,18 +79,20 @@ class TestMoreLikeThis:
         queryset = Product.objects.filter(
             id=ParadeDB(MoreLikeThis(id=5, min_word_length=3, max_word_length=15))
         )
-        sql = str(queryset.query)
+        sql, params = queryset.query.sql_with_params()
+        assert params == (5,)
         assert "min_word_length => 3" in sql
         assert "max_word_length => 15" in sql
-        assert "pdb.more_like_this(5," in sql
+        assert "pdb.more_like_this(%s, min_word_length => 3, max_word_length => 15)" in sql
 
     def test_mlt_with_stopwords(self) -> None:
         """MLT with stopwords array parameter."""
         queryset = Product.objects.filter(
             id=ParadeDB(MoreLikeThis(id=5, stopwords=["the", "a", "an"]))
         )
-        sql = str(queryset.query)
-        assert "stopwords => ARRAY[the, a, an]" in sql
+        sql, params = queryset.query.sql_with_params()
+        assert "stopwords => ARRAY[%s, %s, %s]" in sql
+        assert params == (5, "the", "a", "an")
 
     def test_mlt_with_all_options(self) -> None:
         """MLT with all available options including new ones."""
@@ -108,7 +112,8 @@ class TestMoreLikeThis:
                 )
             )
         )
-        sql = str(queryset.query)
+        sql, params = queryset.query.sql_with_params()
+        assert params == (5, "description", "the", "and", "or")
         assert "min_term_frequency => 2" in sql
         assert "max_query_terms => 10" in sql
         assert "min_doc_frequency => 1" in sql
@@ -116,8 +121,8 @@ class TestMoreLikeThis:
         assert "max_doc_frequency => 1000" in sql
         assert "min_word_length => 3" in sql
         assert "max_word_length => 20" in sql
-        assert "stopwords => ARRAY[the, and, or]" in sql
-        assert "ARRAY[description]" in sql
+        assert "stopwords => ARRAY[%s, %s, %s]" in sql
+        assert "ARRAY[%s]::text[]" in sql
 
     def test_mlt_document_with_new_options(self) -> None:
         """MLT with document input and new word length/stopwords options."""
@@ -131,22 +136,22 @@ class TestMoreLikeThis:
                 )
             )
         )
-        sql = str(queryset.query)
+        sql, params = queryset.query.sql_with_params()
+        assert params == ('{"description": "comfortable running shoes"}', "comfortable")
         assert "min_word_length => 4" in sql
         assert "max_word_length => 12" in sql
-        assert "stopwords => ARRAY[comfortable]" in sql
+        assert "stopwords => ARRAY[%s]" in sql
 
     def test_mlt_document_should_use_json_format(self) -> None:
-        """Document input should generate JSON format."""
+        """Document input should stay parameterized and avoid field arrays."""
         queryset = Product.objects.filter(
             id=ParadeDB(MoreLikeThis(document={"description": "wireless earbuds"}))
         )
-        sql = str(queryset.query)
-        assert 'pdb.more_like_this({"description": "wireless earbuds"})' in sql, (
-            "Expected JSON format: "
-            'pdb.more_like_this({"description": "wireless earbuds"})\n'
-            f"Got SQL: {sql}"
+        sql, params = queryset.query.sql_with_params()
+        assert "pdb.more_like_this(%s)" in sql, (
+            f"Expected parameterized JSON format\nGot SQL: {sql}"
         )
+        assert params == ('{"description": "wireless earbuds"}',)
         assert "ARRAY[description]" not in sql, (
             f"Should not use array form for document input\nGot SQL: {sql}"
         )
@@ -161,7 +166,8 @@ class TestMoreLikeThis:
                 )
             )
         )
-        sql = str(queryset.query)
+        sql, params = queryset.query.sql_with_params()
+        assert params == (5,)
         assert "stopwords" not in sql, (
             f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"
         )

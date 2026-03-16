@@ -49,7 +49,7 @@ All notable changes to this project will be documented in this file. The format 
 - Schema compatibility checking: `scripts/check_schema_compat.py` and `apiignore.json`
   for bidirectional validation against ParadeDB's SQL schema. (#44)
 - Schema compatibility CI workflow triggered on each ParadeDB release with failure
-  notifications via GitHub Issues and Slack. (#46)
+  notifications via GitHub Issues. (#46)
 - Inline fuzzy parameters (`distance`, `prefix`, `transposition_cost_one`) on `Match`
   and `Term` query expressions. (#40)
 - `ProxRegex` items (`pdb.prox_regex(...)`) can now be mixed with plain strings inside

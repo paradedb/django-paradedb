@@ -160,7 +160,7 @@ uv run python examples/rag/rag.py
 
 You might notice that many examples import from `common`. This is a helper module located at `examples/common.py`. It handles the boring stuff so the examples remain focused:
 
-- **`configure_django()`**: Sets up a minimal in-memory Django configuration.
+- **`configure_django()`**: Sets up a minimal Django configuration for a PostgreSQL database from `DATABASE_URL` or standard `PG*` environment variables.
 - **`MockItem`**: A simple Django model used across examples to simulate products.
 - **`setup_mock_items()`**: Populates the database with dummy data.
 

@@ -27,6 +27,10 @@
     "FN_PARSE_WITH_FIELD": "pdb.parse_with_field",
     "FN_RANGE":            "pdb.range",
     "FN_TERM_SET":         "pdb.term_set",
+    "FN_INDEXES":          "pdb.indexes",
+    "FN_INDEX_SEGMENTS":   "pdb.index_segments",
+    "FN_VERIFY_INDEX":     "pdb.verify_index",
+    "FN_VERIFY_ALL_INDEXES": "pdb.verify_all_indexes",
 
     "FN_SCORE":            "pdb.score",
     "FN_SNIPPET":          "pdb.snippet",

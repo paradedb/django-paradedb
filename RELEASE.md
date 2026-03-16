@@ -38,9 +38,9 @@ During this phase:
 
 The canonical support matrix lives in `README.md` under **Requirements & Compatibility** and should be kept up to date.
 
-Today, the maintained minimum ParadeDB version is `0.22.0`. CI currently runs
-against ParadeDB `0.22.0`. Update the README matrix, CI notes, and helper
-scripts in the same PR whenever that support floor changes.
+Today, the maintained minimum ParadeDB version is `0.22.0`. Update the README
+matrix, CI configuration, and helper scripts in the same PR whenever that
+support floor changes.
 
 ## Release Cadence
 

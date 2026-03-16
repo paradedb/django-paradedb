@@ -312,7 +312,6 @@ Notes:
 
 - Management commands are discovered by Django only when `"paradedb"` is in `INSTALLED_APPS`.
 - The selected database must have ParadeDB's `pg_search` extension installed, and the target BM25 index must exist there.
-- These helpers call the underlying `pdb.*` functions directly, so availability depends on the installed ParadeDB extension version.
 
 ## Common Errors
 

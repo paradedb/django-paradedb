@@ -45,16 +45,10 @@ jobs:
       - name: Create uv environment
         run: uv venv --python "3.13"
 
-      - name: Download pg_search.schema.sql
+      - name: Run Schema Compatibility Check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release download "v${{ env.PARADEDB_VERSION }}" \
-            --repo paradedb/paradedb \
-            --pattern pg_search.schema.sql
-
-      - name: Run Schema Compatibility Check
-        run: uv run --no-sync python scripts/check_schema_compat.py pg_search.schema.sql api.json
+        run: uv run --no-sync python scripts/check_schema_compat.py ${{ env.PARADEDB_VERSION }}
 
   integration-tests:
     name: Integration Tests

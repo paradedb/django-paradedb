@@ -1,28 +1,33 @@
 #!/usr/bin/env python3
 """
-Check compatibility between api.json and a pg_search schema file in both directions.
+Check compatibility between django-paradedb's api.json and a released pg_search schema.
 
-The schema is generated in the paradedb repo via:
-    cargo pgrx schema -p pg_search pg18 > pg_search.schema.sql
-
-Two checks are performed:
+The schema is downloaded from the corresponding ParadeDB GitHub release and
+checked in both directions:
 
   Forward:  every symbol in api.json is present in the schema (detects removals/renames).
   Reverse:  every pdb.* symbol in the schema is either in api.json or in apiignore.json
             (surfaces new paradedb APIs that haven't been wrapped yet).
 
-Usage:
-    python scripts/check_schema_compat.py <schema.sql> <api.json>
+Example:
+    uv run --no-sync python scripts/check_schema_compat.py 0.22.0
 
 The ignore list is read automatically from apiignore.json (repo root) if it exists.
 """
 
+import argparse
 import json
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
-_IGNORE_FILE = Path(__file__).parent.parent / "apiignore.json"
+_ROOT_DIR = Path(__file__).resolve().parent.parent
+_API_FILE = _ROOT_DIR / "api.json"
+_IGNORE_FILE = _ROOT_DIR / "apiignore.json"
+_SCHEMA_FILE_NAME = "pg_search.schema.sql"
 
 
 def normalize(sql: str) -> str:
@@ -104,13 +109,70 @@ def normalize_ignored_symbols(ignored: dict, kind: str) -> set[str]:
     raise ValueError(f"apiignore section {kind!r} must be a list or object.")
 
 
-def main() -> int:
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <schema.sql> <api.json>", file=sys.stderr)
-        return 1
+def normalize_version(version: str) -> str:
+    return version.removeprefix("v")
 
-    schema_path = Path(sys.argv[1])
-    api_path = Path(sys.argv[2])
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Download pg_search.schema.sql for a ParadeDB release and check it "
+            "against this repo's api.json."
+        )
+    )
+    parser.add_argument("version", help="ParadeDB version to check, for example 0.22.0")
+    return parser.parse_args(argv)
+
+
+def download_schema(version: str, destination_dir: Path) -> Path:
+    if shutil.which("gh") is None:
+        print(
+            "❌ GitHub CLI (gh) is required to download pg_search.schema.sql.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    normalized_version = normalize_version(version)
+    schema_path = destination_dir / _SCHEMA_FILE_NAME
+
+    try:
+        subprocess.run(
+            [
+                "gh",
+                "release",
+                "download",
+                f"v{normalized_version}",
+                "--repo",
+                "paradedb/paradedb",
+                "--pattern",
+                _SCHEMA_FILE_NAME,
+            ],
+            cwd=destination_dir,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        print(
+            f"❌ Failed to download {_SCHEMA_FILE_NAME} for ParadeDB v{normalized_version}.",
+            file=sys.stderr,
+        )
+        print(
+            "Verify that the release exists and that gh has access to GitHub.",
+            file=sys.stderr,
+        )
+        raise SystemExit(exc.returncode) from exc
+
+    if not schema_path.exists():
+        print(
+            f"❌ Download completed but {_SCHEMA_FILE_NAME} was not found.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+
+    return schema_path
+
+
+def run_checks(schema_path: Path, api_path: Path) -> int:
+    """Run forward and reverse compatibility checks."""
 
     if not schema_path.exists():
         print(f"❌ Schema file not found: {schema_path}", file=sys.stderr)
@@ -183,6 +245,14 @@ def main() -> int:
         print(f"✅ Reverse check: all {total_schema} schema symbols accounted for.")
 
     return rc
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+
+    with tempfile.TemporaryDirectory(prefix="schema-compat-") as tmp_dir:
+        schema_path = download_schema(args.version, Path(tmp_dir))
+        return run_checks(schema_path, _API_FILE)
 
 
 if __name__ == "__main__":

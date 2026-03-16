@@ -5,7 +5,8 @@
     "OP_OR":           "|||",
     "OP_PHRASE":       "###",
     "OP_PROXIMITY":    "##",
-    "OP_PROXIMITY_ORD": "##>"
+    "OP_PROXIMITY_ORD": "##>",
+    "OP_TERM":         "==="
   },
 
   "functions": {

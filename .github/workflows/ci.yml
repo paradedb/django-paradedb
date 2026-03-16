@@ -111,7 +111,7 @@ jobs:
 
     services:
       paradedb:
-        image: paradedb/paradedb:0.21.10-pg${{ matrix.postgres-version }}
+        image: paradedb/paradedb:0.22.0-pg${{ matrix.postgres-version }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

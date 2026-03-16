@@ -77,7 +77,7 @@ def _verify_index_usage(table_name: str, index_name: str) -> bool:  # noqa: ARG0
 
     # ParadeDB Custom Scan node names (from pg_search/src/postgres/customscan/)
     paradedb_scans = (
-        "ParadeDB Scan",  # BaseScan - standard BM25 queries
+        "ParadeDB Base Scan",  # BaseScan - standard BM25 queries
         "ParadeDB Aggregate Scan",  # AggregateScan - GROUP BY/aggregates
         "ParadeDB Join Scan",  # JoinScan - join queries with LIMIT
     )

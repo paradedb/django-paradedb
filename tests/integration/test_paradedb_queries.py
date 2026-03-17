@@ -140,7 +140,11 @@ def test_proximity_array_query() -> None:
     ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(
-                ProximityArray("sleek", "running", anchor="shoes", distance=1)
+                ProximityArray(
+                    ["sleek", "running"],
+                    "shoes",
+                    distance=1,
+                )
             )
         )
     )
@@ -152,9 +156,8 @@ def test_proximity_array_with_mixed_prox_regex_items() -> None:
         MockItem.objects.filter(
             description=ParadeDB(
                 ProximityArray(
-                    "sleek",
-                    ProxRegex("run.*"),
-                    anchor="shoes",
+                    ["sleek", ProxRegex("run.*")],
+                    "shoes",
                     distance=1,
                 )
             )
@@ -168,9 +171,8 @@ def test_proximity_array_with_mixed_prox_regex_items_ordered() -> None:
         MockItem.objects.filter(
             description=ParadeDB(
                 ProximityArray(
-                    "sleek",
-                    ProxRegex("run.*"),
-                    anchor="shoes",
+                    ["sleek", ProxRegex("run.*")],
+                    "shoes",
                     distance=1,
                     ordered=True,
                 )
@@ -184,7 +186,11 @@ def test_proximity_array_with_only_prox_regex_left_term() -> None:
     ids = _ids(
         MockItem.objects.filter(
             description=ParadeDB(
-                ProximityArray(ProxRegex("run.*"), anchor="shoes", distance=1)
+                ProximityArray(
+                    ProxRegex("run.*"),
+                    "shoes",
+                    distance=1,
+                )
             )
         )
     )
@@ -197,7 +203,22 @@ def test_proximity_array_with_prox_regex_custom_max_expansions() -> None:
             description=ParadeDB(
                 ProximityArray(
                     ProxRegex("run.*", max_expansions=100),
-                    anchor="shoes",
+                    "shoes",
+                    distance=1,
+                )
+            )
+        )
+    )
+    assert ids == {3}
+
+
+def test_proximity_array_with_right_term_list() -> None:
+    ids = _ids(
+        MockItem.objects.filter(
+            description=ParadeDB(
+                ProximityArray(
+                    "running",
+                    ["shoes", ProxRegex("boot.*")],
                     distance=1,
                 )
             )
@@ -224,16 +245,20 @@ def test_proximity_array_with_prox_regex_non_string_pattern() -> None:
 def test_proximity_array_with_non_string_left_term() -> None:
     with pytest.raises(
         TypeError,
-        match="ProximityArray terms must be strings or ProxRegex instances",
+        match="ProximityArray left_term must be strings or ProxRegex instances",
     ):
-        ProximityArray(123, anchor="shoes", distance=1)  # type: ignore[arg-type]
+        ProximityArray(123, "shoes", distance=1)  # type: ignore[arg-type]
 
 
 def test_proximity_array_with_invalid_prox_regex_pattern_raises() -> None:
     with pytest.raises(DatabaseError, match="regex parse error"):
         MockItem.objects.filter(
             description=ParadeDB(
-                ProximityArray(ProxRegex("[invalid"), anchor="shoes", distance=1)
+                ProximityArray(
+                    ProxRegex("[invalid"),
+                    "shoes",
+                    distance=1,
+                )
             )
         ).exists()
 

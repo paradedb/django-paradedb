@@ -324,48 +324,54 @@ class ProxRegex:
         _validate_non_negative_int("ProxRegex max_expansions", self.max_expansions)
 
 
+ProximityArrayItem = str | ProxRegex
+ProximityArrayInput = ProximityArrayItem | list[ProximityArrayItem]
+
+
+def _normalize_proximity_array_side(
+    name: str, value: ProximityArrayInput
+) -> tuple[ProximityArrayItem, ...]:
+    if isinstance(value, list):
+        if not value:
+            raise ValueError(f"ProximityArray requires at least one {name} item.")
+        normalized = tuple(value)
+    else:
+        normalized = (value,)
+    for item in normalized:
+        if not isinstance(item, str | ProxRegex):
+            raise TypeError(
+                f"ProximityArray {name} must be strings or ProxRegex instances."
+            )
+    return normalized
+
+
 @dataclass(frozen=True)
 class ProximityArray:
     """Proximity array query expression."""
 
-    terms: tuple[str | ProxRegex, ...]
-    anchor: str
+    left_term: tuple[ProximityArrayItem, ...]
+    right_term: tuple[ProximityArrayItem, ...]
     distance: int
     ordered: bool = False
-    anchor_pattern: str | None = None
-    max_expansions: int = 50
     boost: float | None = None
     const: float | None = None
 
     def __init__(
         self,
-        *terms: str | ProxRegex,
-        anchor: str,
+        left_term: ProximityArrayInput,
+        right_term: ProximityArrayInput,
         distance: int,
         ordered: bool = False,
-        anchor_pattern: str | None = None,
-        max_expansions: int = 50,
         boost: float | None = None,
         const: float | None = None,
     ) -> None:
-        if not terms:
-            raise ValueError("ProximityArray requires at least one left-side term.")
-        for left_term in terms:
-            if not isinstance(left_term, str | ProxRegex):
-                raise TypeError(
-                    "ProximityArray terms must be strings or ProxRegex instances."
-                )
-        _validate_string("ProximityArray anchor", anchor)
+        left_normalized = _normalize_proximity_array_side("left_term", left_term)
+        right_normalized = _normalize_proximity_array_side("right_term", right_term)
         _validate_non_negative_int("ProximityArray distance", distance)
-        _validate_non_negative_int("ProximityArray max_expansions", max_expansions)
-        if anchor_pattern is not None:
-            _validate_string("ProximityArray anchor_pattern", anchor_pattern)
-        object.__setattr__(self, "terms", tuple(terms))
-        object.__setattr__(self, "anchor", anchor)
+        object.__setattr__(self, "left_term", left_normalized)
+        object.__setattr__(self, "right_term", right_normalized)
         object.__setattr__(self, "distance", distance)
         object.__setattr__(self, "ordered", ordered)
-        object.__setattr__(self, "anchor_pattern", anchor_pattern)
-        object.__setattr__(self, "max_expansions", max_expansions)
         object.__setattr__(self, "boost", boost)
         object.__setattr__(self, "const", const)
 
@@ -1336,6 +1342,21 @@ class ParadeDB:
             fuzzy_args.append("t")
         return f"{sql}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
 
+    def _render_proximity_array_side(
+        self, terms: tuple[ProximityArrayItem, ...]
+    ) -> str:
+        parts: list[str] = []
+        for item in terms:
+            if isinstance(item, ProxRegex):
+                parts.append(
+                    f"{FN_PROX_REGEX}({self._quote_term(item.pattern)}, {item.max_expansions})"
+                )
+            else:
+                parts.append(self._quote_term(item))
+        if len(parts) > 1:
+            return f"{FN_PROX_ARRAY}({', '.join(parts)})"
+        return parts[0]
+
     def _render_term(
         self,
         term: str
@@ -1412,22 +1433,12 @@ class ParadeDB:
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, ProximityArray):
-            left_parts: list[str] = []
-            for lt in term.terms:
-                if isinstance(lt, ProxRegex):
-                    left_parts.append(
-                        f"{FN_PROX_REGEX}({self._quote_term(lt.pattern)}, {lt.max_expansions})"
-                    )
-                else:
-                    left_parts.append(self._quote_term(lt))
-            left_sql = ", ".join(left_parts)
             operator = OP_PROXIMITY_ORD if term.ordered else OP_PROXIMITY
-            right_sql = self._quote_term(term.anchor)
-            if term.anchor_pattern is not None:
-                right_sql = f"{FN_PROX_REGEX}({self._quote_term(term.anchor_pattern)}, {term.max_expansions})"
+            left_sql = self._render_proximity_array_side(term.left_term)
+            right_sql = self._render_proximity_array_side(term.right_term)
             rendered = (
                 f"{FN_PROXIMITY}("
-                f"{FN_PROX_ARRAY}({left_sql}) {operator} {term.distance} {operator} {right_sql}"
+                f"{left_sql} {operator} {term.distance} {operator} {right_sql}"
                 ")"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)

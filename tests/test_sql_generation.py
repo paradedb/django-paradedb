@@ -9,8 +9,8 @@ from unittest.mock import Mock
 import pytest
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.migrations.writer import MigrationWriter
-from django.db.models import F, Q, TextField, Value, Window
-from django.db.models.functions import Concat, Length, Lower, RowNumber
+from django.db.models import F, Q
+from django.db.models.functions import Length, Lower
 
 from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index, IndexExpression
@@ -619,7 +619,11 @@ class TestProximityAdvancedQuery:
     def test_proximity_array_query(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                ProximityArray("sleek", "running", anchor="shoes", distance=1)
+                ProximityArray(
+                    ["sleek", "running"],
+                    "shoes",
+                    distance=1,
+                )
             )
         )
         assert (
@@ -631,9 +635,8 @@ class TestProximityAdvancedQuery:
         queryset = Product.objects.filter(
             description=ParadeDB(
                 ProximityArray(
-                    "chicken",
-                    ProxRegex("r..s"),
-                    anchor="delicious",
+                    ["chicken", ProxRegex("r..s")],
+                    "delicious",
                     distance=1,
                 )
             )
@@ -647,9 +650,8 @@ class TestProximityAdvancedQuery:
         queryset = Product.objects.filter(
             description=ParadeDB(
                 ProximityArray(
-                    ProxRegex("sl.*", max_expansions=100),
-                    "white",
-                    anchor="shoes",
+                    [ProxRegex("sl.*", max_expansions=100), "white"],
+                    "shoes",
                     distance=1,
                 )
             )
@@ -664,16 +666,29 @@ class TestProximityAdvancedQuery:
             description=ParadeDB(
                 ProximityArray(
                     "running",
-                    anchor="unused",
-                    anchor_pattern="sho.*",
+                    ProxRegex("sho.*", max_expansions=80),
                     distance=1,
-                    max_expansions=80,
                 )
             )
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(pdb.prox_array(\'running\') ## 1 ## pdb.prox_regex(\'sho.*\', 80))'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 1 ## pdb.prox_regex(\'sho.*\', 80))'
+        )
+
+    def test_proximity_array_list_rhs_query(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                ProximityArray(
+                    "running",
+                    ["shoes", ProxRegex("boot.*", max_expansions=80)],
+                    distance=1,
+                )
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 1 ## pdb.prox_array(\'shoes\', pdb.prox_regex(\'boot.*\', 80)))'
         )
 
 

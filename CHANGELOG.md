@@ -14,8 +14,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Changed
 
-- **BREAKING**: Renamed `ProximityArray` keyword arguments from `right_term` and
-  `right_pattern` to `anchor` and `anchor_pattern`.
+- **BREAKING**: `ProximityArray` now accepts two positional arguments that can be either a string, `ProxRegex`, or a list mixing strings and
+  `ProxRegex` items.
 
 ## [0.4.0] - 2026-02-28
 

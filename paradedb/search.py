@@ -39,7 +39,6 @@ from paradedb.api import (
     FN_PHRASE_PREFIX,
     FN_PROX_ARRAY,
     FN_PROX_REGEX,
-    FN_PROXIMITY,
     FN_RANGE,
     FN_RANGE_TERM,
     FN_REGEX,
@@ -1401,7 +1400,7 @@ class ParadeDB:
                     f"{clause_sql} {operator} {term.distance} {operator} "
                     f"{self._quote_term(word)}"
                 )
-            rendered = f"{FN_PROXIMITY}({clause_sql})"
+            rendered = f"({clause_sql})"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Parse):
             rendered = (
@@ -1426,21 +1425,15 @@ class ParadeDB:
         if isinstance(term, ProximityRegex):
             operator = OP_PROXIMITY_ORD if term.ordered else OP_PROXIMITY
             rendered = (
-                f"{FN_PROXIMITY}("
-                f"{self._quote_term(term.left_term)} {operator} {term.distance} {operator} "
-                f"{FN_PROX_REGEX}({self._quote_term(term.pattern)}, {term.max_expansions})"
-                ")"
+                f"({self._quote_term(term.left_term)} {operator} {term.distance} {operator} "
+                f"{FN_PROX_REGEX}({self._quote_term(term.pattern)}, {term.max_expansions}))"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, ProximityArray):
             operator = OP_PROXIMITY_ORD if term.ordered else OP_PROXIMITY
             left_sql = self._render_proximity_array_side(term.left_term)
             right_sql = self._render_proximity_array_side(term.right_term)
-            rendered = (
-                f"{FN_PROXIMITY}("
-                f"{left_sql} {operator} {term.distance} {operator} {right_sql}"
-                ")"
-            )
+            rendered = f"({left_sql} {operator} {term.distance} {operator} {right_sql})"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, RangeTerm):
             if term.relation is None:

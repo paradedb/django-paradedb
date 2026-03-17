@@ -255,7 +255,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 2 ## \'shoes\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## \'shoes\')'
         )
 
     def test_proximity_ordered(self) -> None:
@@ -264,7 +264,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ##> 2 ##> \'shoes\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ##> 2 ##> \'shoes\')'
         )
 
     def test_proximity_with_boost(self) -> None:
@@ -273,7 +273,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 2 ## \'shoes\')::pdb.boost(1.5)'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## \'shoes\')::pdb.boost(1.5)'
         )
 
     def test_proximity_with_const(self) -> None:
@@ -282,7 +282,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 2 ## \'shoes\')::pdb.const(1.0)'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## \'shoes\')::pdb.const(1.0)'
         )
 
     def test_proximity_three_terms_chain(self) -> None:
@@ -291,7 +291,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 2 ## \'shoes\' ## 2 ## \'lightweight\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## \'shoes\' ## 2 ## \'lightweight\')'
         )
 
     def test_multiple_proximity_terms_rejected(self) -> None:
@@ -613,7 +613,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 1 ## pdb.prox_regex(\'sho.*\', 50))'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 1 ## pdb.prox_regex(\'sho.*\', 50))'
         )
 
     def test_proximity_array_query(self) -> None:
@@ -628,7 +628,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(pdb.prox_array(\'sleek\', \'running\') ## 1 ## \'shoes\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (pdb.prox_array(\'sleek\', \'running\') ## 1 ## \'shoes\')'
         )
 
     def test_proximity_array_with_prox_regex_items(self) -> None:
@@ -643,7 +643,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(pdb.prox_array(\'chicken\', pdb.prox_regex(\'r..s\', 50)) ## 1 ## \'delicious\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (pdb.prox_array(\'chicken\', pdb.prox_regex(\'r..s\', 50)) ## 1 ## \'delicious\')'
         )
 
     def test_proximity_array_with_prox_regex_custom_expansions(self) -> None:
@@ -658,7 +658,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(pdb.prox_array(pdb.prox_regex(\'sl.*\', 100), \'white\') ## 1 ## \'shoes\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (pdb.prox_array(pdb.prox_regex(\'sl.*\', 100), \'white\') ## 1 ## \'shoes\')'
         )
 
     def test_proximity_array_regex_rhs_query(self) -> None:
@@ -673,7 +673,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 1 ## pdb.prox_regex(\'sho.*\', 80))'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 1 ## pdb.prox_regex(\'sho.*\', 80))'
         )
 
     def test_proximity_array_list_rhs_query(self) -> None:
@@ -688,7 +688,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.proximity(\'running\' ## 1 ## pdb.prox_array(\'shoes\', pdb.prox_regex(\'boot.*\', 80)))'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 1 ## pdb.prox_array(\'shoes\', pdb.prox_regex(\'boot.*\', 80)))'
         )
 
 

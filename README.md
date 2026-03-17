@@ -23,6 +23,7 @@
 [![PyPI](https://img.shields.io/pypi/v/django-paradedb)](https://pypi.org/project/django-paradedb/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/django-paradedb)](https://pypi.org/project/django-paradedb/)
 [![Downloads](https://img.shields.io/pypi/dm/django-paradedb)](https://pypi.org/project/django-paradedb/)
+[![CI](https://github.com/paradedb/django-paradedb/actions/workflows/ci.yml/badge.svg)](https://github.com/paradedb/django-paradedb/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/paradedb/django-paradedb/graph/badge.svg)](https://codecov.io/gh/paradedb/django-paradedb)
 [![License](https://img.shields.io/github/license/paradedb/django-paradedb?color=blue)](https://github.com/paradedb/django-paradedb?tab=MIT-1-ov-file#readme)
 [![Slack URL](https://img.shields.io/badge/Join%20Slack-purple?logo=slack&link=https%3A%2F%2Fparadedb.com%2Fslack)](https://paradedb.com/slack)
@@ -49,8 +50,13 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 | ---------- | ----------------------------- |
 | Python     | 3.10+                         |
 | Django     | 4.2+                          |
-| ParadeDB   | 0.21.0+                       |
+| ParadeDB   | 0.21.10+                      |
 | PostgreSQL | 15+ (with ParadeDB extension) |
+
+Notes:
+
+- CI runs Python `3.10` through `3.14` across Django `4.2`, `5.2`, and `6.0`.
+- Schema compatibility is checked against every ParadeDB release.
 
 ## Installation
 

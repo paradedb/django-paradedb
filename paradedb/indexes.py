@@ -13,6 +13,8 @@ from django.db.backends.ddl_references import Statement
 from django.db.models.expressions import Expression
 from django.utils.deconstruct import deconstructible
 
+from paradedb.api import PDB_TYPE_TOKENIZER_ALIAS
+
 if TYPE_CHECKING:
     ModelField = models.Field[Any, Any]
 else:
@@ -502,7 +504,7 @@ class BM25Index(models.Index):
         else:
             # Non-text expression with pdb.alias
             alias_quoted = _quote_term(idx_expr.alias)
-            return f"(({expr_sql})::pdb.alias({alias_quoted}))"
+            return f"(({expr_sql})::{PDB_TYPE_TOKENIZER_ALIAS}({alias_quoted}))"
 
     @staticmethod
     def _extract_named_args(

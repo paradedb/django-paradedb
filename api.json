@@ -32,7 +32,11 @@
     "FN_SNIPPET":          "pdb.snippet",
     "FN_SNIPPETS":         "pdb.snippets",
     "FN_SNIPPET_POSITIONS": "pdb.snippet_positions",
-    "FN_AGG":              "pdb.agg"
+    "FN_AGG":              "pdb.agg",
+    "FN_INDEXES":          "pdb.indexes",
+    "FN_INDEX_SEGMENTS":   "pdb.index_segments",
+    "FN_VERIFY_INDEX":     "pdb.verify_index",
+    "FN_VERIFY_ALL_INDEXES": "pdb.verify_all_indexes"
   },
 
   "types": {

@@ -42,7 +42,7 @@ uv sync --extra dev
 uvx prek install
 
 # Run unit tests (no database required)
-uv run pytest -m "not integration"
+bash scripts/run_unit_tests.sh
 
 # Run integration tests (requires Docker)
 bash scripts/run_integration_tests.sh
@@ -53,6 +53,17 @@ uv run ruff format .
 
 # Run type checking
 uv run mypy paradedb
+
+# Run API/package consistency checks
+python3 scripts/check_api_coverage.py
+python3 scripts/check_api_stub_sync.py
+bash scripts/smoke_wheel_install.sh
+```
+
+You can target a specific supported Django series when needed:
+
+```bash
+bash scripts/run_unit_tests.sh --django 5.2 tests/test_api_loading.py
 ```
 
 ### Pull Request Workflow
@@ -66,6 +77,8 @@ All changes to django-paradedb happen through GitHub Pull Requests. Here is the 
 5. Make your changes. If you've added new functionality, please add tests. We will not merge a feature without appropriate tests.
 6. Open a pull request towards the `main` branch. Ensure that all tests and checks pass. Note that the django-paradedb repository has pull request title linting in place and follows the [Conventional Commits spec](https://www.conventionalcommits.org/).
 7. Congratulations! Our team will review your pull request.
+
+If your change touches SQL wrappers, API constants, packaging, or release metadata, run the API/package checks above before opening the PR.
 
 ### Documentation
 

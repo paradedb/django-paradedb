@@ -12,6 +12,9 @@ on:
       - "**/*.md"
       - "**/*.mdx"
       - ".github/workflows/lint-markdown.yml"
+      - ".markdownlint.yaml"
+      - ".prettierignore"
+      - ".prettierrc"
   workflow_dispatch:
 
 concurrency:
@@ -37,4 +40,4 @@ jobs:
         run: markdownlint "**/*.md"
 
       - name: Run Prettier
-        run: prettier --check "{**/*.md,**/*.mdx}"
+        run: prettier --check "{**/*.md,**/*.mdx}" --ignore-path .prettierignore

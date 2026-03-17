@@ -37,18 +37,10 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Create uv environment
-        run: uv venv --python "3.13"
-
       - name: Run Schema Compatibility Check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: uv run --no-sync python scripts/check_schema_compat.py ${{ env.PARADEDB_VERSION }}
+        run: python3 scripts/check_schema_compat.py ${{ env.PARADEDB_VERSION }}
 
   integration-tests:
     name: Integration Tests

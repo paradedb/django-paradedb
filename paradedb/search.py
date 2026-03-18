@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, Literal, overload
+from typing import Any, Literal, TypeAlias, overload
 
 from django.core.exceptions import FieldDoesNotExist
 from django.db.backends.base.base import BaseDatabaseWrapper
@@ -27,6 +27,7 @@ from django.db.models import (
 from django.db.models.expressions import Expression
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
+from typing_extensions import assert_never
 
 from paradedb.api import (
     FN_ALL,
@@ -283,182 +284,84 @@ class ProxRegex:
         _validate_non_negative_int("ProxRegex max_expansions", self.max_expansions)
 
 
-ProximityTermItem = str | ProxRegex
-ProximityTermInput = ProximityTermItem | list[ProximityTermItem]
+ProximityTerm: TypeAlias = str | ProxRegex | list["ProximityTerm"]
 
 
-def _normalize_proximity_array_side(
-    name: str, value: ProximityTermInput
-) -> tuple[ProximityTermItem, ...]:
-    if isinstance(value, list):
-        if not value:
-            raise ValueError(f"Proximity requires at least one {name} item.")
-        normalized = tuple(value)
-    else:
-        normalized = (value,)
-    for item in normalized:
-        if not isinstance(item, str | ProxRegex):
-            raise TypeError(f"Proximity {name} must be strings or ProxRegex instances.")
-    return normalized
-
-
+@dataclass(frozen=True)
 class Proximity:
-    """Top-level composable proximity expression."""
-
-    term: tuple[ProximityTermItem, ...]
-    boost: float | None
-    const: float | None
+    term: ProximityTerm
 
     def __init__(
         self,
-        term: ProximityTermInput,
-        boost: float | None = None,
-        const: float | None = None,
+        term: ProximityTerm,
     ) -> None:
-        normalized_term = _normalize_proximity_array_side("term", term)
-        self.term = normalized_term
-        self.boost = boost
-        self.const = const
+        if not isinstance(term, (str, list, ProxRegex)):
+            raise TypeError("Proximity term must be strings or ProxRegex instances")
+        object.__setattr__(self, "term", term)
 
     def then(
         self,
-        term: ProximityStep | ProximityTermInput,
+        distance: int,
+        term: ProximityNode | ProximityTerm,
         *,
-        distance: int | None = None,
         ordered: bool = False,
-    ) -> ProximityStep:
-        """Return a rooted proximity chain with one additional hop."""
-        child: ProximityStep
-        if isinstance(term, ProximityStep):
-            if distance is not None:
-                raise ValueError(
-                    "distance must not be provided when chaining an explicit ProximityStep child."
-                )
-            if ordered:
-                raise ValueError(
-                    "ordered must not be provided when chaining an explicit ProximityStep child."
-                )
-            child = term
-        else:
-            if distance is None:
-                raise ValueError("distance is required when chaining a proximity term.")
-            child = ProximityStep(
-                term,
-                distance=distance,
-                ordered=ordered,
-                _grouped=False,
-            )
-        return child._with_root(
-            self.term,
-            boost=self.boost,
-            const=self.const,
-        )
+    ) -> ProximityNode:
+        return ProximityNode(distance, ordered, self.term, term)
 
 
-class ProximityStep:
-    """A proximity hop, optionally grouping additional hops to control associativity."""
-
-    term: tuple[ProximityTermItem, ...]
-    children: tuple[ProximityStep, ...]
+@dataclass(frozen=True)
+class ProximityNode:
     distance: int
     ordered: bool
-    _root_term: tuple[ProximityTermItem, ...] | None
-    _grouped: bool
-    boost: float | None
-    const: float | None
+    left: ProximityNode | ProximityTerm
+    right: ProximityNode | ProximityTerm
 
     def __init__(
         self,
-        term: ProximityTermInput,
-        *children: ProximityStep,
         distance: int,
-        ordered: bool = False,
-        _root_term: tuple[ProximityTermItem, ...] | None = None,
-        _grouped: bool = True,
-        boost: float | None = None,
-        const: float | None = None,
+        ordered: bool,
+        left: ProximityNode | ProximityTerm,
+        right: ProximityNode | ProximityTerm,
     ) -> None:
-        normalized_term = _normalize_proximity_array_side("term", term)
-        _validate_non_negative_int("Proximity distance", distance)
-        if not isinstance(ordered, bool):
-            raise TypeError("Proximity ordered must be a boolean.")
-        for child in children:
-            if not isinstance(child, ProximityStep):
-                raise TypeError(
-                    "ProximityStep children must be ProximityStep instances."
-                )
-        self.term = normalized_term
-        self.children = tuple(children)
-        self.distance = distance
-        self.ordered = ordered
-        self._root_term = _root_term
-        self._grouped = _grouped
-        self.boost = boost
-        self.const = const
-
-    @property
-    def root_term(self) -> tuple[ProximityTermItem, ...] | None:
-        return self._root_term
-
-    def _with_root(
-        self,
-        root_term: tuple[ProximityTermItem, ...],
-        *,
-        boost: float | None,
-        const: float | None,
-    ) -> ProximityStep:
-        return ProximityStep(
-            self.term[0] if len(self.term) == 1 else list(self.term),
-            *self.children,
-            distance=self.distance,
-            ordered=self.ordered,
-            _root_term=root_term,
-            _grouped=self._grouped,
-            boost=boost,
-            const=const,
-        )
+        if distance < 0:
+            raise ValueError(
+                f"Proximity distance must be zero or positive. Received: {distance}"
+            )
+        object.__setattr__(self, "distance", distance)
+        object.__setattr__(self, "ordered", ordered)
+        object.__setattr__(self, "left", left)
+        object.__setattr__(self, "right", right)
 
     def then(
         self,
-        term: ProximityStep | ProximityTermInput,
+        distance: int,
+        term: ProximityNode | ProximityTerm,
         *,
-        distance: int | None = None,
         ordered: bool = False,
-    ) -> ProximityStep:
-        """Return a new grouped chain with one additional proximity hop."""
-        root_term: ProximityTermInput
-        root_term = self.term[0] if len(self.term) == 1 else list(self.term)
-        child: ProximityStep
-        if isinstance(term, ProximityStep):
-            if distance is not None:
-                raise ValueError(
-                    "distance must not be provided when chaining an explicit ProximityStep child."
-                )
-            if ordered:
-                raise ValueError(
-                    "ordered must not be provided when chaining an explicit ProximityStep child."
-                )
-            child = term
-        else:
-            if distance is None:
-                raise ValueError("distance is required when chaining a proximity term.")
-            child = ProximityStep(
-                term,
-                distance=distance,
-                ordered=ordered,
-                _grouped=False,
-            )
-        return ProximityStep(
-            root_term,
-            *self.children,
-            child,
-            distance=self.distance,
-            ordered=self.ordered,
-            _root_term=self._root_term,
-            _grouped=self._grouped,
-            boost=self.boost,
-            const=self.const,
-        )
+    ) -> ProximityNode:
+        return ProximityNode(distance, ordered, self, term)
+
+    def boost(self, value: float) -> ProximityQuery:
+        return ProximityQuery(self, Boost(value))
+
+    def const(self, value: float) -> ProximityQuery:
+        return ProximityQuery(self, Const(value))
+
+
+@dataclass(frozen=True)
+class Boost:
+    value: float
+
+
+@dataclass(frozen=True)
+class Const:
+    value: float
+
+
+@dataclass(frozen=True)
+class ProximityQuery:
+    node: ProximityNode
+    relevance_modifier: Boost | Const | None
 
 
 RangeRelation = Literal["Intersects", "Contains", "Within"]
@@ -1099,21 +1002,17 @@ class ParadeDB:
         ...
 
     @overload
-    def __init__(self, __proximity: Proximity) -> None:
-        """Proximity search with a single Proximity object."""
-        ...
+    def __init__(self, __proximity: ProximityNode) -> None: ...
 
     @overload
-    def __init__(self, __proximity: ProximityStep) -> None:
-        """Proximity search with a single ProximityStep object."""
-        ...
+    def __init__(self, __proximity: ProximityQuery) -> None: ...
 
     def __init__(
         self,
         *terms: Match
         | Phrase
-        | Proximity
-        | ProximityStep
+        | ProximityNode
+        | ProximityQuery
         | Empty
         | Exists
         | FuzzyTerm
@@ -1264,8 +1163,8 @@ class ParadeDB:
             | Range
             | TermSet
             | Phrase
-            | Proximity
-            | ProximityStep
+            | ProximityNode
+            | ProximityQuery
             | Parse
             | PhrasePrefix
             | RegexPhrase
@@ -1349,11 +1248,14 @@ class ParadeDB:
                 phrases.append(term)
             return OP_PHRASE, tuple(phrases)
 
-        if any(isinstance(term, Proximity | ProximityStep) for term in self._terms):
+        if any(
+            isinstance(term, ProximityNode | ProximityQuery) for term in self._terms
+        ):
             if len(self._terms) != 1:
-                raise ValueError("Proximity queries accept a single Proximity term.")
+                raise ValueError("Proximity queries accept a single argument.")
             term = self._terms[0]
-            if not isinstance(term, Proximity | ProximityStep):
+            # TODO This check shouldn't be necessary here, this whole method should be able to be cleaned up
+            if not isinstance(term, ProximityNode | ProximityQuery):
                 raise TypeError("Proximity cannot be mixed with other terms.")
             return OP_SEARCH, (term,)
 
@@ -1389,6 +1291,7 @@ class ParadeDB:
             raise ValueError(f"{name} must be finite.")
         return str(value)
 
+    # TODO you can't use boost and const at the same time. We should make that more clear and throw an error here
     @staticmethod
     def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
         boost_sql = ParadeDB._render_scoring_number(boost, name="boost")
@@ -1422,53 +1325,28 @@ class ParadeDB:
             fuzzy_args.append("t")
         return f"{sql}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
 
-    def _render_proximity_array_side(self, terms: tuple[ProximityTermItem, ...]) -> str:
-        parts: list[str] = []
-        for item in terms:
-            if isinstance(item, ProxRegex):
-                parts.append(
-                    f"{FN_PROX_REGEX}({self._quote_term(item.pattern)}, {item.max_expansions})"
-                )
+    def _render_proximity(self, item: ProximityNode | ProximityTerm) -> str:
+        if isinstance(item, ProximityNode):
+            operator = OP_PROXIMITY_ORD if item.ordered else OP_PROXIMITY
+            lhs = self._render_proximity(item.left)
+            rhs = self._render_proximity(item.right)
+            # if the right side is a node we need to wrap the final expression in parens
+            # to produce the correct associativity
+            if isinstance(item.right, ProximityNode):
+                return f"{lhs} {operator} {item.distance} {operator} ({rhs})"
             else:
-                parts.append(self._quote_term(item))
-        if len(parts) > 1:
+                return f"{lhs} {operator} {item.distance} {operator} {rhs}"
+        return self._render_proximity_term(item)
+
+    def _render_proximity_term(self, term: ProximityTerm) -> str:
+        if isinstance(term, str):
+            return self._quote_term(term)
+        if isinstance(term, ProxRegex):
+            return f"{FN_PROX_REGEX}({self._quote_term(term.pattern)}, {term.max_expansions})"
+        if isinstance(term, list):
+            parts = [self._render_proximity_term(x) for x in term]
             return f"{FN_PROX_ARRAY}({', '.join(parts)})"
-        return parts[0]
-
-    def _render_proximity_node(self, proximity: ProximityStep, *, nested: bool) -> str:
-        clause_sql = self._render_proximity_array_side(proximity.term)
-        for child in proximity.children:
-            operator = OP_PROXIMITY_ORD if child.ordered else OP_PROXIMITY
-            if child.children:
-                right_sql = self._render_proximity_node(child, nested=True)
-            else:
-                right_sql = self._render_proximity_array_side(child.term)
-            clause_sql = (
-                f"{clause_sql} {operator} {child.distance} {operator} {right_sql}"
-            )
-        if nested or proximity.children:
-            return f"({clause_sql})"
-        return clause_sql
-
-    def _render_rooted_proximity_step(self, step: ProximityStep) -> str:
-        if step._root_term is None:
-            raise ValueError("Top-level ProximityStep must define a root term.")
-        left_sql = self._render_proximity_array_side(step._root_term)
-        clause_sql = left_sql
-        current = step
-        while True:
-            operator = OP_PROXIMITY_ORD if current.ordered else OP_PROXIMITY
-            if current.children and current._grouped:
-                right_sql = self._render_proximity_node(current, nested=True)
-            else:
-                right_sql = self._render_proximity_array_side(current.term)
-            clause_sql = (
-                f"{clause_sql} {operator} {current.distance} {operator} {right_sql}"
-            )
-            if len(current.children) != 1 or current._grouped:
-                break
-            current = current.children[0]
-        return f"({clause_sql})"
+        assert_never(term)
 
     def _render_term(
         self,
@@ -1480,8 +1358,8 @@ class ParadeDB:
         | Range
         | TermSet
         | Phrase
-        | Proximity
-        | ProximityStep
+        | ProximityNode
+        | ProximityQuery
         | Parse
         | PhrasePrefix
         | RegexPhrase
@@ -1502,9 +1380,22 @@ class ParadeDB:
             return self._append_scoring(literal, boost=term.boost, const=term.const)
         if isinstance(term, Proximity):
             raise ValueError("Proximity must include at least one chained step.")
-        if isinstance(term, ProximityStep):
-            rendered = self._render_rooted_proximity_step(term)
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+        if isinstance(term, ProximityNode):
+            ## TODO clean up
+            return f"({self._render_proximity(term)})"
+        if isinstance(term, ProximityQuery):
+            rendered = f"({self._render_proximity(term.node)})"
+            boost = (
+                term.relevance_modifier.value
+                if isinstance(term.relevance_modifier, Boost)
+                else None
+            )
+            const = (
+                term.relevance_modifier.value
+                if isinstance(term.relevance_modifier, Const)
+                else None
+            )
+            return self._append_scoring(rendered, boost=boost, const=const)
         if isinstance(term, Parse):
             rendered = (
                 f"{FN_PARSE}({self._quote_term(term.query)}"
@@ -1712,7 +1603,7 @@ __all__ = [
     "PhrasePrefix",
     "ProxRegex",
     "Proximity",
-    "ProximityStep",
+    "ProximityNode",
     "Range",
     "RangeRelation",
     "RangeTerm",

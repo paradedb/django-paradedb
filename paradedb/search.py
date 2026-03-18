@@ -360,6 +360,7 @@ class Const:
 @dataclass(frozen=True)
 class ProximityQuery:
     node: ProximityNode
+    # encoding boost & const like this makes it clear that at most one of them can be set at once
     relevance_modifier: Boost | Const | None
 
 
@@ -1247,7 +1248,6 @@ class ParadeDB:
             if len(self._terms) != 1:
                 raise ValueError("Proximity queries accept a single argument.")
             term = self._terms[0]
-            # TODO This check shouldn't be necessary here, this whole method should be able to be cleaned up
             if not isinstance(term, ProximityNode | ProximityQuery):
                 raise TypeError("Proximity cannot be mixed with other terms.")
             return OP_SEARCH, (term,)
@@ -1284,7 +1284,6 @@ class ParadeDB:
             raise ValueError(f"{name} must be finite.")
         return str(value)
 
-    # TODO you can't use boost and const at the same time. We should make that more clear and throw an error here
     @staticmethod
     def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
         boost_sql = ParadeDB._render_scoring_number(boost, name="boost")
@@ -1317,6 +1316,9 @@ class ParadeDB:
         elif prefix:
             fuzzy_args.append("t")
         return f"{sql}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
+
+    def _render_proximity_node(self, node: ProximityNode) -> str:
+        return f"({self._render_proximity(node)})"
 
     def _render_proximity(self, item: ProximityNode | ProximityTerm) -> str:
         if isinstance(item, ProximityNode):
@@ -1372,10 +1374,9 @@ class ParadeDB:
                 literal = f"{literal}::{_tokenizer_cast(term.tokenizer)}"
             return self._append_scoring(literal, boost=term.boost, const=term.const)
         if isinstance(term, ProximityNode):
-            ## TODO clean up
-            return f"({self._render_proximity(term)})"
+            return self._render_proximity_node(term)
         if isinstance(term, ProximityQuery):
-            rendered = f"({self._render_proximity(term.node)})"
+            rendered = self._render_proximity_node(term.node)
             boost = (
                 term.relevance_modifier.value
                 if isinstance(term.relevance_modifier, Boost)

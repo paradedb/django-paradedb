@@ -27,7 +27,6 @@ from django.db.models import (
 from django.db.models.expressions import Expression
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
-from typing_extensions import assert_never
 
 from paradedb.api import (
     FN_ALL,
@@ -1001,12 +1000,6 @@ class ParadeDB:
         """Phrase search with one or more Phrase objects."""
         ...
 
-    @overload
-    def __init__(self, __proximity: ProximityNode) -> None: ...
-
-    @overload
-    def __init__(self, __proximity: ProximityQuery) -> None: ...
-
     def __init__(
         self,
         *terms: Match
@@ -1346,7 +1339,7 @@ class ParadeDB:
         if isinstance(term, list):
             parts = [self._render_proximity_term(x) for x in term]
             return f"{FN_PROX_ARRAY}({', '.join(parts)})"
-        assert_never(term)
+        raise AssertionError(f"Unhandled proximity term: {term!r}")
 
     def _render_term(
         self,
@@ -1378,8 +1371,6 @@ class ParadeDB:
             if term.tokenizer is not None:
                 literal = f"{literal}::{_tokenizer_cast(term.tokenizer)}"
             return self._append_scoring(literal, boost=term.boost, const=term.const)
-        if isinstance(term, Proximity):
-            raise ValueError("Proximity must include at least one chained step.")
         if isinstance(term, ProximityNode):
             ## TODO clean up
             return f"({self._render_proximity(term)})"

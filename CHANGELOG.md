@@ -14,8 +14,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Changed
 
-- **BREAKING**: `ProximityArray` now accepts two positional arguments that can be either a string, `ProxRegex`, or a list mixing strings and
-  `ProxRegex` items.
+- **BREAKING**: Proximity queries have a new API that exposes the full SQL api: `Proximity("running").then(1, ProxRegex("sho.*"), ordered=True).then(2, "stores").boost(1.2)`
 
 ## [0.4.0] - 2026-02-28
 

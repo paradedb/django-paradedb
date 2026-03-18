@@ -253,7 +253,7 @@ class TestExpressionValidation:
     """Validation coverage for expression dataclasses."""
 
     def test_proximity_boost_and_const_wrap_query_node(self) -> None:
-        proximity = Proximity("a").then(1, "b")
+        proximity = Proximity("a").within(1, "b")
         boosted = proximity.boost(1.0)
         constant = proximity.const(1.0)
         assert boosted.node == proximity
@@ -321,14 +321,14 @@ class TestExpressionValidation:
         with pytest.raises(
             ValueError, match="Proximity distance must be zero or positive"
         ):
-            Proximity("left").then(-1, ProxRegex("right.*"))
+            Proximity("left").within(-1, ProxRegex("right.*"))
 
     def test_prox_regex_negative_max_expansions_in_chain_raises(self) -> None:
         with pytest.raises(ValueError, match="max_expansions must be zero or positive"):
-            Proximity("left").then(1, ProxRegex("right.*", max_expansions=-1))
+            Proximity("left").within(1, ProxRegex("right.*", max_expansions=-1))
 
     def test_proximity_with_prox_regex_boost_and_const_wrap_query_node(self) -> None:
-        proximity = Proximity("left").then(1, ProxRegex("right.*"))
+        proximity = Proximity("left").within(1, ProxRegex("right.*"))
         assert proximity.boost(1.0).relevance_modifier == Boost(1.0)
         assert proximity.const(1.0).relevance_modifier == Const(1.0)
 
@@ -337,26 +337,26 @@ class TestExpressionValidation:
         assert proximity.term == []
 
     def test_proximity_then_allows_empty_term_list(self) -> None:
-        proximity = Proximity("left").then(1, [])
+        proximity = Proximity("left").within(1, [])
         assert proximity.right == []
 
     def test_proximity_then_negative_distance_raises(self) -> None:
         with pytest.raises(
             ValueError, match="Proximity distance must be zero or positive"
         ):
-            Proximity("left").then(-1, "right")
+            Proximity("left").within(-1, "right")
 
     def test_proximity_then_preserves_non_boolean_ordered_value(self) -> None:
-        proximity = Proximity("left").then(1, "right", ordered=1)  # type: ignore[arg-type]
+        proximity = Proximity("left").within(1, "right", ordered=1)  # type: ignore[arg-type]
         assert proximity.ordered == 1
 
     def test_proximity_boost_and_const_with_step_wrap_query_node(self) -> None:
-        proximity = Proximity("left").then(1, "right")
+        proximity = Proximity("left").within(1, "right")
         assert proximity.boost(1.0).node == proximity
         assert proximity.const(1.0).node == proximity
 
     def test_proximity_accepts_prox_regex_items_in_start(self) -> None:
-        proximity = Proximity(["chicken", ProxRegex("r..s")]).then(1, "delicious")
+        proximity = Proximity(["chicken", ProxRegex("r..s")]).within(1, "delicious")
         assert isinstance(proximity.left, list)
         assert len(proximity.left) == 2
         assert proximity.left[0] == "chicken"
@@ -364,7 +364,7 @@ class TestExpressionValidation:
         assert proximity.left[1].pattern == "r..s"
 
     def test_proximity_accepts_term_lists_in_step(self) -> None:
-        proximity = Proximity("chicken").then(1, ["delicious", ProxRegex("cris.*")])
+        proximity = Proximity("chicken").within(1, ["delicious", ProxRegex("cris.*")])
         assert isinstance(proximity.right, list)
         assert len(proximity.right) == 2
         assert proximity.right[0] == "delicious"
@@ -396,11 +396,11 @@ class TestExpressionValidation:
             Proximity(123)  # type: ignore[arg-type]
 
     def test_proximity_step_preserves_unvalidated_term_value(self) -> None:
-        proximity = Proximity("left").then(1, 123)  # type: ignore[arg-type]
+        proximity = Proximity("left").within(1, 123)  # type: ignore[arg-type]
         assert proximity.right == 123
 
     def test_proximity_chain_builder_preserves_ordering(self) -> None:
-        chain = Proximity("left").then(
+        chain = Proximity("left").within(
             1,
             ["middle", ProxRegex("r.*")],
             ordered=True,
@@ -414,7 +414,7 @@ class TestExpressionValidation:
             "middle",
             ProximityNode(2, True, "right", "tail"),
         )
-        chain = Proximity("left").then(3, grouped)
+        chain = Proximity("left").within(3, grouped)
         assert chain.right == grouped
         assert chain.left == "left"
         assert chain.distance == 3

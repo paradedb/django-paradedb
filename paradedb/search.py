@@ -298,7 +298,7 @@ class Proximity:
             raise TypeError("Proximity term must be strings or ProxRegex instances")
         object.__setattr__(self, "term", term)
 
-    def then(
+    def within(
         self,
         distance: int,
         term: ProximityNode | ProximityTerm,
@@ -331,7 +331,7 @@ class ProximityNode:
         object.__setattr__(self, "left", left)
         object.__setattr__(self, "right", right)
 
-    def then(
+    def within(
         self,
         distance: int,
         term: ProximityNode | ProximityTerm,

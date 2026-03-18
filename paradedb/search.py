@@ -1595,7 +1595,6 @@ __all__ = [
     "PhrasePrefix",
     "ProxRegex",
     "Proximity",
-    "ProximityNode",
     "Range",
     "RangeRelation",
     "RangeTerm",

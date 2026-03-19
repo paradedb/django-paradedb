@@ -292,11 +292,12 @@ class ProxRegex:
     """Regex clause for use inside a proximity expression."""
 
     pattern: str
-    max_expansions: int = 50
+    max_expansions: int | None = None
 
     def __post_init__(self) -> None:
         _validate_string("ProxRegex pattern", self.pattern)
-        _validate_non_negative_int("ProxRegex max_expansions", self.max_expansions)
+        if self.max_expansions is not None:
+            _validate_non_negative_int("ProxRegex max_expansions", self.max_expansions)
 
 
 ProximityTerm: TypeAlias = str | ProxRegex | list["ProximityTerm"]
@@ -1124,6 +1125,8 @@ class ParadeDB:
         if isinstance(term, str):
             return self._quote_term(term)
         if isinstance(term, ProxRegex):
+            if term.max_expansions is None:
+                return f"{FN_PROX_REGEX}({self._quote_term(term.pattern)})"
             return f"{FN_PROX_REGEX}({self._quote_term(term.pattern)}, {term.max_expansions})"
         if isinstance(term, list):
             parts = [self._render_proximity_term(x) for x in term]

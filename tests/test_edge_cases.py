@@ -357,7 +357,7 @@ class TestExpressionValidation:
     def test_prox_regex_defaults(self) -> None:
         prox_regex = ProxRegex("pattern")
         assert prox_regex.pattern == "pattern"
-        assert prox_regex.max_expansions == 50
+        assert prox_regex.max_expansions is None
 
     def test_proximity_start_must_be_strings_or_proxregex(self) -> None:
         with pytest.raises(

@@ -226,6 +226,42 @@ class TestPhraseSearch:
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.slop(1)'
         )
 
+    def test_phrase_with_multiple_terms(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("running shoes", "sneakers"))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### ARRAY[\'running shoes\', \'sneakers\']'
+        )
+
+    def test_phrase_with_multiple_terms_and_slop(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("running shoes", "sneakers", slop=7))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### ARRAY[\'running shoes\', \'sneakers\']::pdb.slop(7)'
+        )
+
+    def test_phrase_with_multiple_terms_and_slop_and_boost(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("running shoes", "sneakers", slop=7, boost=5))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### ARRAY[\'running shoes\', \'sneakers\']::pdb.slop(7)::pdb.boost(5)'
+        )
+
+    def test_phrase_with_multiple_terms_and_slop_and_const(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Phrase("running shoes", "sneakers", slop=7, const=5))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### ARRAY[\'running shoes\', \'sneakers\']::pdb.slop(7)::pdb.query::pdb.const(5)'
+        )
+
 
 class TestProximitySearch:
     """Test Proximity search SQL generation."""

@@ -181,17 +181,33 @@ class Phrase:
     See: https://docs.paradedb.com/documentation/full-text/phrase
     """
 
-    text: str
+    terms: list[str]
     slop: int | None = None
     tokenizer: str | None = None
     boost: float | None = None
     const: float | None = None
 
-    def __post_init__(self) -> None:
-        _validate_string("Phrase text", self.text)
-        if self.slop is not None:
-            _validate_non_negative_int("Phrase slop", self.slop)
-        _validate_optional_string("Phrase tokenizer", self.tokenizer)
+    def __init__(
+        self,
+        *terms: str,
+        slop: int | None = None,
+        tokenizer: str | None = None,
+        boost: float | None = None,
+        const: float | None = None,
+    ) -> None:
+        if len(terms) == 0:
+            raise ValueError("Phrase requires at least one term")
+        for term in terms:
+            _validate_string("Phrase term", term)
+        if slop is not None:
+            _validate_non_negative_int("Phrase slop", slop)
+        _validate_optional_string("Phrase tokenizer", tokenizer)
+
+        object.__setattr__(self, "terms", terms)
+        object.__setattr__(self, "slop", slop)
+        object.__setattr__(self, "tokenizer", tokenizer)
+        object.__setattr__(self, "boost", boost)
+        object.__setattr__(self, "const", const)
 
 
 @dataclass(frozen=True)
@@ -1116,15 +1132,20 @@ class ParadeDB:
 
     def _render_term(self, term: TermType) -> str:
         if isinstance(term, Phrase):
-            literal = self._quote_term(term.text)
+            if len(term.terms) == 1:
+                rendered = self._quote_term(term.terms[0])
+            else:
+                quoted = [self._quote_term(item) for item in term.terms]
+                rendered = f"ARRAY[{', '.join(quoted)}]"
             if term.slop is not None:
-                literal = f"{literal}::{PDB_TYPE_SLOP}({term.slop})"
+                rendered = f"{rendered}::{PDB_TYPE_SLOP}({term.slop})"
                 # pdb.slop has no direct cast to pdb.const; bridge via pdb.query.
+                # Once this is fixed in the DB we can remove this
                 if term.const is not None:
-                    literal = f"{literal}::{PDB_TYPE_QUERY}"
+                    rendered = f"{rendered}::{PDB_TYPE_QUERY}"
             if term.tokenizer is not None:
-                literal = f"{literal}::{_tokenizer_cast(term.tokenizer)}"
-            return self._append_scoring(literal, boost=term.boost, const=term.const)
+                rendered = f"{rendered}::{_tokenizer_cast(term.tokenizer)}"
+            return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, ProximityNode):
             return self._render_proximity_node(term)
         if isinstance(term, ProximityQuery):

@@ -1001,6 +1001,16 @@ class ParadeDB:
         """Phrase search with one or more Phrase objects."""
         ...
 
+    @overload
+    def __init__(self, __proximity: ProximityNode) -> None:
+        """Proximity query"""
+        ...
+
+    @overload
+    def __init__(self, __proximity: ProximityQuery) -> None:
+        """Proximity query"""
+        ...
+
     def __init__(
         self,
         *terms: Match

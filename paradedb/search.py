@@ -1014,7 +1014,6 @@ class ParadeDB:
         rendered = self._render_term(self._term)
         return f"{lhs_sql} {self._lookup_operator()} {rendered}", []
 
-    # TODO maybe this should be a map or something else
     def _lookup_operator(self) -> str:
         if isinstance(self._term, Match):
             if self._term.operator == "OR":

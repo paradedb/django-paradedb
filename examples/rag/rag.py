@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import MockItem, setup_mock_items
 
 from paradedb.functions import Score
-from paradedb.search import ParadeDB, Parse
+from paradedb.search import Parse
 
 load_dotenv()
 
@@ -23,7 +23,7 @@ MODEL = os.environ.get("RAG_MODEL", "anthropic/claude-3-haiku")
 def retrieve(query: str, top_k: int = 5) -> list[MockItem]:
     """Retrieve relevant products using BM25 search."""
     qs = (
-        MockItem.objects.filter(description=ParadeDB(Parse(query, lenient=True)))
+        MockItem.objects.filter(description__pdb=Parse(query, lenient=True))
         .annotate(score=Score())
         .order_by("-score")[:top_k]
     )

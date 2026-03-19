@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from paradedb.functions import Score
-from paradedb.search import ParadeDB, Parse
+from paradedb.search import Parse
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from models import AutocompleteItem
@@ -36,7 +36,7 @@ def demo_autocomplete() -> None:
         # Autocomplete query
         results = (
             AutocompleteItem.objects.filter(
-                description=ParadeDB(Parse(f"description_ngram:{query}"))
+                description__pdb=Parse(f"description_ngram:{query}")
             )
             .annotate(score=Score())
             .order_by("-score")[:5]

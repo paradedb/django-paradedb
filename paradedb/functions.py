@@ -208,11 +208,11 @@ class Agg(Func):
         MockItem.objects.aggregate(
             electronics=Agg(
                 '{"value_count": {"field": "id"}}',
-                filter=Q(category=ParadeDB(Term("electronics"))),
+                filter=Q(category__pdb=Term("electronics")),
             ),
             footwear=Agg(
                 '{"value_count": {"field": "id"}}',
-                filter=Q(category=ParadeDB(Term("footwear"))),
+                filter=Q(category__pdb=Term("footwear")),
             ),
         )
     """

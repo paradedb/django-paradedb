@@ -93,7 +93,7 @@ class TestSpecialCharacterEscaping:
 
 
 class TestParadeDBValidation:
-    """Test input validation for ParadeDB wrapper."""
+    """Test input validation for ParadeDB lookups."""
 
     def test_paradedb_invalid_tokenizer_deferred_to_database(self) -> None:
         """Tokenizer names are quoted in SQL; validity is deferred to database execution."""

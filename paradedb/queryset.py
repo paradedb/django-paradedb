@@ -11,7 +11,7 @@ from django.db.models import Window
 from django.db.models.sql.where import WhereNode
 
 from paradedb.functions import Agg
-from paradedb.search import MoreLikeThis, ParadeDB
+from paradedb.search import MoreLikeThis
 
 
 def _contains_paradedb_operator(where: WhereNode) -> bool:
@@ -24,9 +24,6 @@ def _contains_paradedb_operator(where: WhereNode) -> bool:
             return True
         lhs = getattr(child, "lhs", None)
         if isinstance(lhs, MoreLikeThis):
-            return True
-        rhs = getattr(child, "rhs", None)
-        if isinstance(rhs, ParadeDB):
             return True
     return False
 

@@ -981,48 +981,6 @@ TermType = (
 )
 
 
-class ParadeDB:
-    """Wrapper for ParadeDB search terms.
-
-    Usage:
-        # Explicit literal match query
-        ParadeDB(Match('running', 'shoes', operator='AND'))
-
-        # Complex mixed AND/OR logic is expressed by combining multiple
-        # ParadeDB(Match(...)) clauses with Django Q objects.
-
-        # Query expressions (SINGLE expression only)
-        ParadeDB(Parse('query'))             # ✅ Valid
-        ParadeDB(Parse('a'), Parse('b'))     # ❌ Error - only one allowed
-
-        # Phrase search (multiple phrases allowed, no mixing with strings)
-        ParadeDB(Phrase('exact match'))
-        ParadeDB(Phrase('a'), Phrase('b'))   # ✅ Valid
-        ParadeDB(Phrase('a'), 'b')           # ❌ Error - no mixing
-
-    Raises:
-        ValueError: If Parse/Term/Regex/All is not provided as a single term
-        TypeError: If query term types are mixed
-    """
-
-    contains_aggregate = False
-    contains_over_clause = False
-    contains_column_references = False
-
-    def __init__(self, term: TermType) -> None:
-        self._term = term
-
-    def resolve_expression(
-        self,
-        query: Any = None,  # noqa: ARG002
-        allow_joins: bool = True,  # noqa: ARG002
-        reuse: set[str] | None = None,  # noqa: ARG002
-        summarize: bool = False,  # noqa: ARG002
-        for_save: bool = False,  # noqa: ARG002
-    ) -> ParadeDB:
-        return self
-
-
 def as_sql(
     term: TermType,
     _compiler: SQLCompiler,

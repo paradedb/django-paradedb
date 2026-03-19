@@ -502,7 +502,7 @@ class TestNewQueryTypeValidation:
     """Test that new query types pass through _resolve_terms without TypeError."""
 
     def test_empty_does_not_raise_type_error(self) -> None:
-        """ParadeDB(Empty()) should not raise TypeError from _resolve_terms."""
+        """Empty() should not raise TypeError when used in a pdb lookup."""
         queryset = Product.objects.filter(description__pdb=Empty())
         sql = str(queryset.query)
         assert "pdb.empty()" in sql

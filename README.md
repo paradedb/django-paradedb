@@ -203,25 +203,25 @@ cursor.close()
 Search with a simple query:
 
 ```python
-from paradedb.search import ParadeDB, Match, Term
+from paradedb.search import Match, Term
 
 # Single term
-MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND')))
+MockItem.objects.filter(description__pdb=Match('shoes', operator='AND'))
 
 # Multiple terms (explicit AND)
-MockItem.objects.filter(description=ParadeDB(Match('running', 'shoes', operator='AND')))
+MockItem.objects.filter(description__pdb=Match('running', 'shoes', operator='AND'))
 
 # OR across terms
-MockItem.objects.filter(description=ParadeDB(Match('shoes', 'boots', operator='OR')))
+MockItem.objects.filter(description__pdb=Match('shoes', 'boots', operator='OR'))
 
 # Fuzzy search (typo tolerance via distance)
-MockItem.objects.filter(description=ParadeDB(Match('shoez', operator='OR', distance=1)))
+MockItem.objects.filter(description__pdb=Match('shoez', operator='OR', distance=1))
 
 # Fuzzy prefix (distance + prefix matching)
-MockItem.objects.filter(description=ParadeDB(Term('runn', distance=1, prefix=True)))
+MockItem.objects.filter(description__pdb=Term('runn', distance=1, prefix=True))
 
 # Fuzzy transposition-cost-one
-MockItem.objects.filter(description=ParadeDB(Term('shose', distance=1, transposition_cost_one=True)))
+MockItem.objects.filter(description__pdb=Term('shose', distance=1, transposition_cost_one=True))
 ```
 
 Annotate with BM25 relevance score and sort by it:
@@ -230,7 +230,7 @@ Annotate with BM25 relevance score and sort by it:
 from paradedb.functions import Score
 
 MockItem.objects.filter(
-    description=ParadeDB(Match('shoes', operator='AND'))
+    description__pdb=Match('shoes', operator='AND')
 ).annotate(
     score=Score()
 ).order_by('-score')
@@ -242,16 +242,16 @@ MockItem.objects.filter(
 
 ```python
 from django.db.models import Q
-from paradedb.search import ParadeDB, Match
+from paradedb.search import Match
 
 # Combine with Q objects
 MockItem.objects.filter(
-    Q(description=ParadeDB(Match('shoes', operator='AND'))) & Q(rating__gte=4)
+    Q(description__pdb=Match('shoes', operator='AND')) & Q(rating__gte=4)
 )
 
 # Chain with standard filters
 MockItem.objects.filter(
-    description=ParadeDB(Match('shoes', operator='AND'))
+    description__pdb=Match('shoes', operator='AND')
 ).filter(
     category='footwear'
 ).exclude(
@@ -325,7 +325,7 @@ MockItem.objects.filter(rating__lt=4).order_by('id')[:10].facets('category')
 # ✅ Add a ParadeDB search filter
 MockItem.objects.filter(
     rating__gte=4,
-    description=ParadeDB(Match('shoes', operator='AND'))
+    description__pdb=Match('shoes', operator='AND')
 ).order_by('id')[:10].facets('category')
 ```
 
@@ -333,14 +333,14 @@ MockItem.objects.filter(
 
 ```python
 # ❌ Missing ordering or limit
-MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND')))[:10].facets('category')
-MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND'))).order_by('id').facets('category')
+MockItem.objects.filter(description__pdb=Match('shoes', operator='AND'))[:10].facets('category')
+MockItem.objects.filter(description__pdb=Match('shoes', operator='AND')).order_by('id').facets('category')
 
 # ✅ Both ordering and limit
-MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND'))).order_by('id')[:10].facets('category')
+MockItem.objects.filter(description__pdb=Match('shoes', operator='AND')).order_by('id')[:10].facets('category')
 
 # ✅ Or skip rows entirely
-MockItem.objects.filter(description=ParadeDB(Match('shoes', operator='AND'))).facets('category', include_rows=False)
+MockItem.objects.filter(description__pdb=Match('shoes', operator='AND')).facets('category', include_rows=False)
 ```
 
 ## Security

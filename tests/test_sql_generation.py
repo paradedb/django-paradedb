@@ -286,8 +286,8 @@ class TestProximitySearch:
     def test_proximity_without_nodes_rejected(self) -> None:
         queryset = Product.objects.filter(description=ParadeDB(Proximity("running")))
         with pytest.raises(
-            RuntimeError,
-            match=r"Unreachable ParadeDB term resolution branch.",
+            TypeError,
+            match=r"Unsupported ParadeDB term type",
         ):
             _ = str(queryset.query)
 
@@ -460,27 +460,6 @@ class TestTokenizerOverride:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.whitespace::pdb.boost(2.0)'
         )
-
-    def test_tokenizer_invalid_with_term(self) -> None:
-        with pytest.raises(
-            ValueError,
-            match=r"ParadeDB tokenizer keyword is only supported via Match\(\.\.\., tokenizer=\.\.\.\)\.",
-        ):
-            _ = ParadeDB(Term("x"), tokenizer="whitespace")
-
-    def test_boost_keyword_invalid_with_term(self) -> None:
-        with pytest.raises(
-            ValueError,
-            match=r"ParadeDB boost keyword is only supported via Match\(\.\.\., boost=\.\.\.\)\.",
-        ):
-            _ = ParadeDB(Term("x"), boost=2.0)
-
-    def test_const_keyword_invalid_with_phrase(self) -> None:
-        with pytest.raises(
-            ValueError,
-            match=r"ParadeDB const keyword is only supported via Match\(\.\.\., const=\.\.\.\)\.",
-        ):
-            _ = ParadeDB(Phrase("x"), const=1.0)
 
 
 class TestParseQuery:

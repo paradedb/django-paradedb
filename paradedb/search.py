@@ -1003,23 +1003,14 @@ class ParadeDB:
         self._boost = boost
         self._const = const
 
-        if isinstance(self._term, str):
-            raise TypeError(
-                "Plain string terms are not supported. Use ParadeDB(Match(..., operator=...))."
-            )
-
-        if self._tokenizer is not None:
-            raise ValueError(
-                "ParadeDB tokenizer keyword is only supported via Match(..., tokenizer=...)."
-            )
-        if self._boost is not None:
-            raise ValueError(
-                "ParadeDB boost keyword is only supported via Match(..., boost=...)."
-            )
-        if self._const is not None:
-            raise ValueError(
-                "ParadeDB const keyword is only supported via Match(..., const=...)."
-            )
+        # TODO will remove
+        if isinstance(term, Match):
+            self._tokenizer = term.tokenizer
+            self._distance = term.distance
+            self._prefix = term.prefix
+            self._transposition_cost_one = term.transposition_cost_one
+            self._boost = term.boost
+            self._const = term.const
 
     def resolve_expression(
         self,
@@ -1037,8 +1028,7 @@ class ParadeDB:
         _connection: BaseDatabaseWrapper,
         lhs_sql: str,
     ) -> tuple[str, list[object]]:
-        operator, term = self._resolve_term()
-        literal = self._render_term(term)
+        literal = self._render_term(self._term)
 
         rendered = self._append_fuzzy(
             literal,
@@ -1057,72 +1047,20 @@ class ParadeDB:
             # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
             rendered = f"{rendered}::pdb.query"
         scored = self._append_scoring(rendered, boost=self._boost, const=self._const)
-        return f"{lhs_sql} {operator} {scored}", []
+        return f"{lhs_sql} {self._lookup_operator()} {scored}", []
 
-    def _resolve_term(
-        self,
-    ) -> tuple[
-        str,
-        str
-        | Match
-        | Empty
-        | Exists
-        | FuzzyTerm
-        | ParseWithField
-        | Range
-        | TermSet
-        | Phrase
-        | ProximityNode
-        | ProximityQuery
-        | Parse
-        | PhrasePrefix
-        | RegexPhrase
-        | RangeTerm
-        | Term
-        | Regex
-        | All,
-    ]:
-        if isinstance(
-            self._term,
-            Empty
-            | Exists
-            | FuzzyTerm
-            | ParseWithField
-            | Range
-            | TermSet
-            | Parse
-            | PhrasePrefix
-            | RegexPhrase
-            | RangeTerm
-            | Term
-            | Regex
-            | All,
-        ):
-            return OP_SEARCH, self._term
-
+    # TODO maybe this should be a map or something else
+    def _lookup_operator(self) -> str:
         if isinstance(self._term, Match):
             if self._term.operator == "OR":
-                operator = OP_OR
+                return OP_OR
             elif self._term.operator == "AND":
-                operator = OP_AND
+                return OP_AND
             else:
                 raise ValueError("Match operator must be 'AND' or 'OR'.")
-            self._tokenizer = self._term.tokenizer
-            self._distance = self._term.distance
-            self._prefix = self._term.prefix
-            self._transposition_cost_one = self._term.transposition_cost_one
-            self._boost = self._term.boost
-            self._const = self._term.const
-            return operator, self._term
-
         if isinstance(self._term, Phrase):
-            return OP_PHRASE, self._term
-
-        if isinstance(self._term, ProximityNode | ProximityQuery):
-            return OP_SEARCH, self._term
-
-        # Plain string terms are rejected in __init__, so this path is unreachable.
-        raise RuntimeError("Unreachable ParadeDB term resolution branch.")
+            return OP_PHRASE
+        return OP_SEARCH
 
     @staticmethod
     def _quote_term(term: str) -> str:
@@ -1214,8 +1152,7 @@ class ParadeDB:
 
     def _render_term(
         self,
-        term: str
-        | Match
+        term: Match
         | Empty
         | Exists
         | FuzzyTerm
@@ -1365,14 +1302,7 @@ class ParadeDB:
             if self._tokenizer is not None:
                 rendered = f"{rendered}::{_tokenizer_cast(self._tokenizer)}"
             return rendered
-        if not isinstance(term, str):
-            raise TypeError(f"Unsupported ParadeDB term type. {term}")
-
-        # Match(...) resolves into plain string terms, which are rendered here.
-        rendered = self._quote_term(term)
-        if self._tokenizer is not None:
-            rendered = f"{rendered}::{_tokenizer_cast(self._tokenizer)}"
-        return rendered
+        raise TypeError(f"Unsupported ParadeDB term type. {term}")
 
     @staticmethod
     def _render_term_set_array(

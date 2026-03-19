@@ -1022,334 +1022,321 @@ class ParadeDB:
     ) -> ParadeDB:
         return self
 
-    def as_sql(
-        self,
-        _compiler: SQLCompiler,
-        _connection: BaseDatabaseWrapper,
-        lhs_sql: str,
-    ) -> tuple[str, list[object]]:
-        rendered = self._render_term(self._term)
-        return f"{lhs_sql} {self._lookup_operator()} {rendered}", []
 
-    def _lookup_operator(self) -> str:
-        if isinstance(self._term, Match):
-            if self._term.operator == "OR":
-                return OP_OR
-            elif self._term.operator == "AND":
-                return OP_AND
-            else:
-                raise ValueError("Match operator must be 'AND' or 'OR'.")
-        if isinstance(self._term, Phrase):
-            return OP_PHRASE
-        return OP_SEARCH
+def as_sql(
+    term: TermType,
+    _compiler: SQLCompiler,
+    _connection: BaseDatabaseWrapper,
+    lhs_sql: str,
+) -> tuple[str, list[object]]:
+    rendered = _render_term(term)
+    return f"{lhs_sql} {_lookup_operator(term)} {rendered}", []
 
-    @staticmethod
-    def _quote_term(term: str) -> str:
-        if not isinstance(term, str):
-            raise TypeError("Search term literal must be a string.")
-        escaped = term.replace("'", "''")
-        return f"'{escaped}'"
 
-    @staticmethod
-    def _quote_range_literal(
-        value: int | float | str | date | datetime, range_type: RangeType
-    ) -> str:
-        if isinstance(value, date | datetime):
-            literal = value.isoformat()
-        else:
-            literal = str(value)
-        safe_range_type = _validate_range_type(range_type)
-        return f"{ParadeDB._quote_term(literal)}::{safe_range_type}"
+def _lookup_operator(term: TermType) -> str:
+    if isinstance(term, Match):
+        if term.operator == "OR":
+            return OP_OR
+        if term.operator == "AND":
+            return OP_AND
+        raise ValueError("Match operator must be 'AND' or 'OR'.")
+    if isinstance(term, Phrase):
+        return OP_PHRASE
+    return OP_SEARCH
 
-    @staticmethod
-    def _render_scoring_number(value: float | None, *, name: str) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, bool) or not isinstance(value, int | float):
-            raise TypeError(f"{name} must be an int or float.")
-        numeric = float(value)
-        if not math.isfinite(numeric):
-            raise ValueError(f"{name} must be finite.")
-        return str(value)
 
-    @staticmethod
-    def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
-        boost_sql = ParadeDB._render_scoring_number(boost, name="boost")
-        if boost_sql is not None:
-            sql = f"{sql}::{PDB_TYPE_BOOST}({boost_sql})"
-        const_sql = ParadeDB._render_scoring_number(const, name="const")
-        if const_sql is not None:
-            sql = f"{sql}::{PDB_TYPE_CONST}({const_sql})"
+def _quote_term(term: str) -> str:
+    if not isinstance(term, str):
+        raise TypeError("Search term literal must be a string.")
+    escaped = term.replace("'", "''")
+    return f"'{escaped}'"
+
+
+def _quote_range_literal(
+    value: int | float | str | date | datetime, range_type: RangeType
+) -> str:
+    literal = value.isoformat() if isinstance(value, date | datetime) else str(value)
+    safe_range_type = _validate_range_type(range_type)
+    return f"{_quote_term(literal)}::{safe_range_type}"
+
+
+def _render_scoring_number(value: float | None, *, name: str) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(f"{name} must be an int or float.")
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise ValueError(f"{name} must be finite.")
+    return str(value)
+
+
+def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
+    boost_sql = _render_scoring_number(boost, name="boost")
+    if boost_sql is not None:
+        sql = f"{sql}::{PDB_TYPE_BOOST}({boost_sql})"
+    const_sql = _render_scoring_number(const, name="const")
+    if const_sql is not None:
+        sql = f"{sql}::{PDB_TYPE_CONST}({const_sql})"
+    return sql
+
+
+def _append_fuzzy(
+    sql: str,
+    *,
+    distance: int | None,
+    prefix: bool,
+    transposition_cost_one: bool,
+) -> str:
+    if not _is_fuzzy_enabled(
+        distance=distance,
+        prefix=prefix,
+        transposition_cost_one=transposition_cost_one,
+    ):
         return sql
 
-    @staticmethod
-    def _append_fuzzy(
-        sql: str,
-        *,
-        distance: int | None,
-        prefix: bool,
-        transposition_cost_one: bool,
-    ) -> str:
-        if not _is_fuzzy_enabled(
-            distance=distance,
-            prefix=prefix,
-            transposition_cost_one=transposition_cost_one,
-        ):
-            return sql
+    fuzzy_distance = 1 if distance is None else distance
+    fuzzy_args: list[str] = [str(fuzzy_distance)]
+    if transposition_cost_one:
+        fuzzy_args.extend(["t" if prefix else "f", "t"])
+    elif prefix:
+        fuzzy_args.append("t")
+    return f"{sql}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
 
-        fuzzy_distance = 1 if distance is None else distance
-        fuzzy_args: list[str] = [str(fuzzy_distance)]
-        if transposition_cost_one:
-            fuzzy_args.extend(["t" if prefix else "f", "t"])
-        elif prefix:
-            fuzzy_args.append("t")
-        return f"{sql}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
 
-    def _render_proximity_node(self, node: ProximityNode) -> str:
-        return f"({self._render_proximity(node)})"
+def _render_proximity_node(node: ProximityNode) -> str:
+    return f"({_render_proximity(node)})"
 
-    def _render_proximity(self, item: ProximityNode | ProximityTerm) -> str:
-        if isinstance(item, ProximityNode):
-            operator = OP_PROXIMITY_ORD if item.ordered else OP_PROXIMITY
-            lhs = self._render_proximity(item.left)
-            rhs = self._render_proximity(item.right)
-            # if the right side is a node we need to wrap the final expression in parens
-            # to produce the correct associativity
-            if isinstance(item.right, ProximityNode):
-                return f"{lhs} {operator} {item.distance} {operator} ({rhs})"
-            else:
-                return f"{lhs} {operator} {item.distance} {operator} {rhs}"
-        return self._render_proximity_term(item)
 
-    def _render_proximity_term(self, term: ProximityTerm) -> str:
-        if isinstance(term, str):
-            return self._quote_term(term)
-        if isinstance(term, ProxRegex):
-            if term.max_expansions is None:
-                return f"{FN_PROX_REGEX}({self._quote_term(term.pattern)})"
-            return f"{FN_PROX_REGEX}({self._quote_term(term.pattern)}, {term.max_expansions})"
-        if isinstance(term, list):
-            parts = [self._render_proximity_term(x) for x in term]
-            return f"{FN_PROX_ARRAY}({', '.join(parts)})"
-        raise AssertionError(f"Unhandled proximity term: {term!r}")
+def _render_proximity(item: ProximityNode | ProximityTerm) -> str:
+    if isinstance(item, ProximityNode):
+        operator = OP_PROXIMITY_ORD if item.ordered else OP_PROXIMITY
+        lhs = _render_proximity(item.left)
+        rhs = _render_proximity(item.right)
+        if isinstance(item.right, ProximityNode):
+            return f"{lhs} {operator} {item.distance} {operator} ({rhs})"
+        return f"{lhs} {operator} {item.distance} {operator} {rhs}"
+    return _render_proximity_term(item)
 
-    def _render_term(self, term: TermType) -> str:
-        if isinstance(term, Phrase):
-            if len(term.terms) == 1:
-                rendered = self._quote_term(term.terms[0])
-            else:
-                quoted = [self._quote_term(item) for item in term.terms]
-                rendered = f"ARRAY[{', '.join(quoted)}]"
-            if term.slop is not None:
-                rendered = f"{rendered}::{PDB_TYPE_SLOP}({term.slop})"
-                # pdb.slop has no direct cast to pdb.const; bridge via pdb.query.
-                # Once this is fixed in the DB we can remove this
-                if term.const is not None:
-                    rendered = f"{rendered}::{PDB_TYPE_QUERY}"
-            if term.tokenizer is not None:
-                rendered = f"{rendered}::{_tokenizer_cast(term.tokenizer)}"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, ProximityNode):
-            return self._render_proximity_node(term)
-        if isinstance(term, ProximityQuery):
-            rendered = self._render_proximity_node(term.node)
-            boost = (
-                term.relevance_modifier.value
-                if isinstance(term.relevance_modifier, Boost)
-                else None
-            )
-            const = (
-                term.relevance_modifier.value
-                if isinstance(term.relevance_modifier, Const)
-                else None
-            )
-            return self._append_scoring(rendered, boost=boost, const=const)
-        if isinstance(term, Parse):
+
+def _render_proximity_term(term: ProximityTerm) -> str:
+    if isinstance(term, str):
+        return _quote_term(term)
+    if isinstance(term, ProxRegex):
+        if term.max_expansions is None:
+            return f"{FN_PROX_REGEX}({_quote_term(term.pattern)})"
+        return f"{FN_PROX_REGEX}({_quote_term(term.pattern)}, {term.max_expansions})"
+    if isinstance(term, list):
+        parts = [_render_proximity_term(x) for x in term]
+        return f"{FN_PROX_ARRAY}({', '.join(parts)})"
+    raise AssertionError(f"Unhandled proximity term: {term!r}")
+
+
+def _render_term(term: TermType) -> str:
+    if isinstance(term, Phrase):
+        if len(term.terms) == 1:
+            rendered = _quote_term(term.terms[0])
+        else:
+            quoted = [_quote_term(item) for item in term.terms]
+            rendered = f"ARRAY[{', '.join(quoted)}]"
+        if term.slop is not None:
+            rendered = f"{rendered}::{PDB_TYPE_SLOP}({term.slop})"
+            if term.const is not None:
+                rendered = f"{rendered}::{PDB_TYPE_QUERY}"
+        if term.tokenizer is not None:
+            rendered = f"{rendered}::{_tokenizer_cast(term.tokenizer)}"
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, ProximityNode):
+        return _render_proximity_node(term)
+    if isinstance(term, ProximityQuery):
+        rendered = _render_proximity_node(term.node)
+        boost = (
+            term.relevance_modifier.value
+            if isinstance(term.relevance_modifier, Boost)
+            else None
+        )
+        const = (
+            term.relevance_modifier.value
+            if isinstance(term.relevance_modifier, Const)
+            else None
+        )
+        return _append_scoring(rendered, boost=boost, const=const)
+    if isinstance(term, Parse):
+        rendered = (
+            f"{FN_PARSE}({_quote_term(term.query)}"
+            f"{_render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
+        )
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, PhrasePrefix):
+        phrases_sql = ", ".join(_quote_term(phrase) for phrase in term.phrases)
+        rendered = (
+            f"{FN_PHRASE_PREFIX}(ARRAY[{phrases_sql}]"
+            f"{_render_options({'max_expansion': term.max_expansion})})"
+        )
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, RegexPhrase):
+        regex_sql = ", ".join(_quote_term(regex) for regex in term.regexes)
+        rendered = (
+            f"{FN_REGEX_PHRASE}(ARRAY[{regex_sql}]"
+            f"{_render_options({'slop': term.slop, 'max_expansions': term.max_expansions})})"
+        )
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, RangeTerm):
+        if term.relation is None:
+            rendered = f"{FN_RANGE_TERM}({_render_value(term.value)})"
+        else:
+            assert term.range_type is not None
             rendered = (
-                f"{FN_PARSE}({self._quote_term(term.query)}"
-                f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
+                f"{FN_RANGE_TERM}("
+                f"{_quote_range_literal(term.value, term.range_type)}, "
+                f"{_quote_term(term.relation)}"
+                ")"
             )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, PhrasePrefix):
-            phrases_sql = ", ".join(self._quote_term(phrase) for phrase in term.phrases)
-            rendered = (
-                f"{FN_PHRASE_PREFIX}(ARRAY[{phrases_sql}]"
-                f"{self._render_options({'max_expansion': term.max_expansion})})"
-            )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, RegexPhrase):
-            regex_sql = ", ".join(self._quote_term(regex) for regex in term.regexes)
-            rendered = (
-                f"{FN_REGEX_PHRASE}(ARRAY[{regex_sql}]"
-                f"{self._render_options({'slop': term.slop, 'max_expansions': term.max_expansions})})"
-            )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, RangeTerm):
-            if term.relation is None:
-                rendered = f"{FN_RANGE_TERM}({self._render_value(term.value)})"
-            else:
-                assert term.range_type is not None
-                rendered = (
-                    f"{FN_RANGE_TERM}("
-                    f"{self._quote_range_literal(term.value, term.range_type)}, "
-                    f"{self._quote_term(term.relation)}"
-                    ")"
-                )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, Term):
-            rendered = f"{FN_TERM}({self._quote_term(term.text)})"
-            rendered = self._append_fuzzy(
-                rendered,
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, Term):
+        rendered = f"{FN_TERM}({_quote_term(term.text)})"
+        rendered = _append_fuzzy(
+            rendered,
+            distance=term.distance,
+            prefix=term.prefix,
+            transposition_cost_one=term.transposition_cost_one,
+        )
+        if (
+            _is_fuzzy_enabled(
                 distance=term.distance,
                 prefix=term.prefix,
                 transposition_cost_one=term.transposition_cost_one,
             )
-            if (
-                _is_fuzzy_enabled(
-                    distance=term.distance,
-                    prefix=term.prefix,
-                    transposition_cost_one=term.transposition_cost_one,
-                )
-                and term.const is not None
-            ):
-                # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
-                rendered = f"{rendered}::{PDB_TYPE_QUERY}"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, Regex):
-            rendered = f"{FN_REGEX}({self._quote_term(term.pattern)})"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, Empty):
-            rendered = f"{FN_EMPTY}()"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, Exists):
-            rendered = f"{FN_EXISTS}()"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, FuzzyTerm):
-            if term.value is not None:
-                rendered = f"{FN_FUZZY_TERM}({self._quote_term(term.value)})"
-            else:
-                rendered = f"{FN_FUZZY_TERM}()"
-            rendered = self._append_fuzzy(
-                rendered,
+            and term.const is not None
+        ):
+            rendered = f"{rendered}::{PDB_TYPE_QUERY}"
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, Regex):
+        rendered = f"{FN_REGEX}({_quote_term(term.pattern)})"
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, Empty):
+        rendered = f"{FN_EMPTY}()"
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, Exists):
+        rendered = f"{FN_EXISTS}()"
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, FuzzyTerm):
+        if term.value is not None:
+            rendered = f"{FN_FUZZY_TERM}({_quote_term(term.value)})"
+        else:
+            rendered = f"{FN_FUZZY_TERM}()"
+        rendered = _append_fuzzy(
+            rendered,
+            distance=term.distance,
+            prefix=term.prefix or False,
+            transposition_cost_one=term.transposition_cost_one or False,
+        )
+        if (
+            _is_fuzzy_enabled(
                 distance=term.distance,
                 prefix=term.prefix or False,
                 transposition_cost_one=term.transposition_cost_one or False,
             )
-            if (
-                _is_fuzzy_enabled(
-                    distance=term.distance,
-                    prefix=term.prefix or False,
-                    transposition_cost_one=term.transposition_cost_one or False,
-                )
-                and term.const is not None
-            ):
-                rendered = f"{rendered}::{PDB_TYPE_QUERY}"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, ParseWithField):
-            rendered = (
-                f"{FN_PARSE_WITH_FIELD}({self._quote_term(term.query)}"
-                f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
-            )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, Range):
-            rendered = (
-                f"{FN_RANGE}({self._quote_range_literal(term.range, term.range_type)})"
-            )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, TermSet):
-            array_sql = self._render_term_set_array(term.terms)
-            rendered = f"{FN_TERM_SET}({array_sql})"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, All):
-            return f"{FN_ALL}()"
-        if isinstance(term, Match):
-            if len(term.terms) == 1:
-                rendered = self._quote_term(term.terms[0])
-            else:
-                quoted = [self._quote_term(item) for item in term.terms]
-                rendered = f"ARRAY[{', '.join(quoted)}]"
-            if term.tokenizer is not None:
-                rendered = f"{rendered}::{_tokenizer_cast(term.tokenizer)}"
-            rendered = self._append_fuzzy(
-                rendered,
+            and term.const is not None
+        ):
+            rendered = f"{rendered}::{PDB_TYPE_QUERY}"
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, ParseWithField):
+        rendered = (
+            f"{FN_PARSE_WITH_FIELD}({_quote_term(term.query)}"
+            f"{_render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
+        )
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, Range):
+        rendered = f"{FN_RANGE}({_quote_range_literal(term.range, term.range_type)})"
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, TermSet):
+        array_sql = _render_term_set_array(term.terms)
+        rendered = f"{FN_TERM_SET}({array_sql})"
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    if isinstance(term, All):
+        return f"{FN_ALL}()"
+    if isinstance(term, Match):
+        if len(term.terms) == 1:
+            rendered = _quote_term(term.terms[0])
+        else:
+            quoted = [_quote_term(item) for item in term.terms]
+            rendered = f"ARRAY[{', '.join(quoted)}]"
+        if term.tokenizer is not None:
+            rendered = f"{rendered}::{_tokenizer_cast(term.tokenizer)}"
+        rendered = _append_fuzzy(
+            rendered,
+            distance=term.distance,
+            prefix=term.prefix,
+            transposition_cost_one=term.transposition_cost_one,
+        )
+        if (
+            _is_fuzzy_enabled(
                 distance=term.distance,
                 prefix=term.prefix,
                 transposition_cost_one=term.transposition_cost_one,
             )
-            if (
-                _is_fuzzy_enabled(
-                    distance=term.distance,
-                    prefix=term.prefix,
-                    transposition_cost_one=term.transposition_cost_one,
-                )
-                and term.const is not None
-            ):
-                # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
-                # Casting fuzzy to const should be supported in ParadeDB. Once it is we can remove this
-                rendered = f"{rendered}::pdb.query"
-            rendered = self._append_scoring(
-                rendered, boost=term.boost, const=term.const
-            )
-            return rendered
-        raise TypeError(f"Unsupported ParadeDB term type. {term}")
+            and term.const is not None
+        ):
+            rendered = f"{rendered}::pdb.query"
+        return _append_scoring(rendered, boost=term.boost, const=term.const)
+    raise TypeError(f"Unsupported ParadeDB term type. {term}")
 
-    @staticmethod
-    def _render_term_set_array(
-        terms: tuple[str | int | float | bool | date | datetime, ...],
-    ) -> str:
-        """Render a TermSet terms tuple as a typed SQL ARRAY literal.
 
-        The first term's Python type determines the PostgreSQL element type.
-        bool is checked before int (bool subclasses int).
-        datetime is checked before date (datetime subclasses date).
-        """
-        first = terms[0]
-        if isinstance(first, bool):
-            return f"ARRAY[{', '.join('true' if t else 'false' for t in terms)}]::boolean[]"
-        if isinstance(first, int):
-            return f"ARRAY[{', '.join(str(t) for t in terms)}]::bigint[]"
-        if isinstance(first, float):
-            return f"ARRAY[{', '.join(str(t) for t in terms)}]::float8[]"
-        if isinstance(first, datetime):
-            datetime_terms: list[datetime] = []
-            for term in terms:
-                if not isinstance(term, datetime):
-                    raise TypeError("TermSet terms must all be datetime values.")
-                datetime_terms.append(term)
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(term.isoformat()) for term in datetime_terms)}]::timestamptz[]"
-        if isinstance(first, date):
-            date_terms: list[date] = []
-            for term in terms:
-                if not isinstance(term, date) or isinstance(term, datetime):
-                    raise TypeError("TermSet terms must all be date values.")
-                date_terms.append(term)
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(term.isoformat()) for term in date_terms)}]::date[]"
-        return (
-            f"ARRAY[{', '.join(ParadeDB._quote_term(str(t)) for t in terms)}]::text[]"
-        )
+def _render_term_set_array(
+    terms: tuple[str | int | float | bool | date | datetime, ...],
+) -> str:
+    """Render a TermSet terms tuple as a typed SQL ARRAY literal.
 
-    @staticmethod
-    def _render_options(options: dict[str, object | None]) -> str:
-        rendered: list[str] = []
-        for key, value in options.items():
-            if value is None:
-                continue
-            rendered.append(f"{key} => {ParadeDB._render_value(value)}")
-        if not rendered:
-            return ""
-        return ", " + ", ".join(rendered)
+    The first term's Python type determines the PostgreSQL element type.
+    bool is checked before int (bool subclasses int).
+    datetime is checked before date (datetime subclasses date).
+    """
+    first = terms[0]
+    if isinstance(first, bool):
+        return f"ARRAY[{', '.join('true' if t else 'false' for t in terms)}]::boolean[]"
+    if isinstance(first, int):
+        return f"ARRAY[{', '.join(str(t) for t in terms)}]::bigint[]"
+    if isinstance(first, float):
+        return f"ARRAY[{', '.join(str(t) for t in terms)}]::float8[]"
+    if isinstance(first, datetime):
+        datetime_terms: list[datetime] = []
+        for term in terms:
+            if not isinstance(term, datetime):
+                raise TypeError("TermSet terms must all be datetime values.")
+            datetime_terms.append(term)
+        return f"ARRAY[{', '.join(_quote_term(term.isoformat()) for term in datetime_terms)}]::timestamptz[]"
+    if isinstance(first, date):
+        date_terms: list[date] = []
+        for term in terms:
+            if not isinstance(term, date) or isinstance(term, datetime):
+                raise TypeError("TermSet terms must all be date values.")
+            date_terms.append(term)
+        return f"ARRAY[{', '.join(_quote_term(term.isoformat()) for term in date_terms)}]::date[]"
+    return f"ARRAY[{', '.join(_quote_term(str(t)) for t in terms)}]::text[]"
 
-    @staticmethod
-    def _render_value(value: object) -> str:
-        if isinstance(value, bool):
-            return "true" if value else "false"
-        if isinstance(value, int | float):
-            return str(value)
-        if isinstance(value, date | datetime):
-            return ParadeDB._quote_term(value.isoformat())
-        if isinstance(value, str):
-            return ParadeDB._quote_term(value)
-        raise TypeError("Unsupported option value type.")
+
+def _render_options(options: dict[str, object | None]) -> str:
+    rendered: list[str] = []
+    for key, value in options.items():
+        if value is None:
+            continue
+        rendered.append(f"{key} => {_render_value(value)}")
+    if not rendered:
+        return ""
+    return ", " + ", ".join(rendered)
+
+
+def _render_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return str(value)
+    if isinstance(value, date | datetime):
+        return _quote_term(value.isoformat())
+    if isinstance(value, str):
+        return _quote_term(value)
+    raise TypeError("Unsupported option value type.")
 
 
 if TYPE_CHECKING:
@@ -1368,8 +1355,7 @@ class ParadeDBLookup(LookupBase):
         self, compiler: SQLCompiler, connection: BaseDatabaseWrapper
     ) -> tuple[str, list[Any]]:
         lhs_sql, lhs_params = self.process_lhs(compiler, connection)
-        rhs = ParadeDB(self.rhs)
-        rhs_sql, rhs_params = rhs.as_sql(compiler, connection, lhs_sql)
+        rhs_sql, rhs_params = as_sql(self.rhs, compiler, connection, lhs_sql)
         return rhs_sql, [*lhs_params, *rhs_params]
 
 
@@ -1390,7 +1376,6 @@ __all__ = [
     "FuzzyTerm",
     "Match",
     "MoreLikeThis",
-    "ParadeDB",
     "ParadeOperator",
     "Parse",
     "ParseWithField",

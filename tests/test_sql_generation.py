@@ -16,7 +16,6 @@ from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index, IndexExpression
 from paradedb.search import (
     Match,
-    ParadeDB,
     Parse,
     Phrase,
     PhrasePrefix,
@@ -164,23 +163,14 @@ class TestExactLiteralDisjunction:
             ValueError,
             match=r"Match operator must be 'AND' or 'OR'\.",
         ):
-            _ = ParadeDB(Match("shoes", operator="TERM"))  # type: ignore[arg-type]
+            _ = Match("shoes", operator="TERM")  # type: ignore[arg-type]
 
     def test_term_operator_multiple(self) -> None:
         with pytest.raises(
             ValueError,
             match=r"Match operator must be 'AND' or 'OR'\.",
         ):
-            _ = ParadeDB(
-                Match("shoes", "boots", operator="TERM")  # type: ignore[arg-type]
-            )
-
-    def test_operator_invalid_with_phrase(self) -> None:
-        with pytest.raises(
-            TypeError,
-            match=r"unexpected keyword argument 'operator'",
-        ):
-            _ = ParadeDB(Phrase("text"), operator="OR")
+            _ = Match("shoes", "boots", operator="TERM")  # type: ignore[arg-type]
 
     def test_phrase_without_operator_is_allowed(self) -> None:
         queryset = Product.objects.filter(description__pdb=Phrase("text"))
@@ -191,14 +181,7 @@ class TestExactLiteralDisjunction:
             ValueError,
             match=r"Match operator must be 'AND' or 'OR'\.",
         ):
-            _ = ParadeDB(Match("shoes", operator="BAD"))  # type: ignore[arg-type]
-
-    def test_match_and_paradedb_operator_cannot_be_mixed(self) -> None:
-        with pytest.raises(
-            TypeError,
-            match=r"unexpected keyword argument 'operator'",
-        ):
-            _ = ParadeDB(Match("shoes", operator="OR"), operator="AND")
+            _ = Match("shoes", operator="BAD")  # type: ignore[arg-type]
 
 
 class TestPhraseSearch:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from paradedb.search import All, ParadeDB
+from paradedb.search import All
 from tests.models import JsonItem, JsonItemNoExpand
 
 pytestmark = [
@@ -26,11 +26,11 @@ def _null_markers(keys: set[object]) -> set[object]:
 
 
 def _facet(field: str) -> dict[str, object]:
-    return JsonItem.objects.filter(id=ParadeDB(All())).facets(field, include_rows=False)
+    return JsonItem.objects.filter(id__pdb=All()).facets(field, include_rows=False)
 
 
 def _facet_no_expand(field: str) -> dict[str, object]:
-    return JsonItemNoExpand.objects.filter(id=ParadeDB(All())).facets(
+    return JsonItemNoExpand.objects.filter(id__pdb=All()).facets(
         field, include_rows=False
     )
 

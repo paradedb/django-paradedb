@@ -13,7 +13,6 @@ from paradedb.search import (
     Const,
     Match,
     MoreLikeThis,
-    ParadeDB,
     Parse,
     Phrase,
     PhrasePrefix,
@@ -33,7 +32,7 @@ class TestSpecialCharacterEscaping:
     def test_single_quote_in_search_term(self) -> None:
         """Single quotes are escaped to prevent SQL injection."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("it's", operator="AND"))
+            description__pdb=Match("it's", operator="AND")
         )
         sql = str(queryset.query)
         assert "it''s" in sql
@@ -41,7 +40,7 @@ class TestSpecialCharacterEscaping:
     def test_double_single_quotes(self) -> None:
         """Multiple single quotes are all escaped."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("don''t", operator="AND"))
+            description__pdb=Match("don''t", operator="AND")
         )
         sql = str(queryset.query)
         assert "don''''t" in sql
@@ -49,7 +48,7 @@ class TestSpecialCharacterEscaping:
     def test_backslash_in_search_term(self) -> None:
         """Backslashes are preserved in search terms."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("path\\to\\file", operator="AND"))
+            description__pdb=Match("path\\to\\file", operator="AND")
         )
         sql = str(queryset.query)
         assert "path\\to\\file" in sql
@@ -57,7 +56,7 @@ class TestSpecialCharacterEscaping:
     def test_unicode_characters(self) -> None:
         """Unicode characters work in search terms."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("日本語", operator="AND"))
+            description__pdb=Match("日本語", operator="AND")
         )
         sql = str(queryset.query)
         assert "日本語" in sql
@@ -65,7 +64,7 @@ class TestSpecialCharacterEscaping:
     def test_emoji_in_search(self) -> None:
         """Emoji characters work in search terms."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("👟 shoes", operator="AND"))
+            description__pdb=Match("👟 shoes", operator="AND")
         )
         sql = str(queryset.query)
         assert "👟 shoes" in sql
@@ -73,23 +72,21 @@ class TestSpecialCharacterEscaping:
     def test_special_sql_keywords(self) -> None:
         """SQL keywords in search terms are quoted safely."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("SELECT * FROM", operator="AND"))
+            description__pdb=Match("SELECT * FROM", operator="AND")
         )
         sql = str(queryset.query)
         assert "'SELECT * FROM'" in sql
 
     def test_phrase_with_quotes(self) -> None:
         """Phrase containing quotes is escaped."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Phrase('it\'s a "test"'))
-        )
+        queryset = Product.objects.filter(description__pdb=Phrase('it\'s a "test"'))
         sql = str(queryset.query)
         assert "it''s" in sql
 
     def test_regex_special_chars_preserved(self) -> None:
         """Regex special characters are preserved."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Regex("test.*[a-z]+\\d{2,3}"))
+            description__pdb=Regex("test.*[a-z]+\\d{2,3}")
         )
         sql = str(queryset.query)
         assert "test.*[a-z]+\\d{2,3}" in sql
@@ -101,9 +98,7 @@ class TestParadeDBValidation:
     def test_paradedb_invalid_tokenizer_deferred_to_database(self) -> None:
         """Tokenizer names are quoted in SQL; validity is deferred to database execution."""
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shoes", operator="AND", tokenizer="bad-tokenizer;")
-            )
+            description__pdb=Match("shoes", operator="AND", tokenizer="bad-tokenizer;")
         )
         assert '::pdb."bad-tokenizer;"' in str(queryset.query)
 
@@ -145,7 +140,7 @@ class TestPhraseValidation:
     def test_phrase_invalid_tokenizer_deferred_to_database(self) -> None:
         """Phrase tokenizer names are quoted in SQL; validity is deferred to database execution."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Phrase("test", tokenizer="bad tokenizer"))
+            description__pdb=Phrase("test", tokenizer="bad tokenizer")
         )
         assert '::pdb."bad tokenizer"' in str(queryset.query)
 
@@ -408,7 +403,7 @@ class TestExpressionValidation:
 
     def test_top_level_proximity_step_renders_directly(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(ProximityNode(1, False, "right", "tail"))
+            description__pdb=ProximityNode(1, False, "right", "tail")
         )
         assert (
             str(queryset.query)

@@ -16,7 +16,6 @@ from paradedb.search import (
     Exists,
     FuzzyTerm,
     Match,
-    ParadeDB,
     Parse,
     ParseWithField,
     Phrase,
@@ -37,7 +36,7 @@ class TestScoreEdgeCases:
     def test_score_default_uses_pk(self) -> None:
         """Score defaults to pk field."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         ).annotate(s=Score())
         sql = str(queryset.query)
         assert "pdb.score" in sql
@@ -49,7 +48,7 @@ class TestSnippetEdgeCases:
     def test_snippet_partial_formatting(self) -> None:
         """Snippet with only start_sel."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         ).annotate(s=Snippet("description", start_sel="<b>"))
         sql = str(queryset.query)
         assert "<b>" in sql
@@ -57,7 +56,7 @@ class TestSnippetEdgeCases:
     def test_snippet_only_max_chars(self) -> None:
         """Snippet with only max_num_chars."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         ).annotate(s=Snippet("description", max_num_chars=50))
         sql = str(queryset.query)
         assert "50" in sql
@@ -120,23 +119,19 @@ class TestParseOptions:
 
     def test_parse_lenient_true(self) -> None:
         """Parse with lenient=True generates correct SQL."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Parse("test", lenient=True))
-        )
+        queryset = Product.objects.filter(description__pdb=Parse("test", lenient=True))
         sql = str(queryset.query)
         assert "lenient => true" in sql
 
     def test_parse_lenient_false(self) -> None:
         """Parse with lenient=False generates correct SQL."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Parse("test", lenient=False))
-        )
+        queryset = Product.objects.filter(description__pdb=Parse("test", lenient=False))
         sql = str(queryset.query)
         assert "lenient => false" in sql
 
     def test_parse_no_lenient(self) -> None:
         """Parse without lenient omits the option."""
-        queryset = Product.objects.filter(description=ParadeDB(Parse("test")))
+        queryset = Product.objects.filter(description__pdb=Parse("test"))
         sql = str(queryset.query)
         assert "lenient" not in sql
 
@@ -146,30 +141,26 @@ class TestEmptyAndWhitespaceInputs:
 
     def test_empty_string_search(self) -> None:
         """Empty string search term works (ParadeDB handles it)."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("", operator="AND"))
-        )
+        queryset = Product.objects.filter(description__pdb=Match("", operator="AND"))
         sql = str(queryset.query)
         assert "&&& ''" in sql
 
     def test_whitespace_only_search(self) -> None:
         """Whitespace-only search term works."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("   ", operator="AND"))
-        )
+        queryset = Product.objects.filter(description__pdb=Match("   ", operator="AND"))
         sql = str(queryset.query)
         assert "'   '" in sql
 
     def test_phrase_empty_string(self) -> None:
         """Phrase with empty string works."""
-        queryset = Product.objects.filter(description=ParadeDB(Phrase("")))
+        queryset = Product.objects.filter(description__pdb=Phrase(""))
         sql = str(queryset.query)
         assert "### ''" in sql
 
     def test_match_distance_empty_string(self) -> None:
         """Match with distance and empty string works."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("", operator="OR", distance=1))
+            description__pdb=Match("", operator="OR", distance=1)
         )
         sql = str(queryset.query)
         assert "''::pdb.fuzzy" in sql
@@ -182,7 +173,7 @@ class TestLongInputs:
         """Very long search term is handled."""
         long_term = "a" * 10000
         queryset = Product.objects.filter(
-            description=ParadeDB(Match(long_term, operator="AND"))
+            description__pdb=Match(long_term, operator="AND")
         )
         sql = str(queryset.query)
         assert long_term in sql
@@ -190,9 +181,7 @@ class TestLongInputs:
     def test_many_or_terms(self) -> None:
         """Many OR terms work."""
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match(*[f"term{i}" for i in range(1, 101)], operator="OR")
-            )
+            description__pdb=Match(*[f"term{i}" for i in range(1, 101)], operator="OR")
         )
         sql = str(queryset.query)
         assert "term100" in sql
@@ -201,9 +190,7 @@ class TestLongInputs:
     def test_many_and_terms(self) -> None:
         """Many AND terms work."""
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match(*[f"term{i}" for i in range(100)], operator="AND")
-            )
+            description__pdb=Match(*[f"term{i}" for i in range(100)], operator="AND")
         )
         sql = str(queryset.query)
         assert "term99" in sql
@@ -516,36 +503,34 @@ class TestNewQueryTypeValidation:
 
     def test_empty_does_not_raise_type_error(self) -> None:
         """ParadeDB(Empty()) should not raise TypeError from _resolve_terms."""
-        queryset = Product.objects.filter(description=ParadeDB(Empty()))
+        queryset = Product.objects.filter(description__pdb=Empty())
         sql = str(queryset.query)
         assert "pdb.empty()" in sql
 
     def test_exists_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Exists()))
+        queryset = Product.objects.filter(description__pdb=Exists())
         sql = str(queryset.query)
         assert "pdb.exists()" in sql
 
     def test_fuzzy_term_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(FuzzyTerm(value="test")))
+        queryset = Product.objects.filter(description__pdb=FuzzyTerm(value="test"))
         sql = str(queryset.query)
         assert "pdb.fuzzy_term" in sql
 
     def test_parse_with_field_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(ParseWithField(query="test"))
-        )
+        queryset = Product.objects.filter(description__pdb=ParseWithField(query="test"))
         sql = str(queryset.query)
         assert "pdb.parse_with_field" in sql
 
     def test_range_does_not_raise_type_error(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Range(range="[1, 10]", range_type="int4range"))
+            description__pdb=Range(range="[1, 10]", range_type="int4range")
         )
         sql = str(queryset.query)
         assert "pdb.range" in sql
 
     def test_term_set_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(TermSet("a", "b")))
+        queryset = Product.objects.filter(description__pdb=TermSet("a", "b"))
         sql = str(queryset.query)
         assert "pdb.term_set" in sql
 
@@ -553,16 +538,14 @@ class TestNewQueryTypeValidation:
 class TestScoringValidation:
     def test_boost_rejects_non_numeric_input(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shoes", operator="AND", boost="1.0)::pdb.const(10")  # type: ignore[arg-type]
-            )
+            description__pdb=Match("shoes", operator="AND", boost="1.0)::pdb.const(10")  # type: ignore[arg-type]
         )
         with pytest.raises(TypeError, match="boost must be an int or float"):
             _ = str(queryset.query)
 
     def test_const_rejects_non_finite_input(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND", const=float("inf")))
+            description__pdb=Match("shoes", operator="AND", const=float("inf"))
         )
         with pytest.raises(ValueError, match="const must be finite"):
             _ = str(queryset.query)

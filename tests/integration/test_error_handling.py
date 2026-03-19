@@ -10,7 +10,7 @@ import pytest
 from django.db import connection, transaction
 from django.db.utils import DatabaseError
 
-from paradedb.search import Match, MoreLikeThis, ParadeDB, Parse, Regex
+from paradedb.search import Match, MoreLikeThis, Parse, Regex
 from tests.models import MockItem
 
 pytestmark = [
@@ -26,9 +26,7 @@ class TestParseQueryErrors:
     def test_invalid_parse_syntax_raises_database_error(self) -> None:
         """Invalid parse syntax raises DatabaseError with helpful message."""
         with pytest.raises(DatabaseError) as exc_info:
-            list(
-                MockItem.objects.filter(description=ParadeDB(Parse("AND AND invalid")))
-            )
+            list(MockItem.objects.filter(description__pdb=Parse("AND AND invalid")))
         error_msg = str(exc_info.value).lower()
         assert "could not parse query string" in error_msg
         assert "and and invalid" in error_msg
@@ -36,9 +34,7 @@ class TestParseQueryErrors:
     def test_parse_with_unclosed_quotes(self) -> None:
         """Unclosed quotes in parse query raise clear error."""
         with pytest.raises(DatabaseError) as exc_info:
-            list(
-                MockItem.objects.filter(description=ParadeDB(Parse('"unclosed quote')))
-            )
+            list(MockItem.objects.filter(description__pdb=Parse('"unclosed quote')))
         error_msg = str(exc_info.value).lower()
         assert "could not parse" in error_msg
 
@@ -49,7 +45,7 @@ class TestRegexQueryErrors:
     def test_invalid_regex_pattern_raises_error(self) -> None:
         """Invalid regex pattern raises database error with pattern info."""
         with pytest.raises(DatabaseError) as exc_info:
-            list(MockItem.objects.filter(description=ParadeDB(Regex("[invalid(regex"))))
+            list(MockItem.objects.filter(description__pdb=Regex("[invalid(regex")))
         error_msg = str(exc_info.value).lower()
         assert "regex" in error_msg
         assert "unclosed character class" in error_msg or "invalid" in error_msg
@@ -61,7 +57,7 @@ class TestFieldErrors:
     def test_search_on_indexed_field_works(self) -> None:
         """Searching on an indexed field returns results."""
         queryset = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         )
         assert queryset.exists()
 
@@ -114,12 +110,10 @@ class TestTransactionErrorRecovery:
     def test_error_recovery_with_atomic_block(self) -> None:
         """Errors inside atomic block can be caught and recovered."""
         with pytest.raises(DatabaseError), transaction.atomic():
-            list(
-                MockItem.objects.filter(description=ParadeDB(Parse("AND AND invalid")))
-            )
+            list(MockItem.objects.filter(description__pdb=Parse("AND AND invalid")))
 
         assert MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         ).exists()
 
     def test_savepoint_rollback_on_error(self) -> None:
@@ -127,9 +121,7 @@ class TestTransactionErrorRecovery:
         initial_count = MockItem.objects.count()
 
         with pytest.raises(DatabaseError), transaction.atomic(), transaction.atomic():
-            list(
-                MockItem.objects.filter(description=ParadeDB(Parse("AND AND invalid")))
-            )
+            list(MockItem.objects.filter(description__pdb=Parse("AND AND invalid")))
 
         assert MockItem.objects.count() == initial_count
 
@@ -141,20 +133,20 @@ class TestErrorMessageQuality:
         """Parse errors include the problematic query string."""
         bad_query = "field:value AND AND broken"
         with pytest.raises(DatabaseError) as exc_info:
-            list(MockItem.objects.filter(description=ParadeDB(Parse(bad_query))))
+            list(MockItem.objects.filter(description__pdb=Parse(bad_query)))
         error_msg = str(exc_info.value)
         assert bad_query in error_msg
 
     def test_error_message_includes_guidance(self) -> None:
         """ParadeDB errors include helpful guidance."""
         with pytest.raises(DatabaseError) as exc_info:
-            list(MockItem.objects.filter(description=ParadeDB(Parse("OR OR"))))
+            list(MockItem.objects.filter(description__pdb=Parse("OR OR")))
         error_msg = str(exc_info.value).lower()
         assert "column:term" in error_msg or "capitalize" in error_msg
 
     def test_regex_error_shows_pattern_location(self) -> None:
         """Regex errors show where the pattern is invalid."""
         with pytest.raises(DatabaseError) as exc_info:
-            list(MockItem.objects.filter(description=ParadeDB(Regex("(unclosed"))))
+            list(MockItem.objects.filter(description__pdb=Regex("(unclosed")))
         error_msg = str(exc_info.value)
         assert "unclosed" in error_msg.lower()

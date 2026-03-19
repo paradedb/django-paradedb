@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from django.core.exceptions import FieldDoesNotExist
 from django.db.backends.base.base import BaseDatabaseWrapper
@@ -25,7 +25,7 @@ from django.db.models import (
     UUIDField,
 )
 from django.db.models.expressions import Expression
-from django.db.models.lookups import Exact
+from django.db.models.lookups import Lookup
 from django.db.models.sql.compiler import SQLCompiler
 
 from paradedb.api import (
@@ -1352,32 +1352,36 @@ class ParadeDB:
         raise TypeError("Unsupported option value type.")
 
 
-class ParadeDBExact(Exact):  # type: ignore[type-arg]
-    """Exact lookup override to emit ParadeDB operators."""
+if TYPE_CHECKING:
+    LookupBase: TypeAlias = Lookup[TermType]
+else:
+    LookupBase = Lookup
 
-    lookup_name = "exact"
+
+class ParadeDBLookup(LookupBase):
+    """Django lookup for ParadeDB search operators."""
+
+    lookup_name: str = "pdb"
+    prepare_rhs: bool = False
 
     def as_sql(
         self, compiler: SQLCompiler, connection: BaseDatabaseWrapper
     ) -> tuple[str, list[Any]]:
-        if isinstance(self.rhs, ParadeDB):
-            lhs_sql, lhs_params = self.process_lhs(compiler, connection)
-            rhs_sql, rhs_params = self.rhs.as_sql(compiler, connection, lhs_sql)
-            return rhs_sql, [*lhs_params, *rhs_params]
-
-        result = super().as_sql(compiler, connection)
-        return result[0], list(result[1])
+        lhs_sql, lhs_params = self.process_lhs(compiler, connection)
+        rhs = ParadeDB(self.rhs)
+        rhs_sql, rhs_params = rhs.as_sql(compiler, connection, lhs_sql)
+        return rhs_sql, [*lhs_params, *rhs_params]
 
 
-Field.register_lookup(ParadeDBExact)
-TextField.register_lookup(ParadeDBExact)
-CharField.register_lookup(ParadeDBExact)
-IntegerField.register_lookup(ParadeDBExact)
-SmallIntegerField.register_lookup(ParadeDBExact)
-BigIntegerField.register_lookup(ParadeDBExact)
-AutoField.register_lookup(ParadeDBExact)
-BigAutoField.register_lookup(ParadeDBExact)
-UUIDField.register_lookup(ParadeDBExact)
+_ = Field.register_lookup(ParadeDBLookup)
+_ = TextField.register_lookup(ParadeDBLookup)
+_ = CharField.register_lookup(ParadeDBLookup)
+_ = IntegerField.register_lookup(ParadeDBLookup)
+_ = SmallIntegerField.register_lookup(ParadeDBLookup)
+_ = BigIntegerField.register_lookup(ParadeDBLookup)
+_ = AutoField.register_lookup(ParadeDBLookup)
+_ = BigAutoField.register_lookup(ParadeDBLookup)
+_ = UUIDField.register_lookup(ParadeDBLookup)
 
 __all__ = [
     "All",

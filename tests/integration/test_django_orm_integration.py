@@ -12,7 +12,7 @@ from django.db.models import F, Q, Window
 from django.db.models.functions import Lower, RowNumber
 
 from paradedb.functions import Score
-from paradedb.search import Match, ParadeDB, Phrase, Regex, Term
+from paradedb.search import Match, Phrase, Regex, Term
 from tests.models import MockItem
 
 pytestmark = [
@@ -33,8 +33,8 @@ class TestQObjectIntegration:
         """Q OR between ParadeDB searches returns union of results."""
         ids = _ids(
             MockItem.objects.filter(
-                Q(description=ParadeDB(Match("shoes", operator="AND")))
-                | Q(description=ParadeDB(Match("wireless", operator="AND")))
+                Q(description__pdb=Match("shoes", operator="AND"))
+                | Q(description__pdb=Match("wireless", operator="AND"))
             )
         )
         assert ids == {3, 4, 5, 12}
@@ -43,7 +43,7 @@ class TestQObjectIntegration:
         """Q AND combining ParadeDB with standard ORM filter."""
         ids = _ids(
             MockItem.objects.filter(
-                Q(description=ParadeDB(Match("shoes", operator="AND"))),
+                Q(description__pdb=Match("shoes", operator="AND")),
                 Q(rating__gte=4),
             )
         )
@@ -54,8 +54,8 @@ class TestQObjectIntegration:
     def test_complex_q_or_and_combination(self) -> None:
         """Complex Q: (search AND filter) OR (search AND filter)."""
         queryset = MockItem.objects.filter(
-            Q(description=ParadeDB(Match("shoes", operator="AND")), rating__gte=4)
-            | Q(description=ParadeDB(Match("wireless", operator="AND")), in_stock=True)
+            Q(description__pdb=Match("shoes", operator="AND"), rating__gte=4)
+            | Q(description__pdb=Match("wireless", operator="AND"), in_stock=True)
         )
         assert queryset.exists()
         for item in queryset:
@@ -77,12 +77,8 @@ class TestQObjectIntegration:
         combiner: str,
     ) -> None:
         """Mixed boolean logic on the same column works via Q composition."""
-        lhs_q = Q(
-            description=ParadeDB(Match("running", "shoes", operator=lhs_operator))
-        )
-        rhs_q = Q(
-            description=ParadeDB(Match("wireless", "keyboard", operator=rhs_operator))
-        )
+        lhs_q = Q(description__pdb=Match("running", "shoes", operator=lhs_operator))
+        rhs_q = Q(description__pdb=Match("wireless", "keyboard", operator=rhs_operator))
         expected_ids = {
             ("AND", "AND", "AND"): set(),
             ("AND", "AND", "OR"): {3},
@@ -101,10 +97,10 @@ class TestQObjectIntegration:
     def test_same_column_nested_grouped_boolean(self) -> None:
         """Grouped mixed boolean logic can reuse the same field with multiple Match clauses."""
         running_or_wireless = Q(
-            description=ParadeDB(Match("running", "wireless", operator="OR"))
+            description__pdb=Match("running", "wireless", operator="OR")
         )
-        shoes = Q(description=ParadeDB(Match("shoes", operator="AND")))
-        boots = Q(description=ParadeDB(Match("boots", operator="AND")))
+        shoes = Q(description__pdb=Match("shoes", operator="AND"))
+        boots = Q(description__pdb=Match("boots", operator="AND"))
 
         actual = _ids(MockItem.objects.filter((running_or_wireless & shoes) | boots))
         assert actual == {3, 13}
@@ -116,14 +112,12 @@ class TestNegationIntegration:
     def test_negation_excludes_term(self) -> None:
         """~Q excludes ParadeDB matches from results."""
         all_shoes = _ids(
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
         )
         without_running = _ids(
             MockItem.objects.filter(
-                Q(description=ParadeDB(Match("shoes", operator="AND"))),
-                ~Q(description=ParadeDB(Match("running", operator="AND"))),
+                Q(description__pdb=Match("shoes", operator="AND")),
+                ~Q(description__pdb=Match("running", operator="AND")),
             )
         )
         assert without_running < all_shoes  # strict subset
@@ -134,7 +128,7 @@ class TestNegationIntegration:
         """Double negation ~~Q should equal original."""
         ids = _ids(
             MockItem.objects.filter(
-                ~~Q(description=ParadeDB(Match("shoes", operator="AND")))
+                ~~Q(description__pdb=Match("shoes", operator="AND"))
             )
         )
         assert ids == {3, 4, 5}
@@ -146,7 +140,7 @@ class TestStandardFiltersIntegration:
     def test_with_exact_filter(self) -> None:
         """ParadeDB + exact match filter."""
         queryset = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND")), in_stock=True
+            description__pdb=Match("shoes", operator="AND"), in_stock=True
         )
         for item in queryset:
             assert item.in_stock is True
@@ -154,7 +148,7 @@ class TestStandardFiltersIntegration:
     def test_with_comparison_filters(self) -> None:
         """ParadeDB + comparison operators (gte, lte)."""
         queryset = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND")),
+            description__pdb=Match("shoes", operator="AND"),
             rating__gte=3,
             rating__lte=5,
         )
@@ -164,9 +158,7 @@ class TestStandardFiltersIntegration:
     def test_with_multiple_standard_filters(self) -> None:
         """ParadeDB + multiple standard filters chained."""
         queryset = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
             .filter(rating__gte=3)
             .filter(in_stock=True)
         )
@@ -182,7 +174,7 @@ class TestScoreAnnotationIntegration:
     def test_score_annotation_returns_float(self) -> None:
         """Score annotation produces numeric values."""
         queryset = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         ).annotate(search_score=Score())
         first = queryset.first()
         assert first is not None
@@ -192,9 +184,7 @@ class TestScoreAnnotationIntegration:
     def test_score_ordering_desc(self) -> None:
         """ORDER BY score DESC returns highest scores first."""
         queryset = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
             .annotate(search_score=Score())
             .order_by("-search_score")
         )
@@ -204,9 +194,7 @@ class TestScoreAnnotationIntegration:
     def test_score_ordering_asc(self) -> None:
         """ORDER BY score ASC returns lowest scores first."""
         queryset = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
             .annotate(search_score=Score())
             .order_by("search_score")
         )
@@ -216,9 +204,7 @@ class TestScoreAnnotationIntegration:
     def test_score_filter_gt(self) -> None:
         """Filter by score > threshold."""
         queryset = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
             .annotate(search_score=Score())
             .filter(search_score__gt=0)
         )
@@ -228,9 +214,7 @@ class TestScoreAnnotationIntegration:
     def test_score_with_standard_ordering(self) -> None:
         """Score annotation combined with secondary ordering."""
         queryset = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
             .annotate(search_score=Score())
             .order_by("-search_score", "id")
         )
@@ -244,7 +228,7 @@ class TestWindowFunctionIntegration:
     def test_row_number_partition_by_category(self) -> None:
         """Window function: ROW_NUMBER() OVER (PARTITION BY category)."""
         queryset = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         ).annotate(
             rank_in_category=Window(
                 expression=RowNumber(),
@@ -262,9 +246,7 @@ class TestWindowFunctionIntegration:
     def test_row_number_with_score_ordering(self) -> None:
         """Window function with ParadeDB score in order_by."""
         queryset = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
             .annotate(search_score=Score())
             .annotate(
                 rank_by_score=Window(
@@ -285,9 +267,7 @@ class TestChainingIntegration:
     def test_filter_annotate_filter_order(self) -> None:
         """Chain: filter -> annotate -> filter -> order_by."""
         queryset = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
             .annotate(search_score=Score())
             .filter(search_score__gt=0, rating__gte=3)
             .order_by("-search_score")
@@ -301,7 +281,7 @@ class TestChainingIntegration:
         """QuerySet.values() works with ParadeDB filtered results."""
         values = list(
             MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
+                description__pdb=Match("shoes", operator="AND")
             ).values("id", "description", "rating")
         )
         assert len(values) > 0
@@ -313,9 +293,7 @@ class TestChainingIntegration:
     def test_values_list_with_annotation(self) -> None:
         """QuerySet.values_list() with Score annotation."""
         results = list(
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
             .annotate(search_score=Score())
             .values_list("id", "search_score")
         )
@@ -327,9 +305,7 @@ class TestChainingIntegration:
     def test_distinct_with_paradedb(self) -> None:
         """QuerySet.distinct() with ParadeDB search."""
         queryset = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description__pdb=Match("shoes", operator="AND"))
             .values("category")
             .distinct()
         )
@@ -339,7 +315,7 @@ class TestChainingIntegration:
     def test_count_with_paradedb(self) -> None:
         """QuerySet.count() with ParadeDB search."""
         count = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         ).count()
         assert count > 0
         assert isinstance(count, int)
@@ -347,10 +323,10 @@ class TestChainingIntegration:
     def test_exists_with_paradedb(self) -> None:
         """QuerySet.exists() with ParadeDB search."""
         assert MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         ).exists()
         assert not MockItem.objects.filter(
-            description=ParadeDB(Match("nonexistentterm12345xyz", operator="AND"))
+            description__pdb=Match("nonexistentterm12345xyz", operator="AND")
         ).exists()
 
 
@@ -361,7 +337,7 @@ class TestPhraseSearchIntegration:
         """Phrase search combined with Q objects."""
         ids = _ids(
             MockItem.objects.filter(
-                Q(description=ParadeDB(Phrase("running shoes"))) | Q(rating=5)
+                Q(description__pdb=Phrase("running shoes")) | Q(rating=5)
             )
         )
         assert ids == {3, 6, 11, 12, 18, 21, 24, 28, 29, 33, 36, 39}
@@ -369,7 +345,7 @@ class TestPhraseSearchIntegration:
     def test_phrase_with_slop_and_filter(self) -> None:
         """Phrase with slop combined with standard filter."""
         queryset = MockItem.objects.filter(
-            description=ParadeDB(Phrase("running shoes", slop=2)),
+            description__pdb=Phrase("running shoes", slop=2),
             in_stock=True,
         )
         for item in queryset:
@@ -383,7 +359,7 @@ class TestTopKOrdering:
         """order_by('rating', 'id') tiebreaker — docs/sorting/topk.mdx snippet 2."""
         rows = list(
             MockItem.objects.filter(
-                description=ParadeDB(Match("running shoes", operator="OR"))
+                description__pdb=Match("running shoes", operator="OR")
             )
             .order_by("rating", "id")
             .values("description", "rating", "category")[:5]
@@ -396,7 +372,7 @@ class TestTopKOrdering:
         """order_by(Lower('description')) — docs/sorting/topk.mdx snippet 3."""
         rows = list(
             MockItem.objects.filter(
-                description=ParadeDB(Match("sleek running shoes", operator="OR"))
+                description__pdb=Match("sleek running shoes", operator="OR")
             )
             .order_by(Lower("description"))
             .values("description", "rating", "category")[:5]
@@ -413,8 +389,8 @@ class TestBoostAndConstScoring:
         """Q|Q with boost on one side + Score ordering — docs/sorting/boost.mdx snippet 1."""
         rows = list(
             MockItem.objects.filter(
-                Q(description=ParadeDB(Match("shoes", operator="OR", boost=2)))
-                | Q(category=ParadeDB(Match("footwear", operator="OR")))
+                Q(description__pdb=Match("shoes", operator="OR", boost=2))
+                | Q(category__pdb=Match("footwear", operator="OR"))
             )
             .annotate(score=Score())
             .values("id", "score", "description", "category")
@@ -427,7 +403,7 @@ class TestBoostAndConstScoring:
     def test_boost_regex_with_score_ordering(self) -> None:
         """Regex + boost + Score ordering — docs/sorting/boost.mdx snippet 2."""
         rows = list(
-            MockItem.objects.filter(description=ParadeDB(Regex("key.*", boost=2)))
+            MockItem.objects.filter(description__pdb=Regex("key.*", boost=2))
             .annotate(score=Score())
             .values("id", "description", "category", "score")
             .order_by("-score")[:5]
@@ -437,9 +413,7 @@ class TestBoostAndConstScoring:
     def test_boost_fuzzy_term_with_score_ordering(self) -> None:
         """Term with fuzzy distance + boost + Score ordering — docs/sorting/boost.mdx snippet 3."""
         rows = list(
-            MockItem.objects.filter(
-                description=ParadeDB(Term("shose", distance=2, boost=2))
-            )
+            MockItem.objects.filter(description__pdb=Term("shose", distance=2, boost=2))
             .annotate(score=Score())
             .values("id", "description", "category", "score")
             .order_by("-score")[:5]
@@ -450,7 +424,7 @@ class TestBoostAndConstScoring:
         """Match + const=1 + Score ordering — docs/sorting/boost.mdx snippet 4."""
         rows = list(
             MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="OR", const=1))
+                description__pdb=Match("shoes", operator="OR", const=1)
             )
             .annotate(score=Score())
             .values("id", "score", "description", "category")
@@ -468,8 +442,7 @@ class TestScoreWithQCombinations:
         """Q(ParadeDB) | Q(rating__lt=2) with Score ordering — docs/sorting/score.mdx snippet 2."""
         rows = list(
             MockItem.objects.filter(
-                Q(description=ParadeDB(Match("keyboard", operator="OR")))
-                | Q(rating__lt=2)
+                Q(description__pdb=Match("keyboard", operator="OR")) | Q(rating__lt=2)
             )
             .annotate(score=Score())
             .values("id", "score")

@@ -13,7 +13,7 @@ import pytest
 from django.db.models import Window
 
 from paradedb.functions import Agg
-from paradedb.search import All, Match, ParadeDB, Term
+from paradedb.search import All, Match, Term
 from tests.models import MockItem, Product
 
 pytestmark = [
@@ -264,7 +264,7 @@ class TestDjangoORMWithAgg:
         # This validates that the SQL generation works correctly
         json_spec = '{"category":{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}}'
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description__pdb=Match("shoes", operator="AND")
         ).annotate(facets=Window(expression=Agg(json_spec)))
 
         # Verify SQL is generated correctly
@@ -346,9 +346,9 @@ class TestDjangoOrmAggExecution:
 
     def test_agg_single_value_count(self) -> None:
         """filter(Term).aggregate(agg=Agg(...)) — docs snippet 1."""
-        result = MockItem.objects.filter(
-            category=ParadeDB(Term("electronics"))
-        ).aggregate(agg=Agg('{"value_count": {"field": "id"}}'))
+        result = MockItem.objects.filter(category__pdb=Term("electronics")).aggregate(
+            agg=Agg('{"value_count": {"field": "id"}}')
+        )
         assert isinstance(result, dict)
         assert "agg" in result
         assert _agg_dict(result["agg"])["value"] > 0
@@ -356,7 +356,7 @@ class TestDjangoOrmAggExecution:
     def test_agg_grouped_by_rating(self) -> None:
         """filter(Term).values('rating').annotate(agg=Agg(...)).order_by()[:5] — docs snippet 2."""
         rows = list(
-            MockItem.objects.filter(category=ParadeDB(Term("electronics")))
+            MockItem.objects.filter(category__pdb=Term("electronics"))
             .values("rating")
             .annotate(agg=Agg('{"value_count": {"field": "id"}}'))
             .order_by("rating")[:5]
@@ -369,9 +369,7 @@ class TestDjangoOrmAggExecution:
 
     def test_agg_multiple_aggregations(self) -> None:
         """filter(Term).aggregate(avg_rating=Agg(...), count=Agg(...)) — docs snippet 3."""
-        result = MockItem.objects.filter(
-            category=ParadeDB(Term("electronics"))
-        ).aggregate(
+        result = MockItem.objects.filter(category__pdb=Term("electronics")).aggregate(
             avg_rating=Agg('{"avg": {"field": "rating"}}'),
             count=Agg('{"value_count": {"field": "id"}}'),
         )
@@ -383,7 +381,7 @@ class TestDjangoOrmAggExecution:
 
     def test_agg_with_all_query(self) -> None:
         """filter(All()).aggregate(...) — docs snippet 4 (All() matches every document)."""
-        result = MockItem.objects.filter(id=ParadeDB(All())).aggregate(
+        result = MockItem.objects.filter(id__pdb=All()).aggregate(
             agg=Agg('{"value_count": {"field": "id"}}')
         )
         assert isinstance(result, dict)
@@ -397,11 +395,11 @@ class TestDjangoOrmAggExecution:
         result = MockItem.objects.aggregate(
             electronics_count=Agg(
                 '{"value_count": {"field": "id"}}',
-                filter=Q(category=ParadeDB(Term("electronics"))),
+                filter=Q(category__pdb=Term("electronics")),
             ),
             footwear_count=Agg(
                 '{"value_count": {"field": "id"}}',
-                filter=Q(category=ParadeDB(Term("footwear"))),
+                filter=Q(category__pdb=Term("footwear")),
             ),
         )
         assert isinstance(result, dict)
@@ -412,7 +410,7 @@ class TestDjangoOrmAggExecution:
 
     def test_agg_terms_on_json_subfield(self) -> None:
         """Agg terms on indexed JSON subfield via ORM aggregate."""
-        result = MockItem.objects.filter(id=ParadeDB(All())).aggregate(
+        result = MockItem.objects.filter(id__pdb=All()).aggregate(
             agg=Agg('{"terms": {"field": "metadata.color"}}')
         )
         assert isinstance(result, dict)

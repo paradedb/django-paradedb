@@ -19,8 +19,7 @@ from paradedb.search import (
     Regex,
     RegexPhrase,
     Term,
-    TermType,
-    as_sql,
+    render,
 )
 from tests.models import MockItem
 
@@ -39,11 +38,6 @@ def _raw_ids(sql: str) -> set[int]:
     with connection.cursor() as cursor:
         cursor.execute(sql)
         return {int(row[0]) for row in cursor.fetchall()}
-
-
-def _where_sql(lhs_sql: str, expr: TermType) -> str:
-    sql, _ = as_sql(expr, None, connection, lhs_sql)  # type: ignore[arg-type]
-    return sql
 
 
 def test_multi_term_and() -> None:
@@ -348,48 +342,34 @@ def test_tokenizer_override_phrase() -> None:
 
 
 def test_tokenizer_override_match_with_args_sql() -> None:
-    where_sql = _where_sql(
-        '"description"',
+    where_sql = render(
         Match(
             "running shoes",
             operator="AND",
             tokenizer="whitespace('lowercase=false')",
         ),
     )
-    assert (
-        where_sql
-        == "\"description\" &&& 'running shoes'::pdb.whitespace('lowercase=false')"
-    )
+    assert where_sql == "&&& 'running shoes'::pdb.whitespace('lowercase=false')"
 
 
 def test_tokenizer_override_or_with_args_sql() -> None:
-    where_sql = _where_sql(
-        '"description"',
+    where_sql = render(
         Match(
             "wireless keyboard",
             operator="OR",
             tokenizer="simple('lowercase=false')",
         ),
     )
-    assert (
-        where_sql
-        == "\"description\" ||| 'wireless keyboard'::pdb.simple('lowercase=false')"
-    )
+    assert where_sql == "||| 'wireless keyboard'::pdb.simple('lowercase=false')"
 
 
 def test_tokenizer_override_phrase_with_args_sql() -> None:
-    where_sql = _where_sql(
-        '"description"',
-        Phrase("running shoes", tokenizer="raw('lowercase=false')"),
-    )
-    assert (
-        where_sql == "\"description\" ### 'running shoes'::pdb.raw('lowercase=false')"
-    )
+    where_sql = render(Phrase("running shoes", tokenizer="raw('lowercase=false')"))
+    assert where_sql == "### 'running shoes'::pdb.raw('lowercase=false')"
 
 
 def test_tokenizer_override_phrase_with_multi_args_sql() -> None:
-    where_sql = _where_sql(
-        '"description"',
+    where_sql = render(
         Phrase(
             "wireless mouse",
             slop=2,
@@ -398,7 +378,7 @@ def test_tokenizer_override_phrase_with_multi_args_sql() -> None:
     )
     assert (
         where_sql
-        == "\"description\" ### 'wireless mouse'::pdb.slop(2)::pdb.ngram('min_gram=3', 'max_gram=8')"
+        == "### 'wireless mouse'::pdb.slop(2)::pdb.ngram('min_gram=3', 'max_gram=8')"
     )
 
 
@@ -619,8 +599,8 @@ def test_array_element_search_operator_with_text_array() -> None:
             "(id, tags, description) WITH (key_field='id');"
         )
 
-    where_sql = _where_sql("tags", Term("red"))
-    ids = _raw_ids(f"SELECT id FROM tmp_array_ops WHERE {where_sql} ORDER BY id;")
+    where_sql = render(Term("red"))
+    ids = _raw_ids(f"SELECT id FROM tmp_array_ops WHERE tags {where_sql} ORDER BY id;")
     assert ids == {1, 3}
 
     with connection.cursor() as cursor:
@@ -644,26 +624,22 @@ def test_range_term_query_with_range_field() -> None:
             "(id, weight_range, description) WITH (key_field='id');"
         )
 
-    scalar_where = _where_sql("weight_range", RangeTerm(1))
+    scalar_where = render(RangeTerm(1))
     scalar_ids = _raw_ids(
-        f"SELECT id FROM tmp_range_ops WHERE {scalar_where} ORDER BY id;"
+        f"SELECT id FROM tmp_range_ops WHERE weight_range {scalar_where} ORDER BY id;"
     )
     assert scalar_ids == {1}
 
-    relation_where = _where_sql(
-        "weight_range",
-        RangeTerm("(10, 12]", relation="Intersects", range_type="int4range"),
+    relation_where = render(
+        RangeTerm("(10, 12]", relation="Intersects", range_type="int4range")
     )
     relation_ids = _raw_ids(
-        f"SELECT id FROM tmp_range_ops WHERE {relation_where} ORDER BY id;"
+        f"SELECT id FROM tmp_range_ops WHERE weight_range {relation_where} ORDER BY id;"
     )
     assert relation_ids == {3}
 
     with pytest.raises(ValueError, match="Range type must be one of"):
-        _where_sql(
-            "weight_range",
-            RangeTerm("(10, 12]", relation="Intersects", range_type="badtype"),
-        )
+        render(RangeTerm("(10, 12]", relation="Intersects", range_type="badtype"))
 
     with connection.cursor() as cursor:
         cursor.execute("DROP TABLE IF EXISTS tmp_range_ops;")
@@ -687,11 +663,10 @@ def test_paradedb_operators_over_expression_lhs() -> None:
             "WITH (key_field='id');"
         )
 
-    expr_where = _where_sql(
-        "(description || ' ' || category)",
-        Match("running Sportswear", operator="AND", tokenizer="simple"),
+    expr_where = render(Match("running Sportswear", operator="AND", tokenizer="simple"))
+    ids = _raw_ids(
+        f"SELECT id FROM tmp_expr_ops WHERE (description || ' ' || category) {expr_where} ORDER BY id;"
     )
-    ids = _raw_ids(f"SELECT id FROM tmp_expr_ops WHERE {expr_where} ORDER BY id;")
     assert ids == {1}
 
     with connection.cursor() as cursor:

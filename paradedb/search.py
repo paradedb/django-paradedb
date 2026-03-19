@@ -981,14 +981,9 @@ TermType = (
 )
 
 
-def as_sql(
-    term: TermType,
-    _compiler: SQLCompiler,
-    _connection: BaseDatabaseWrapper,
-    lhs_sql: str,
-) -> tuple[str, list[object]]:
+def render(term: TermType) -> str:
     rendered = _render_term(term)
-    return f"{lhs_sql} {_lookup_operator(term)} {rendered}", []
+    return f"{_lookup_operator(term)} {rendered}"
 
 
 def _lookup_operator(term: TermType) -> str:
@@ -1313,8 +1308,7 @@ class ParadeDBLookup(LookupBase):
         self, compiler: SQLCompiler, connection: BaseDatabaseWrapper
     ) -> tuple[str, list[Any]]:
         lhs_sql, lhs_params = self.process_lhs(compiler, connection)
-        rhs_sql, rhs_params = as_sql(self.rhs, compiler, connection, lhs_sql)
-        return rhs_sql, [*lhs_params, *rhs_params]
+        return f"{lhs_sql} {render(self.rhs)}", [*lhs_params, *[]]
 
 
 _ = Field.register_lookup(ParadeDBLookup)

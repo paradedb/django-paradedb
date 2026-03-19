@@ -1261,6 +1261,7 @@ class ParadeDB:
                 and term.const is not None
             ):
                 # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
+                # Casting fuzzy to const should be supported in ParadeDB. Once it is we can remove this
                 rendered = f"{rendered}::pdb.query"
             rendered = self._append_scoring(
                 rendered, boost=term.boost, const=term.const

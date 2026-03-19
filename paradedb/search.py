@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, Literal, TypeAlias, overload
+from typing import Any, Literal, TypeAlias
 
 from django.core.exceptions import FieldDoesNotExist
 from django.db.backends.base.base import BaseDatabaseWrapper
@@ -971,49 +971,9 @@ class ParadeDB:
     contains_over_clause = False
     contains_column_references = False
 
-    @overload
-    def __init__(self, __match: Match) -> None:
-        """Explicit literal search with required Match operator."""
-        ...
-
-    @overload
     def __init__(
         self,
-        __expr: Empty
-        | Exists
-        | FuzzyTerm
-        | ParseWithField
-        | Range
-        | TermSet
-        | Parse
-        | PhrasePrefix
-        | RegexPhrase
-        | RangeTerm
-        | Term
-        | Regex
-        | All,
-    ) -> None:
-        """Query expression (must be sole argument)."""
-        ...
-
-    @overload
-    def __init__(self, __phrase1: Phrase, *phrases: Phrase) -> None:
-        """Phrase search with one or more Phrase objects."""
-        ...
-
-    @overload
-    def __init__(self, __proximity: ProximityNode) -> None:
-        """Proximity query"""
-        ...
-
-    @overload
-    def __init__(self, __proximity: ProximityQuery) -> None:
-        """Proximity query"""
-        ...
-
-    def __init__(
-        self,
-        *terms: Match
+        term: Match
         | Phrase
         | ProximityNode
         | ProximityQuery
@@ -1030,13 +990,12 @@ class ParadeDB:
         | Term
         | Regex
         | All,
+        *,
         tokenizer: str | None = None,
         boost: float | None = None,
         const: float | None = None,
     ) -> None:
-        if not terms:
-            raise ValueError("ParadeDB requires at least one search term.")
-        self._terms = terms
+        self._term = term
         self._tokenizer = tokenizer
         self._distance: int | None = None
         self._prefix = False
@@ -1044,7 +1003,7 @@ class ParadeDB:
         self._boost = boost
         self._const = const
 
-        if any(isinstance(term, str) for term in self._terms):
+        if isinstance(self._term, str):
             raise TypeError(
                 "Plain string terms are not supported. Use ParadeDB(Match(..., operator=...))."
             )
@@ -1179,88 +1138,44 @@ class ParadeDB:
             ...,
         ],
     ]:
-        if any(
-            isinstance(
-                term,
-                Empty
-                | Exists
-                | FuzzyTerm
-                | ParseWithField
-                | Range
-                | TermSet
-                | Parse
-                | PhrasePrefix
-                | RegexPhrase
-                | RangeTerm
-                | Term
-                | Regex
-                | All,
-            )
-            for term in self._terms
+        if isinstance(
+            self._term,
+            Empty
+            | Exists
+            | FuzzyTerm
+            | ParseWithField
+            | Range
+            | TermSet
+            | Parse
+            | PhrasePrefix
+            | RegexPhrase
+            | RangeTerm
+            | Term
+            | Regex
+            | All,
         ):
-            if len(self._terms) != 1:
-                raise ValueError(
-                    "Empty/Exists/FuzzyTerm/ParseWithField/Range/TermSet/Parse/PhrasePrefix/RegexPhrase/RangeTerm/Term/Regex/All queries must be a single term."
-                )
-            term = self._terms[0]
-            if not isinstance(
-                term,
-                Empty
-                | Exists
-                | FuzzyTerm
-                | ParseWithField
-                | Range
-                | TermSet
-                | Parse
-                | PhrasePrefix
-                | RegexPhrase
-                | RangeTerm
-                | Term
-                | Regex
-                | All,
-            ):
-                raise TypeError(
-                    "Empty/Exists/FuzzyTerm/ParseWithField/Range/TermSet/Parse/PhrasePrefix/RegexPhrase/RangeTerm/Term/Regex/All cannot be mixed with other terms."
-                )
-            return OP_SEARCH, (term,)
+            return OP_SEARCH, (self._term,)
 
-        if any(isinstance(term, Match) for term in self._terms):
-            if len(self._terms) != 1:
-                raise ValueError("Match queries must be a single term.")
-            term = self._terms[0]
-            if not isinstance(term, Match):
-                raise TypeError("Match queries cannot be mixed with other terms.")
-            if term.operator == "OR":
+        if isinstance(self._term, Match):
+            if self._term.operator == "OR":
                 operator = OP_OR
-            elif term.operator == "AND":
+            elif self._term.operator == "AND":
                 operator = OP_AND
             else:
                 raise ValueError("Match operator must be 'AND' or 'OR'.")
-            self._tokenizer = term.tokenizer
-            self._distance = term.distance
-            self._prefix = term.prefix
-            self._transposition_cost_one = term.transposition_cost_one
-            self._boost = term.boost
-            self._const = term.const
-            return operator, term.terms
+            self._tokenizer = self._term.tokenizer
+            self._distance = self._term.distance
+            self._prefix = self._term.prefix
+            self._transposition_cost_one = self._term.transposition_cost_one
+            self._boost = self._term.boost
+            self._const = self._term.const
+            return operator, self._term.terms
 
-        if any(isinstance(term, Phrase) for term in self._terms):
-            phrases: list[Phrase] = []
-            for term in self._terms:
-                if not isinstance(term, Phrase):
-                    raise TypeError("Phrase searches only accept Phrase terms.")
-                phrases.append(term)
-            return OP_PHRASE, tuple(phrases)
+        if isinstance(self._term, Phrase):
+            return OP_PHRASE, (self._term,)
 
-        if any(
-            isinstance(term, ProximityNode | ProximityQuery) for term in self._terms
-        ):
-            if len(self._terms) != 1:
-                raise ValueError("Proximity queries accept a single argument.")
-            term = self._terms[0]
-            if not isinstance(term, ProximityNode | ProximityQuery):
-                raise TypeError("Proximity cannot be mixed with other terms.")
-            return OP_SEARCH, (term,)
+        if isinstance(self._term, ProximityNode | ProximityQuery):
+            return OP_SEARCH, (self._term,)
 
         # Plain string terms are rejected in __init__, so this path is unreachable.
         raise RuntimeError("Unreachable ParadeDB term resolution branch.")

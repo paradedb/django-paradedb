@@ -98,39 +98,6 @@ class TestSpecialCharacterEscaping:
 class TestParadeDBValidation:
     """Test input validation for ParadeDB wrapper."""
 
-    def test_empty_terms_raises_error(self) -> None:
-        """ParadeDB with no terms raises ValueError."""
-        with pytest.raises(ValueError, match="requires at least one"):
-            ParadeDB()
-
-    def test_parse_must_be_single(self) -> None:
-        """Multiple Parse objects raise ValueError on SQL generation."""
-        pdb = ParadeDB(Parse("a"), Parse("b"))
-        queryset = Product.objects.filter(description=pdb)
-        with pytest.raises(ValueError, match="single term"):
-            str(queryset.query)
-
-    def test_term_must_be_single(self) -> None:
-        """Multiple Term objects raise ValueError on SQL generation."""
-        pdb = ParadeDB(Term("a"), Term("b"))
-        queryset = Product.objects.filter(description=pdb)
-        with pytest.raises(ValueError, match="single term"):
-            str(queryset.query)
-
-    def test_regex_must_be_single(self) -> None:
-        """Multiple Regex objects raise ValueError on SQL generation."""
-        pdb = ParadeDB(Regex("a"), Regex("b"))
-        queryset = Product.objects.filter(description=pdb)
-        with pytest.raises(ValueError, match="single term"):
-            str(queryset.query)
-
-    def test_phrase_cannot_mix_with_match(self) -> None:
-        """Phrase mixed with Match raises TypeError on SQL generation."""
-        pdb = ParadeDB(Phrase("a"), Match("b", operator="AND"))
-        queryset = Product.objects.filter(description=pdb)
-        with pytest.raises(ValueError, match="Match queries must be a single term"):
-            str(queryset.query)
-
     def test_paradedb_invalid_tokenizer_deferred_to_database(self) -> None:
         """Tokenizer names are quoted in SQL; validity is deferred to database execution."""
         queryset = Product.objects.filter(

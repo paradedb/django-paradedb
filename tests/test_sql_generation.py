@@ -177,13 +177,6 @@ class TestExactLiteralDisjunction:
                 Match("shoes", "boots", operator="TERM")  # type: ignore[arg-type]
             )
 
-    def test_plain_string_rejected(self) -> None:
-        with pytest.raises(
-            TypeError,
-            match=r"Plain string terms are not supported\. Use ParadeDB\(Match\(\.\.\., operator=\.\.\.\)\)\.",
-        ):
-            _ = ParadeDB("a", "b")
-
     def test_operator_invalid_with_phrase(self) -> None:
         with pytest.raises(
             TypeError,
@@ -208,16 +201,6 @@ class TestExactLiteralDisjunction:
             match=r"unexpected keyword argument 'operator'",
         ):
             _ = ParadeDB(Match("shoes", operator="OR"), operator="AND")
-
-    def test_match_must_be_single_term(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shoes", operator="AND"),
-                Match("boots", operator="AND"),
-            )
-        )
-        with pytest.raises(ValueError, match=r"Match queries must be a single term\."):
-            _ = str(queryset.query)
 
 
 class TestPhraseSearch:
@@ -293,19 +276,6 @@ class TestProximitySearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## \'shoes\' ## 2 ## \'lightweight\')'
         )
-
-    def test_multiple_proximity_terms_rejected(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Proximity("running").within(2, "shoes"),
-                Proximity("lightweight").within(2, "design"),
-            )
-        )
-        with pytest.raises(
-            ValueError,
-            match="Proximity queries accept a single argument",
-        ):
-            _ = str(queryset.query)
 
     def test_proximity_distance_negative_rejected(self) -> None:
         with pytest.raises(

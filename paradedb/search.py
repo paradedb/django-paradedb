@@ -1031,9 +1031,6 @@ class ParadeDB:
     ) -> ParadeDB:
         return self
 
-    def get_source_expressions(self) -> list[object]:
-        return []
-
     def as_sql(
         self,
         _compiler: SQLCompiler,

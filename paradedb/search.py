@@ -943,6 +943,27 @@ class MoreLikeThis(Expression):
         return ", " + ", ".join(rendered), params
 
 
+TermType = (
+    Match
+    | Empty
+    | Exists
+    | FuzzyTerm
+    | ParseWithField
+    | Range
+    | TermSet
+    | Phrase
+    | ProximityNode
+    | ProximityQuery
+    | Parse
+    | PhrasePrefix
+    | RegexPhrase
+    | RangeTerm
+    | Term
+    | Regex
+    | All
+)
+
+
 class ParadeDB:
     """Wrapper for ParadeDB search terms.
 
@@ -971,26 +992,7 @@ class ParadeDB:
     contains_over_clause = False
     contains_column_references = False
 
-    def __init__(
-        self,
-        term: Match
-        | Phrase
-        | ProximityNode
-        | ProximityQuery
-        | Empty
-        | Exists
-        | FuzzyTerm
-        | ParseWithField
-        | Range
-        | TermSet
-        | Parse
-        | PhrasePrefix
-        | RegexPhrase
-        | RangeTerm
-        | Term
-        | Regex
-        | All,
-    ) -> None:
+    def __init__(self, term: TermType) -> None:
         self._term = term
 
     def resolve_expression(
@@ -1010,7 +1012,6 @@ class ParadeDB:
         lhs_sql: str,
     ) -> tuple[str, list[object]]:
         rendered = self._render_term(self._term)
-
         return f"{lhs_sql} {self._lookup_operator()} {rendered}", []
 
     # TODO maybe this should be a map or something else
@@ -1114,26 +1115,7 @@ class ParadeDB:
             return f"{FN_PROX_ARRAY}({', '.join(parts)})"
         raise AssertionError(f"Unhandled proximity term: {term!r}")
 
-    def _render_term(
-        self,
-        term: Match
-        | Empty
-        | Exists
-        | FuzzyTerm
-        | ParseWithField
-        | Range
-        | TermSet
-        | Phrase
-        | ProximityNode
-        | ProximityQuery
-        | Parse
-        | PhrasePrefix
-        | RegexPhrase
-        | RangeTerm
-        | Term
-        | Regex
-        | All,
-    ) -> str:
+    def _render_term(self, term: TermType) -> str:
         if isinstance(term, Phrase):
             literal = self._quote_term(term.text)
             if term.slop is not None:

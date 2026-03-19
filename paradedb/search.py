@@ -990,27 +990,8 @@ class ParadeDB:
         | Term
         | Regex
         | All,
-        *,
-        tokenizer: str | None = None,
-        boost: float | None = None,
-        const: float | None = None,
     ) -> None:
         self._term = term
-        self._tokenizer = tokenizer
-        self._distance: int | None = None
-        self._prefix = False
-        self._transposition_cost_one = False
-        self._boost = boost
-        self._const = const
-
-        # TODO will remove
-        if isinstance(term, Match):
-            self._tokenizer = term.tokenizer
-            self._distance = term.distance
-            self._prefix = term.prefix
-            self._transposition_cost_one = term.transposition_cost_one
-            self._boost = term.boost
-            self._const = term.const
 
     def resolve_expression(
         self,
@@ -1028,26 +1009,9 @@ class ParadeDB:
         _connection: BaseDatabaseWrapper,
         lhs_sql: str,
     ) -> tuple[str, list[object]]:
-        literal = self._render_term(self._term)
+        rendered = self._render_term(self._term)
 
-        rendered = self._append_fuzzy(
-            literal,
-            distance=self._distance,
-            prefix=self._prefix,
-            transposition_cost_one=self._transposition_cost_one,
-        )
-        if (
-            _is_fuzzy_enabled(
-                distance=self._distance,
-                prefix=self._prefix,
-                transposition_cost_one=self._transposition_cost_one,
-            )
-            and self._const is not None
-        ):
-            # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
-            rendered = f"{rendered}::pdb.query"
-        scored = self._append_scoring(rendered, boost=self._boost, const=self._const)
-        return f"{lhs_sql} {self._lookup_operator()} {scored}", []
+        return f"{lhs_sql} {self._lookup_operator()} {rendered}", []
 
     # TODO maybe this should be a map or something else
     def _lookup_operator(self) -> str:
@@ -1299,8 +1263,27 @@ class ParadeDB:
             else:
                 quoted = [self._quote_term(item) for item in term.terms]
                 rendered = f"ARRAY[{', '.join(quoted)}]"
-            if self._tokenizer is not None:
-                rendered = f"{rendered}::{_tokenizer_cast(self._tokenizer)}"
+            if term.tokenizer is not None:
+                rendered = f"{rendered}::{_tokenizer_cast(term.tokenizer)}"
+            rendered = self._append_fuzzy(
+                rendered,
+                distance=term.distance,
+                prefix=term.prefix,
+                transposition_cost_one=term.transposition_cost_one,
+            )
+            if (
+                _is_fuzzy_enabled(
+                    distance=term.distance,
+                    prefix=term.prefix,
+                    transposition_cost_one=term.transposition_cost_one,
+                )
+                and term.const is not None
+            ):
+                # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
+                rendered = f"{rendered}::pdb.query"
+            rendered = self._append_scoring(
+                rendered, boost=term.boost, const=term.const
+            )
             return rendered
         raise TypeError(f"Unsupported ParadeDB term type. {term}")
 

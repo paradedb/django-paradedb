@@ -68,7 +68,7 @@ class TestFieldErrors:
     def test_more_like_this_nonexistent_id_returns_empty(self) -> None:
         """MoreLikeThis with non-existent ID returns empty result, not error."""
         queryset = MockItem.objects.filter(
-            MoreLikeThis(product_id=999999, fields=["description"])
+            id=ParadeDB(MoreLikeThis(product_id=999999, fields=["description"]))
         )
         assert queryset.count() == 0
 

@@ -29,7 +29,7 @@ class TestMoreLikeThis:
 
     def test_mlt_by_id(self) -> None:
         """MLT by ID: WHERE id @@@ pdb.more_like_this(5)."""
-        queryset = Product.objects.filter(MoreLikeThis(product_id=5))
+        queryset = Product.objects.filter(id=ParadeDB(MoreLikeThis(product_id=5)))
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(5)'
@@ -37,7 +37,9 @@ class TestMoreLikeThis:
 
     def test_mlt_multiple_ids(self) -> None:
         """MLT with multiple IDs generates OR conditions."""
-        queryset = Product.objects.filter(MoreLikeThis(product_ids=[5, 12, 23]))
+        queryset = Product.objects.filter(
+            id=ParadeDB(MoreLikeThis(product_ids=[5, 12, 23]))
+        )
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE ("tests_product"."id" @@@ pdb.more_like_this(5) OR "tests_product"."id" @@@ pdb.more_like_this(12) OR "tests_product"."id" @@@ pdb.more_like_this(23))'
@@ -46,8 +48,10 @@ class TestMoreLikeThis:
     def test_mlt_with_parameters(self) -> None:
         """MLT with tuning parameters."""
         queryset = Product.objects.filter(
-            MoreLikeThis(
-                product_id=5, min_term_freq=2, max_query_terms=10, min_doc_freq=1
+            id=ParadeDB(
+                MoreLikeThis(
+                    product_id=5, min_term_freq=2, max_query_terms=10, min_doc_freq=1
+                )
             )
         )
         assert (
@@ -58,11 +62,13 @@ class TestMoreLikeThis:
     def test_mlt_by_document(self) -> None:
         """MLT by document uses JSON input."""
         queryset = Product.objects.filter(
-            MoreLikeThis(
-                document={
-                    "description": "comfortable running shoes",
-                    "category": "footwear",
-                },
+            id=ParadeDB(
+                MoreLikeThis(
+                    document={
+                        "description": "comfortable running shoes",
+                        "category": "footwear",
+                    },
+                )
             )
         )
         assert (
@@ -73,7 +79,9 @@ class TestMoreLikeThis:
     def test_mlt_with_word_length(self) -> None:
         """MLT with min/max word length parameters."""
         queryset = Product.objects.filter(
-            MoreLikeThis(product_id=5, min_word_length=3, max_word_length=15)
+            id=ParadeDB(
+                MoreLikeThis(product_id=5, min_word_length=3, max_word_length=15)
+            )
         )
         sql = str(queryset.query)
         assert "min_word_length => 3" in sql
@@ -83,7 +91,7 @@ class TestMoreLikeThis:
     def test_mlt_with_stopwords(self) -> None:
         """MLT with stopwords array parameter."""
         queryset = Product.objects.filter(
-            MoreLikeThis(product_id=5, stopwords=["the", "a", "an"])
+            id=ParadeDB(MoreLikeThis(product_id=5, stopwords=["the", "a", "an"]))
         )
         sql = str(queryset.query)
         assert "stopwords => ARRAY[the, a, an]" in sql
@@ -91,17 +99,19 @@ class TestMoreLikeThis:
     def test_mlt_with_all_options(self) -> None:
         """MLT with all available options including new ones."""
         queryset = Product.objects.filter(
-            MoreLikeThis(
-                product_id=5,
-                fields=["description"],
-                min_term_freq=2,
-                max_query_terms=10,
-                min_doc_freq=1,
-                max_term_freq=100,
-                max_doc_freq=1000,
-                min_word_length=3,
-                max_word_length=20,
-                stopwords=["the", "and", "or"],
+            id=ParadeDB(
+                MoreLikeThis(
+                    product_id=5,
+                    fields=["description"],
+                    min_term_freq=2,
+                    max_query_terms=10,
+                    min_doc_freq=1,
+                    max_term_freq=100,
+                    max_doc_freq=1000,
+                    min_word_length=3,
+                    max_word_length=20,
+                    stopwords=["the", "and", "or"],
+                )
             )
         )
         sql = str(queryset.query)
@@ -118,11 +128,13 @@ class TestMoreLikeThis:
     def test_mlt_document_with_new_options(self) -> None:
         """MLT with document input and new word length/stopwords options."""
         queryset = Product.objects.filter(
-            MoreLikeThis(
-                document={"description": "comfortable running shoes"},
-                min_word_length=4,
-                max_word_length=12,
-                stopwords=["comfortable"],
+            id=ParadeDB(
+                MoreLikeThis(
+                    document={"description": "comfortable running shoes"},
+                    min_word_length=4,
+                    max_word_length=12,
+                    stopwords=["comfortable"],
+                )
             )
         )
         sql = str(queryset.query)
@@ -133,7 +145,7 @@ class TestMoreLikeThis:
     def test_mlt_document_should_use_json_format(self) -> None:
         """Document input should generate JSON format."""
         queryset = Product.objects.filter(
-            MoreLikeThis(document={"description": "wireless earbuds"})
+            id=ParadeDB(MoreLikeThis(document={"description": "wireless earbuds"}))
         )
         sql = str(queryset.query)
         assert 'pdb.more_like_this({"description": "wireless earbuds"})' in sql, (
@@ -148,9 +160,11 @@ class TestMoreLikeThis:
     def test_mlt_empty_stopwords_should_not_generate_empty_string(self) -> None:
         """Empty stopwords should be omitted."""
         queryset = Product.objects.filter(
-            MoreLikeThis(
-                product_id=5,
-                stopwords=[],
+            id=ParadeDB(
+                MoreLikeThis(
+                    product_id=5,
+                    stopwords=[],
+                )
             )
         )
         sql = str(queryset.query)

@@ -747,7 +747,7 @@ def test_more_like_this_by_id() -> None:
     """MLT by ID with fields=['description'] returns similar items."""
     ids = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(product_id=3, fields=["description"])
+            id=ParadeDB(MoreLikeThis(product_id=3, fields=["description"]))
         ).order_by("id")
     )
     assert ids == {3, 4, 5}
@@ -757,7 +757,7 @@ def test_more_like_this_multiple_ids() -> None:
     """MLT with multiple IDs and fields=['description'] returns union."""
     ids = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(product_ids=[3, 12], fields=["description"])
+            id=ParadeDB(MoreLikeThis(product_ids=[3, 12], fields=["description"]))
         ).order_by("id")
     )
     assert ids == {3, 4, 5, 12}
@@ -767,7 +767,7 @@ def test_more_like_this_by_document() -> None:
     """MLT with document finds similar documents."""
     ids = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(document={"description": "wireless earbuds"})
+            id=ParadeDB(MoreLikeThis(document={"description": "wireless earbuds"}))
         )
     )
     # Should find documents similar to the text
@@ -779,9 +779,11 @@ def test_more_like_this_with_stopwords() -> None:
     # Get baseline results without stopwords
     baseline_ids = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(
-                product_id=3,  # "Sleek running shoes"
-                fields=["description"],
+            id=ParadeDB(
+                MoreLikeThis(
+                    product_id=3,  # "Sleek running shoes"
+                    fields=["description"],
+                )
             )
         )
     )
@@ -789,10 +791,12 @@ def test_more_like_this_with_stopwords() -> None:
     # Get results with "shoes" as stopword
     with_stopword_ids = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(
-                product_id=3,
-                fields=["description"],
-                stopwords=["shoes"],
+            id=ParadeDB(
+                MoreLikeThis(
+                    product_id=3,
+                    fields=["description"],
+                    stopwords=["shoes"],
+                )
             )
         )
     )
@@ -819,9 +823,11 @@ def test_more_like_this_with_word_length() -> None:
     # Get baseline without word length filter
     baseline_ids = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(
-                product_id=3,  # "Sleek running shoes"
-                fields=["description"],
+            id=ParadeDB(
+                MoreLikeThis(
+                    product_id=3,  # "Sleek running shoes"
+                    fields=["description"],
+                )
             )
         )
     )
@@ -829,10 +835,12 @@ def test_more_like_this_with_word_length() -> None:
     # Get results with min_word_length=6 (filters out "shoes" which is 5 chars)
     with_min_length_ids = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(
-                product_id=3,
-                fields=["description"],
-                min_word_length=6,
+            id=ParadeDB(
+                MoreLikeThis(
+                    product_id=3,
+                    fields=["description"],
+                    min_word_length=6,
+                )
             )
         )
     )
@@ -851,19 +859,23 @@ def test_more_like_this_stopwords_reversible() -> None:
     """Verify stopwords effect is consistent and reversible."""
     ids_with = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(
-                product_id=3,
-                fields=["description"],
-                stopwords=["shoes"],  # The main matching term
+            id=ParadeDB(
+                MoreLikeThis(
+                    product_id=3,
+                    fields=["description"],
+                    stopwords=["shoes"],  # The main matching term
+                )
             )
         )
     )
 
     ids_without = _ids(
         MockItem.objects.filter(
-            MoreLikeThis(
-                product_id=3,
-                fields=["description"],
+            id=ParadeDB(
+                MoreLikeThis(
+                    product_id=3,
+                    fields=["description"],
+                )
             )
         )
     )
@@ -901,7 +913,7 @@ def test_more_like_this_document_input_generates_correct_sql() -> None:
 
     # Create a simple query with a document
     query = MockItem.objects.filter(
-        MoreLikeThis(document={"description": "wireless earbuds"})
+        id=ParadeDB(MoreLikeThis(document={"description": "wireless earbuds"}))
     )
 
     sql, params = query.query.sql_with_params()
@@ -932,10 +944,12 @@ def test_more_like_this_empty_stopwords_generates_correct_sql() -> None:
     # Expected: stopwords option omitted entirely
 
     query = MockItem.objects.filter(
-        MoreLikeThis(
-            product_id=3,
-            fields=["description"],
-            stopwords=[],  # Empty array
+        id=ParadeDB(
+            MoreLikeThis(
+                product_id=3,
+                fields=["description"],
+                stopwords=[],  # Empty array
+            )
         )
     )
 
@@ -950,10 +964,12 @@ def test_more_like_this_empty_stopwords_generates_correct_sql() -> None:
 def test_more_like_this_with_key_field() -> None:
     """MLT with custom key_field uses that column in SQL."""
     query = MockItem.objects.filter(
-        MoreLikeThis(
-            product_id=3,
-            fields=["description"],
-            key_field="id",
+        id=ParadeDB(
+            MoreLikeThis(
+                product_id=3,
+                fields=["description"],
+                key_field="id",
+            )
         )
     )
 
@@ -974,7 +990,7 @@ def test_more_like_this_document_as_json_string() -> None:
     # Pre-serialize the JSON
     json_doc = json.dumps({"description": "wireless earbuds"})
 
-    query = MockItem.objects.filter(MoreLikeThis(document=json_doc))
+    query = MockItem.objects.filter(id=ParadeDB(MoreLikeThis(document=json_doc)))
 
     sql, params = query.query.sql_with_params()
 
@@ -1006,7 +1022,7 @@ def test_more_like_this_word_length_min_greater_than_max() -> None:
     assert mlt.max_word_length == 5
 
     # Generate SQL to verify it compiles
-    query = MockItem.objects.filter(mlt)
+    query = MockItem.objects.filter(id=ParadeDB(mlt))
     sql, _params = query.query.sql_with_params()
 
     assert "min_word_length => 10" in sql

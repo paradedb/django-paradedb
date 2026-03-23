@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+## [0.5.0] - 2026-03-23
+
 ### Added
 
 - `IndexExpression` class for indexing computed expressions in `BM25Index`.
@@ -174,6 +176,7 @@ All notable changes to this project will be documented in this file. The format 
 - JSON field key indexing support
 - Full Django ORM integration with `Q` objects and standard filters
 
+[0.5.0]: https://github.com/paradedb/django-paradedb/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/paradedb/django-paradedb/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/paradedb/django-paradedb/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/paradedb/django-paradedb/compare/v0.1.1...v0.2.0

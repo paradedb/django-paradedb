@@ -41,7 +41,7 @@ def demo_similar_to_single_product() -> None:
     print("\nSimilar products (by description):")
     similar = (
         MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(product_id=source_id, fields=["description"]))
+            id=ParadeDB(MoreLikeThis(id=source_id, fields=["description"]))
         )
         .annotate(score=Score())
         .order_by("-score")[:5]
@@ -74,7 +74,7 @@ def demo_similar_to_multiple_products() -> None:
     print("\nRecommended products (similar to any browsed item):")
     similar = (
         MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(product_ids=browsed_ids, fields=["description"]))
+            id=ParadeDB(MoreLikeThis(ids=browsed_ids, fields=["description"]))
         )
         .exclude(id__in=browsed_ids)  # Exclude already-viewed items
         .annotate(score=Score())
@@ -133,7 +133,7 @@ def demo_tuning_parameters() -> None:
     print("\nDefault MLT (no tuning):")
     default_results = list(
         MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(product_id=source_id, fields=["description"]))
+            id=ParadeDB(MoreLikeThis(id=source_id, fields=["description"]))
         )
         .annotate(score=Score())
         .order_by("-score")[:3]
@@ -147,7 +147,7 @@ def demo_tuning_parameters() -> None:
         MockItem.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
-                    product_id=source_id,
+                    id=source_id,
                     fields=["description"],
                     min_doc_freq=2,  # Term must appear in 2+ docs
                     max_query_terms=5,  # Use only top 5 terms
@@ -177,7 +177,7 @@ def demo_combined_with_filters() -> None:
     print("\nSimilar products (in_stock=True, rating >= 4):")
     results = (
         MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(product_id=source_id, fields=["description"])),
+            id=ParadeDB(MoreLikeThis(id=source_id, fields=["description"])),
             in_stock=True,
             rating__gte=4,
         )
@@ -208,7 +208,7 @@ def demo_multifield_similarity() -> None:
     # By description only (default)
     print("\nSimilar by DESCRIPTION only:")
     by_desc = MockItem.objects.filter(
-        id=ParadeDB(MoreLikeThis(product_id=source_id, fields=["description"]))
+        id=ParadeDB(MoreLikeThis(id=source_id, fields=["description"]))
     ).exclude(id=source_id)[:3]
     for item in by_desc:
         print(f"  {item.id}: {item.description[:40]}... [{item.category}]")
@@ -218,9 +218,7 @@ def demo_multifield_similarity() -> None:
     print("\nSimilar by DESCRIPTION + CATEGORY (if both indexed):")
     try:
         by_both = MockItem.objects.filter(
-            id=ParadeDB(
-                MoreLikeThis(product_id=source_id, fields=["description", "category"])
-            )
+            id=ParadeDB(MoreLikeThis(id=source_id, fields=["description", "category"]))
         ).exclude(id=source_id)[:3]
         for item in by_both:
             print(f"  {item.id}: {item.description[:40]}... [{item.category}]")

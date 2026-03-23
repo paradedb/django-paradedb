@@ -657,14 +657,14 @@ class Match:
 class MoreLikeThis(Expression):
     """More Like This query filter.
 
-    Provide exactly one of product_id, product_ids, or document (dict/JSON string).
-    Fields are only valid with product_id/product_ids.
+    Provide exactly one of id, ids, or document (dict/JSON string).
+    Fields are only valid with id/ids.
 
     Args:
-        product_id: Single document ID for similarity search
-        product_ids: Multiple document IDs for similarity search (OR'd together)
+        id: Single document ID for similarity search
+        ids: Multiple document IDs for similarity search (OR'd together)
         document: Custom JSON document (dict or JSON string) for similarity search
-        fields: List of fields to consider (only valid with product_id/product_ids)
+        fields: List of fields to consider (only valid with id/ids)
         key_field: Field name to use for comparison (defaults to model's primary key)
         min_term_freq: Minimum term frequency (must be >= 1)
         max_query_terms: Maximum query terms (must be >= 1)
@@ -684,8 +684,8 @@ class MoreLikeThis(Expression):
     def __init__(
         self,
         *,
-        product_id: int | None = None,
-        product_ids: Iterable[int] | None = None,
+        id: int | None = None,
+        ids: Iterable[int] | None = None,
         document: dict[str, Any] | str | None = None,
         fields: Iterable[str] | None = None,
         key_field: str | None = None,
@@ -699,8 +699,8 @@ class MoreLikeThis(Expression):
         stopwords: Iterable[str] | None = None,
     ) -> None:
         super().__init__()
-        self.product_id = product_id
-        self.product_ids = list(product_ids) if product_ids is not None else None
+        self.id = id
+        self.ids = list(ids) if ids is not None else None
         self.document: str | None = None
         self._document_input = document
         self.fields = list(fields) if fields is not None else None
@@ -720,14 +720,14 @@ class MoreLikeThis(Expression):
         if self._count_inputs() != 1:
             raise ValueError("MoreLikeThis requires exactly one input source.")
 
-        self._validate_product_inputs()
+        self._validate_id_inputs()
         self._validate_key_field()
         self._validate_fields()
         self._validate_stopwords()
 
         # Validate fields only with ID-based queries
         if self._document_input is not None and self.fields:
-            raise ValueError("MoreLikeThis fields are only valid with product_id(s).")
+            raise ValueError("MoreLikeThis fields are only valid with id(s).")
 
         # Validate document type and convert to JSON string
         self._validate_document_input()
@@ -736,26 +736,26 @@ class MoreLikeThis(Expression):
     def _count_inputs(self) -> int:
         return sum(
             [
-                self.product_id is not None,
-                self.product_ids is not None,
+                self.id is not None,
+                self.ids is not None,
                 self._document_input is not None,
             ]
         )
 
-    def _validate_product_inputs(self) -> None:
-        if self.product_id is not None and (
-            isinstance(self.product_id, bool) or not isinstance(self.product_id, int)
+    def _validate_id_inputs(self) -> None:
+        if self.id is not None and (
+            isinstance(self.id, bool) or not isinstance(self.id, int)
         ):
-            raise TypeError("MoreLikeThis product_id must be an integer.")
+            raise TypeError("MoreLikeThis id must be an integer.")
 
-        if self.product_ids is not None and not self.product_ids:
-            raise ValueError("MoreLikeThis product_ids cannot be empty.")
+        if self.ids is not None and not self.ids:
+            raise ValueError("MoreLikeThis ids cannot be empty.")
 
-        if self.product_ids is not None and any(
-            isinstance(product_id, bool) or not isinstance(product_id, int)
-            for product_id in self.product_ids
+        if self.ids is not None and any(
+            isinstance(item_id, bool) or not isinstance(item_id, int)
+            for item_id in self.ids
         ):
-            raise TypeError("MoreLikeThis product_ids must contain integers.")
+            raise TypeError("MoreLikeThis ids must contain integers.")
 
     def _validate_key_field(self) -> None:
         if self.key_field is not None and not isinstance(self.key_field, str):
@@ -825,17 +825,17 @@ class MoreLikeThis(Expression):
 def render_more_like_this(term: MoreLikeThis, lhs_sql: str) -> tuple[str, list[Any]]:
     params: list[Any] = []
 
-    if term.product_ids is not None:
+    if term.ids is not None:
         expressions = []
-        for value in term.product_ids:
+        for value in term.ids:
             mlt_sql, mlt_params = _render_more_like_this_call(term, value)
             expressions.append(f"{lhs_sql} {OP_SEARCH} {mlt_sql}")
             params.extend(mlt_params)
         joined = " OR ".join(expressions)
         return f"({joined})", params
 
-    if term.product_id is not None:
-        mlt_sql, mlt_params = _render_more_like_this_call(term, term.product_id)
+    if term.id is not None:
+        mlt_sql, mlt_params = _render_more_like_this_call(term, term.id)
         params.extend(mlt_params)
         return f"{lhs_sql} {OP_SEARCH} {mlt_sql}", params
 

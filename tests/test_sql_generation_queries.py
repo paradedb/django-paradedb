@@ -29,7 +29,7 @@ class TestMoreLikeThis:
 
     def test_mlt_by_id(self) -> None:
         """MLT by ID: WHERE id @@@ pdb.more_like_this(5)."""
-        queryset = Product.objects.filter(id=ParadeDB(MoreLikeThis(product_id=5)))
+        queryset = Product.objects.filter(id=ParadeDB(MoreLikeThis(id=5)))
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(5)'
@@ -37,9 +37,7 @@ class TestMoreLikeThis:
 
     def test_mlt_multiple_ids(self) -> None:
         """MLT with multiple IDs generates OR conditions."""
-        queryset = Product.objects.filter(
-            id=ParadeDB(MoreLikeThis(product_ids=[5, 12, 23]))
-        )
+        queryset = Product.objects.filter(id=ParadeDB(MoreLikeThis(ids=[5, 12, 23])))
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE ("tests_product"."id" @@@ pdb.more_like_this(5) OR "tests_product"."id" @@@ pdb.more_like_this(12) OR "tests_product"."id" @@@ pdb.more_like_this(23))'
@@ -49,9 +47,7 @@ class TestMoreLikeThis:
         """MLT with tuning parameters."""
         queryset = Product.objects.filter(
             id=ParadeDB(
-                MoreLikeThis(
-                    product_id=5, min_term_freq=2, max_query_terms=10, min_doc_freq=1
-                )
+                MoreLikeThis(id=5, min_term_freq=2, max_query_terms=10, min_doc_freq=1)
             )
         )
         assert (
@@ -79,9 +75,7 @@ class TestMoreLikeThis:
     def test_mlt_with_word_length(self) -> None:
         """MLT with min/max word length parameters."""
         queryset = Product.objects.filter(
-            id=ParadeDB(
-                MoreLikeThis(product_id=5, min_word_length=3, max_word_length=15)
-            )
+            id=ParadeDB(MoreLikeThis(id=5, min_word_length=3, max_word_length=15))
         )
         sql = str(queryset.query)
         assert "min_word_length => 3" in sql
@@ -91,7 +85,7 @@ class TestMoreLikeThis:
     def test_mlt_with_stopwords(self) -> None:
         """MLT with stopwords array parameter."""
         queryset = Product.objects.filter(
-            id=ParadeDB(MoreLikeThis(product_id=5, stopwords=["the", "a", "an"]))
+            id=ParadeDB(MoreLikeThis(id=5, stopwords=["the", "a", "an"]))
         )
         sql = str(queryset.query)
         assert "stopwords => ARRAY[the, a, an]" in sql
@@ -101,7 +95,7 @@ class TestMoreLikeThis:
         queryset = Product.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
-                    product_id=5,
+                    id=5,
                     fields=["description"],
                     min_term_freq=2,
                     max_query_terms=10,
@@ -162,7 +156,7 @@ class TestMoreLikeThis:
         queryset = Product.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
-                    product_id=5,
+                    id=5,
                     stopwords=[],
                 )
             )

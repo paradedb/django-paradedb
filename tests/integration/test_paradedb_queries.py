@@ -747,7 +747,7 @@ def test_more_like_this_by_id() -> None:
     """MLT by ID with fields=['description'] returns similar items."""
     ids = _ids(
         MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(product_id=3, fields=["description"]))
+            id=ParadeDB(MoreLikeThis(id=3, fields=["description"]))
         ).order_by("id")
     )
     assert ids == {3, 4, 5}
@@ -757,7 +757,7 @@ def test_more_like_this_multiple_ids() -> None:
     """MLT with multiple IDs and fields=['description'] returns union."""
     ids = _ids(
         MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(product_ids=[3, 12], fields=["description"]))
+            id=ParadeDB(MoreLikeThis(ids=[3, 12], fields=["description"]))
         ).order_by("id")
     )
     assert ids == {3, 4, 5, 12}
@@ -781,7 +781,7 @@ def test_more_like_this_with_stopwords() -> None:
         MockItem.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
-                    product_id=3,  # "Sleek running shoes"
+                    id=3,  # "Sleek running shoes"
                     fields=["description"],
                 )
             )
@@ -793,7 +793,7 @@ def test_more_like_this_with_stopwords() -> None:
         MockItem.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
-                    product_id=3,
+                    id=3,
                     fields=["description"],
                     stopwords=["shoes"],
                 )
@@ -825,7 +825,7 @@ def test_more_like_this_with_word_length() -> None:
         MockItem.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
-                    product_id=3,  # "Sleek running shoes"
+                    id=3,  # "Sleek running shoes"
                     fields=["description"],
                 )
             )
@@ -837,7 +837,7 @@ def test_more_like_this_with_word_length() -> None:
         MockItem.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
-                    product_id=3,
+                    id=3,
                     fields=["description"],
                     min_word_length=6,
                 )
@@ -861,7 +861,7 @@ def test_more_like_this_stopwords_reversible() -> None:
         MockItem.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
-                    product_id=3,
+                    id=3,
                     fields=["description"],
                     stopwords=["shoes"],  # The main matching term
                 )
@@ -873,7 +873,7 @@ def test_more_like_this_stopwords_reversible() -> None:
         MockItem.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
-                    product_id=3,
+                    id=3,
                     fields=["description"],
                 )
             )
@@ -946,7 +946,7 @@ def test_more_like_this_empty_stopwords_generates_correct_sql() -> None:
     query = MockItem.objects.filter(
         id=ParadeDB(
             MoreLikeThis(
-                product_id=3,
+                id=3,
                 fields=["description"],
                 stopwords=[],  # Empty array
             )
@@ -966,7 +966,7 @@ def test_more_like_this_with_key_field() -> None:
     query = MockItem.objects.filter(
         id=ParadeDB(
             MoreLikeThis(
-                product_id=3,
+                id=3,
                 fields=["description"],
                 key_field="id",
             )
@@ -1011,7 +1011,7 @@ def test_more_like_this_word_length_min_greater_than_max() -> None:
     # ParadeDB may handle this at runtime, but Django should accept it
     # This test documents the current behavior
     mlt = MoreLikeThis(
-        product_id=3,
+        id=3,
         fields=["description"],
         min_word_length=10,
         max_word_length=5,

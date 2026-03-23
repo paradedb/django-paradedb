@@ -427,36 +427,36 @@ class TestMoreLikeThisValidation:
     def test_mlt_multiple_inputs_raises(self) -> None:
         """MLT with multiple inputs raises ValueError."""
         with pytest.raises(ValueError, match="exactly one input"):
-            MoreLikeThis(product_id=1, document={"description": "test"})
+            MoreLikeThis(id=1, document={"description": "test"})
 
-    def test_mlt_empty_product_ids_raises(self) -> None:
-        """MLT with empty product_ids raises ValueError."""
+    def test_mlt_empty_ids_raises(self) -> None:
+        """MLT with empty ids raises ValueError."""
         with pytest.raises(ValueError, match="cannot be empty"):
-            MoreLikeThis(product_ids=[])
+            MoreLikeThis(ids=[])
 
-    def test_mlt_single_product_id(self) -> None:
-        """MLT with single product_id works."""
-        mlt = MoreLikeThis(product_id=1)
-        assert mlt.product_id == 1
+    def test_mlt_single_id(self) -> None:
+        """MLT with single id works."""
+        mlt = MoreLikeThis(id=1)
+        assert mlt.id == 1
 
-    def test_mlt_product_id_must_be_integer(self) -> None:
-        with pytest.raises(TypeError, match="product_id must be an integer"):
-            MoreLikeThis(product_id="1")  # type: ignore[arg-type]
+    def test_mlt_id_must_be_integer(self) -> None:
+        with pytest.raises(TypeError, match="id must be an integer"):
+            MoreLikeThis(id="1")  # type: ignore[arg-type]
 
-        with pytest.raises(TypeError, match="product_id must be an integer"):
-            MoreLikeThis(product_id=True)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="id must be an integer"):
+            MoreLikeThis(id=True)  # type: ignore[arg-type]
 
-    def test_mlt_product_ids_list(self) -> None:
-        """MLT with product_ids list works."""
-        mlt = MoreLikeThis(product_ids=[1, 2, 3])
-        assert mlt.product_ids == [1, 2, 3]
+    def test_mlt_ids_list(self) -> None:
+        """MLT with ids list works."""
+        mlt = MoreLikeThis(ids=[1, 2, 3])
+        assert mlt.ids == [1, 2, 3]
 
-    def test_mlt_product_ids_must_contain_integers(self) -> None:
-        with pytest.raises(TypeError, match="product_ids must contain integers"):
-            MoreLikeThis(product_ids=[1, "2"])  # type: ignore[list-item]
+    def test_mlt_ids_must_contain_integers(self) -> None:
+        with pytest.raises(TypeError, match="ids must contain integers"):
+            MoreLikeThis(ids=[1, "2"])  # type: ignore[list-item]
 
-        with pytest.raises(TypeError, match="product_ids must contain integers"):
-            MoreLikeThis(product_ids=[1, True])  # type: ignore[list-item]
+        with pytest.raises(TypeError, match="ids must contain integers"):
+            MoreLikeThis(ids=[1, True])  # type: ignore[list-item]
 
     def test_mlt_document_dict(self) -> None:
         """MLT with document dict works."""
@@ -479,18 +479,18 @@ class TestMoreLikeThisValidation:
 
     def test_mlt_fields_must_be_non_empty_strings(self) -> None:
         with pytest.raises(ValueError, match="fields cannot be empty"):
-            MoreLikeThis(product_id=1, fields=[])
+            MoreLikeThis(id=1, fields=[])
 
         with pytest.raises(TypeError, match="fields must contain strings"):
-            MoreLikeThis(product_id=1, fields=[1])  # type: ignore[list-item]
+            MoreLikeThis(id=1, fields=[1])  # type: ignore[list-item]
 
         with pytest.raises(ValueError, match="fields cannot contain empty names"):
-            MoreLikeThis(product_id=1, fields=[""])
+            MoreLikeThis(id=1, fields=[""])
 
     def test_mlt_with_all_options(self) -> None:
         """MLT with all tuning options works."""
         mlt = MoreLikeThis(
-            product_id=1,
+            id=1,
             fields=["description"],
             min_term_freq=2,
             max_query_terms=10,
@@ -509,22 +509,22 @@ class TestMoreLikeThisValidation:
 
     def test_mlt_stopwords_empty_list(self) -> None:
         """MLT with empty stopwords list works."""
-        mlt = MoreLikeThis(product_id=1, stopwords=[])
+        mlt = MoreLikeThis(id=1, stopwords=[])
         assert mlt.stopwords == []
 
     def test_mlt_stopwords_tuple(self) -> None:
         """MLT with stopwords as tuple converts to list."""
-        mlt = MoreLikeThis(product_id=1, stopwords=("the", "a", "an"))
+        mlt = MoreLikeThis(id=1, stopwords=("the", "a", "an"))
         assert mlt.stopwords == ["the", "a", "an"]
 
     def test_mlt_stopwords_must_be_strings(self) -> None:
         with pytest.raises(TypeError, match="stopwords must contain strings"):
-            MoreLikeThis(product_id=1, stopwords=["the", 1])  # type: ignore[list-item]
+            MoreLikeThis(id=1, stopwords=["the", 1])  # type: ignore[list-item]
 
     def test_mlt_word_length_validation(self) -> None:
         """MLT word length parameters accept integers."""
         mlt = MoreLikeThis(
-            product_id=1,
+            id=1,
             min_word_length=2,
             max_word_length=20,
         )
@@ -535,29 +535,29 @@ class TestMoreLikeThisValidation:
         """MLT validates that numeric parameters are positive integers."""
         # Test min_term_freq
         with pytest.raises(ValueError, match="min_term_freq must be >= 1"):
-            MoreLikeThis(product_id=1, min_term_freq=0)
+            MoreLikeThis(id=1, min_term_freq=0)
 
         with pytest.raises(ValueError, match="min_term_freq must be >= 1"):
-            MoreLikeThis(product_id=1, min_term_freq=-1)
+            MoreLikeThis(id=1, min_term_freq=-1)
 
         # Test max_query_terms
         with pytest.raises(ValueError, match="max_query_terms must be >= 1"):
-            MoreLikeThis(product_id=1, max_query_terms=0)
+            MoreLikeThis(id=1, max_query_terms=0)
 
         # Test min_word_length
         with pytest.raises(ValueError, match="min_word_length must be >= 1"):
-            MoreLikeThis(product_id=1, min_word_length=0)
+            MoreLikeThis(id=1, min_word_length=0)
 
         # Test type validation
         with pytest.raises(TypeError, match="min_term_freq must be an integer"):
-            MoreLikeThis(product_id=1, min_term_freq="5")  # type: ignore[arg-type]
+            MoreLikeThis(id=1, min_term_freq="5")  # type: ignore[arg-type]
 
         with pytest.raises(TypeError, match="min_term_freq must be an integer"):
-            MoreLikeThis(product_id=1, min_term_freq=True)  # type: ignore[arg-type]
+            MoreLikeThis(id=1, min_term_freq=True)  # type: ignore[arg-type]
 
         # Valid values should work
         mlt = MoreLikeThis(
-            product_id=1,
+            id=1,
             min_term_freq=1,
             max_query_terms=100,
             min_word_length=1,
@@ -568,16 +568,16 @@ class TestMoreLikeThisValidation:
 
     def test_mlt_custom_key_field(self) -> None:
         """MLT accepts custom key_field parameter."""
-        mlt = MoreLikeThis(product_id=1, key_field="custom_id")
+        mlt = MoreLikeThis(id=1, key_field="custom_id")
         assert mlt.key_field == "custom_id"
 
         # Default should be None
-        mlt = MoreLikeThis(product_id=1)
+        mlt = MoreLikeThis(id=1)
         assert mlt.key_field is None
 
     def test_mlt_key_field_validation(self) -> None:
         with pytest.raises(TypeError, match="key_field must be a string"):
-            MoreLikeThis(product_id=1, key_field=1)  # type: ignore[arg-type]
+            MoreLikeThis(id=1, key_field=1)  # type: ignore[arg-type]
 
         with pytest.raises(ValueError, match="key_field cannot be empty"):
-            MoreLikeThis(product_id=1, key_field="")
+            MoreLikeThis(id=1, key_field="")

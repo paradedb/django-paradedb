@@ -56,7 +56,7 @@ The official Python client for [ParadeDB](https://paradedb.com) — Elastic-qual
 Notes:
 
 - CI runs Python `3.10` through `3.14` across Django `4.2`, `5.2`, and `6.0`.
-- Schema compatibility is checked against every ParadeDB release.
+- Schema compatibility is checked every time a new version of ParadeDB is released.
 
 ## Installation
 

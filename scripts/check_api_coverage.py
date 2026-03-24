@@ -17,6 +17,9 @@ EXPORTED_ONLY_API_NAMES = {
     # Django exposes the direct-term operator for advanced users, but the
     # high-level Query API intentionally emits pdb.term(...) under @@@.
     "OP_TERM",
+    # Proximity is rendered via OP_PROXIMITY / OP_PROXIMITY_ORD operators,
+    # not the pdb.proximity() function call.
+    "FN_PROXIMITY",
 }
 
 

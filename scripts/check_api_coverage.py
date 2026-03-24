@@ -48,9 +48,7 @@ def flatten_ignore(section: object, *, kind: str) -> set[str]:
 
 def source_paths() -> list[Path]:
     return sorted(
-        path
-        for path in ROOT.glob("paradedb/**/*.py")
-        if path.name != "api.py"
+        path for path in ROOT.glob("paradedb/**/*.py") if path.name != "api.py"
     )
 
 
@@ -62,11 +60,7 @@ def parse_module(path: Path) -> ast.AST:
 
 
 def collect_name_references(module: ast.AST) -> set[str]:
-    return {
-        node.id
-        for node in ast.walk(module)
-        if isinstance(node, ast.Name)
-    }
+    return {node.id for node in ast.walk(module) if isinstance(node, ast.Name)}
 
 
 def collect_string_literals(module: ast.AST) -> list[str]:

@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 if ! command -v uv >/dev/null 2>&1; then
   echo "uv is required to run unit tests." >&2
   echo "Install uv, then rerun this script." >&2

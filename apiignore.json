@@ -1,7 +1,9 @@
 {
   "_comment": "Symbols present in the pg_search schema that django-paradedb intentionally does not wrap. Remove an entry here when you add it to api.json. Sections can be either a flat list or grouped object of lists.",
 
-  "operators": [],
+  "operators": [
+    "==="
+  ],
 
   "functions": [
     "pdb.agg_fn",
@@ -180,6 +182,7 @@
     "pdb.prox_clause",
     "pdb.prox_clause_in_order",
     "pdb.prox_term",
+    "pdb.proximity",
     "pdb.proximity_in_order",
 
     "pdb.tokenize_alias",

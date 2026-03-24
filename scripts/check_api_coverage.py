@@ -13,14 +13,6 @@ ROOT = Path(__file__).resolve().parents[1]
 API_JSON = ROOT / "api.json"
 APIIGNORE_JSON = ROOT / "apiignore.json"
 PDB_SYMBOL_RE = re.compile(r"\bpdb\.[A-Za-z_][A-Za-z0-9_]*\b")
-EXPORTED_ONLY_API_NAMES = {
-    # Django exposes the direct-term operator for advanced users, but the
-    # high-level Query API intentionally emits pdb.term(...) under @@@.
-    "OP_TERM",
-    # Proximity is rendered via OP_PROXIMITY / OP_PROXIMITY_ORD operators,
-    # not the pdb.proximity() function call.
-    "FN_PROXIMITY",
-}
 
 
 def load_json(path: Path) -> object:
@@ -109,7 +101,7 @@ def main() -> int:
         *(str(name) for name in functions),
         *(str(name) for name in types),
     }
-    expected_api_names = api_names - EXPORTED_ONLY_API_NAMES
+    expected_api_names = api_names
 
     try:
         ignored_functions = flatten_ignore(apiignore.get("functions"), kind="functions")
@@ -167,8 +159,7 @@ def main() -> int:
     print("✅ API coverage check passed.")
     print(
         "   "
-        f"api names referenced: {len(expected_api_names)}/{len(api_names)} "
-        f"(allowlisted export-only: {len(EXPORTED_ONLY_API_NAMES)})"
+        f"api names referenced: {len(expected_api_names)}/{len(api_names)}"
     )
     print(
         "   "

@@ -5,8 +5,7 @@
     "OP_OR":           "|||",
     "OP_PHRASE":       "###",
     "OP_PROXIMITY":    "##",
-    "OP_PROXIMITY_ORD": "##>",
-    "OP_TERM":         "==="
+    "OP_PROXIMITY_ORD": "##>"
   },
 
   "functions": {
@@ -17,7 +16,6 @@
     "FN_REGEX_PHRASE":     "pdb.regex_phrase",
     "FN_RANGE_TERM":       "pdb.range_term",
     "FN_REGEX":            "pdb.regex",
-    "FN_PROXIMITY":        "pdb.proximity",
     "FN_PROX_REGEX":       "pdb.prox_regex",
     "FN_PROX_ARRAY":       "pdb.prox_array",
     "FN_MORE_LIKE_THIS":   "pdb.more_like_this",

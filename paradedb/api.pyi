@@ -5,7 +5,6 @@ OP_OR: str
 OP_PHRASE: str
 OP_PROXIMITY: str
 OP_PROXIMITY_ORD: str
-OP_TERM: str
 
 # Functions
 FN_ALL: str
@@ -15,7 +14,6 @@ FN_PHRASE_PREFIX: str
 FN_REGEX_PHRASE: str
 FN_RANGE_TERM: str
 FN_REGEX: str
-FN_PROXIMITY: str
 FN_PROX_REGEX: str
 FN_PROX_ARRAY: str
 FN_MORE_LIKE_THIS: str

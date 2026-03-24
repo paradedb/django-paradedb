@@ -157,10 +157,7 @@ def main() -> int:
         return 1
 
     print("✅ API coverage check passed.")
-    print(
-        "   "
-        f"api names referenced: {len(expected_api_names)}/{len(api_names)}"
-    )
+    print(f"   api names referenced: {len(expected_api_names)}/{len(api_names)}")
     print(
         "   "
         f"source files: {len(paths)}, raw pdb.* references checked: {len(referenced_symbols)}"

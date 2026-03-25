@@ -12,15 +12,12 @@ import paradedb
 from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
-    Empty,
     Exists,
     FuzzyTerm,
     Match,
     ParadeDB,
     Parse,
-    ParseWithField,
     Phrase,
-    Range,
     TermSet,
 )
 from tests.models import Product
@@ -224,33 +221,6 @@ class TestParameterizedFieldValidation:
             instance.as_sql(compiler, Mock())
 
 
-class TestEmptyExpression:
-    """Test Empty dataclass construction."""
-
-    def test_empty_defaults(self) -> None:
-        expr = Empty()
-        assert expr.boost is None
-        assert expr.const is None
-
-    def test_empty_with_boost(self) -> None:
-        expr = Empty(boost=1.5)
-        assert expr.boost == 1.5
-
-    def test_empty_with_const(self) -> None:
-        expr = Empty(const=2.0)
-        assert expr.const == 2.0
-
-    def test_empty_with_boost_and_const(self) -> None:
-        expr = Empty(boost=1.5, const=2.0)
-        assert expr.boost == 1.5
-        assert expr.const == 2.0
-
-    def test_empty_is_frozen(self) -> None:
-        expr = Empty()
-        with pytest.raises(AttributeError):
-            expr.boost = 1.0  # type: ignore[misc]
-
-
 class TestExistsExpression:
     """Test Exists dataclass construction."""
 
@@ -352,106 +322,6 @@ class TestFuzzyTermExpression:
             expr.value = "boots"  # type: ignore[misc]
 
 
-class TestParseWithFieldExpression:
-    """Test ParseWithField dataclass construction."""
-
-    def test_parse_with_field_required_query(self) -> None:
-        expr = ParseWithField(query="running AND shoes")
-        assert expr.query == "running AND shoes"
-        assert expr.lenient is None
-        assert expr.conjunction_mode is None
-        assert expr.boost is None
-        assert expr.const is None
-
-    def test_parse_with_field_all_options(self) -> None:
-        expr = ParseWithField(
-            query="shoes",
-            lenient=True,
-            conjunction_mode=True,
-            boost=2.0,
-            const=1.0,
-        )
-        assert expr.query == "shoes"
-        assert expr.lenient is True
-        assert expr.conjunction_mode is True
-        assert expr.boost == 2.0
-        assert expr.const == 1.0
-
-    def test_parse_with_field_lenient_false(self) -> None:
-        expr = ParseWithField(query="test", lenient=False)
-        assert expr.lenient is False
-
-    def test_parse_with_field_conjunction_mode_false(self) -> None:
-        expr = ParseWithField(query="test", conjunction_mode=False)
-        assert expr.conjunction_mode is False
-
-    def test_parse_with_field_query_must_be_string(self) -> None:
-        with pytest.raises(TypeError, match="ParseWithField query must be a string"):
-            ParseWithField(query=1)  # type: ignore[arg-type]
-
-    def test_parse_with_field_lenient_must_be_boolean(self) -> None:
-        with pytest.raises(TypeError, match="ParseWithField lenient must be a boolean"):
-            ParseWithField(query="test", lenient=1)  # type: ignore[arg-type]
-
-    def test_parse_with_field_is_frozen(self) -> None:
-        expr = ParseWithField(query="test")
-        with pytest.raises(AttributeError):
-            expr.query = "other"  # type: ignore[misc]
-
-    def test_parse_with_field_missing_query_raises(self) -> None:
-        with pytest.raises(TypeError):
-            ParseWithField()  # type: ignore[call-arg]
-
-
-class TestRangeExpression:
-    """Test Range dataclass construction and validation."""
-
-    def test_range_int4range(self) -> None:
-        expr = Range(range="[1, 10]", range_type="int4range")
-        assert expr.range == "[1, 10]"
-        assert expr.range_type == "int4range"
-        assert expr.boost is None
-        assert expr.const is None
-
-    def test_range_all_valid_types(self) -> None:
-        for rt in (
-            "int4range",
-            "int8range",
-            "numrange",
-            "daterange",
-            "tsrange",
-            "tstzrange",
-        ):
-            expr = Range(range="[1, 10]", range_type=rt)  # type: ignore[arg-type]
-            assert expr.range_type == rt
-
-    def test_range_invalid_type_raises(self) -> None:
-        with pytest.raises(ValueError, match="Range type must be one of"):
-            Range(range="[1, 10]", range_type="badtype")  # type: ignore[arg-type]
-
-    def test_range_literal_must_be_string(self) -> None:
-        with pytest.raises(TypeError, match="Range range must be a string"):
-            Range(range=10, range_type="int4range")  # type: ignore[arg-type]
-
-    def test_range_with_boost_and_const(self) -> None:
-        expr = Range(range="(0, 100)", range_type="numrange", boost=1.5, const=2.0)
-        assert expr.boost == 1.5
-        assert expr.const == 2.0
-
-    def test_range_is_frozen(self) -> None:
-        expr = Range(range="[1, 10]", range_type="int4range")
-        with pytest.raises(AttributeError):
-            expr.range = "[2, 20]"  # type: ignore[misc]
-
-    def test_range_missing_args_raises(self) -> None:
-        with pytest.raises(TypeError):
-            Range()  # type: ignore[call-arg]
-
-    def test_range_missing_range_type_raises(self) -> None:
-        with pytest.raises(TypeError):
-            Range(range="[1, 10]")  # type: ignore[call-arg]
-
-
 class TestTermSetExpression:
     """Test TermSet dataclass construction and validation."""
 
@@ -514,12 +384,6 @@ class TestTermSetExpression:
 class TestNewQueryTypeValidation:
     """Test that new query types pass through _resolve_terms without TypeError."""
 
-    def test_empty_does_not_raise_type_error(self) -> None:
-        """ParadeDB(Empty()) should not raise TypeError from _resolve_terms."""
-        queryset = Product.objects.filter(description=ParadeDB(Empty()))
-        sql = str(queryset.query)
-        assert "pdb.empty()" in sql
-
     def test_exists_does_not_raise_type_error(self) -> None:
         queryset = Product.objects.filter(description=ParadeDB(Exists()))
         sql = str(queryset.query)
@@ -529,20 +393,6 @@ class TestNewQueryTypeValidation:
         queryset = Product.objects.filter(description=ParadeDB(FuzzyTerm(value="test")))
         sql = str(queryset.query)
         assert "pdb.fuzzy_term" in sql
-
-    def test_parse_with_field_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(ParseWithField(query="test"))
-        )
-        sql = str(queryset.query)
-        assert "pdb.parse_with_field" in sql
-
-    def test_range_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(Range(range="[1, 10]", range_type="int4range"))
-        )
-        sql = str(queryset.query)
-        assert "pdb.range" in sql
 
     def test_term_set_does_not_raise_type_error(self) -> None:
         queryset = Product.objects.filter(description=ParadeDB(TermSet("a", "b")))
@@ -580,11 +430,8 @@ class TestSnippetsValidation:
 class TestTopLevelExports:
     def test_query_and_manager_exports_are_available(self) -> None:
         expected_exports = [
-            "Empty",
             "Exists",
             "FuzzyTerm",
-            "ParseWithField",
-            "Range",
             "RangeRelation",
             "RangeType",
             "TermSet",

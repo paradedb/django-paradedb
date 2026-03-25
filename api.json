@@ -19,11 +19,8 @@
     "FN_PROX_REGEX":       "pdb.prox_regex",
     "FN_PROX_ARRAY":       "pdb.prox_array",
     "FN_MORE_LIKE_THIS":   "pdb.more_like_this",
-    "FN_EMPTY":            "pdb.empty",
     "FN_EXISTS":           "pdb.exists",
     "FN_FUZZY_TERM":       "pdb.fuzzy_term",
-    "FN_PARSE_WITH_FIELD": "pdb.parse_with_field",
-    "FN_RANGE":            "pdb.range",
     "FN_TERM_SET":         "pdb.term_set",
 
     "FN_SCORE":            "pdb.score",

@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+### Changed
+
+- **BREAKING**: Removed the `Empty`, `ParseWithField`, and `Range` query expressions
+  from the public search API.
+
 ## [0.5.0] - 2026-03-23
 
 ### Added

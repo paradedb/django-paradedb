@@ -10,15 +10,12 @@ from django.db.models.functions import Concat, RowNumber
 
 from paradedb.functions import Agg
 from paradedb.search import (
-    Empty,
     Exists,
     FuzzyTerm,
     Match,
     MoreLikeThis,
     ParadeDB,
-    ParseWithField,
     Phrase,
-    Range,
     TermSet,
 )
 from tests.models import Product
@@ -350,22 +347,6 @@ class TestFacets:
             queryset.facets("category", "category")
 
 
-class TestEmptyQuery:
-    """Test Empty query SQL generation."""
-
-    def test_empty_basic(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Empty()))
-        assert "@@@ pdb.empty()" in str(queryset.query)
-
-    def test_empty_with_boost(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Empty(boost=2.0)))
-        assert "@@@ pdb.empty()::pdb.boost(2.0)" in str(queryset.query)
-
-    def test_empty_with_const(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Empty(const=1.0)))
-        assert "@@@ pdb.empty()::pdb.const(1.0)" in str(queryset.query)
-
-
 class TestExistsQuery:
     """Test Exists query SQL generation."""
 
@@ -414,66 +395,6 @@ class TestFuzzyTermQuery:
         assert (
             "@@@ pdb.fuzzy_term('shoes')::pdb.fuzzy(1)::pdb.query::pdb.const(2.0)"
             in str(queryset.query)
-        )
-
-
-class TestParseWithFieldQuery:
-    """Test ParseWithField query SQL generation."""
-
-    def test_parse_with_field_basic(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(ParseWithField(query="shoes"))
-        )
-        assert "@@@ pdb.parse_with_field('shoes')" in str(queryset.query)
-
-    def test_parse_with_field_lenient(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(ParseWithField(query="shoes", lenient=True))
-        )
-        assert "@@@ pdb.parse_with_field('shoes', lenient => true)" in str(
-            queryset.query
-        )
-
-    def test_parse_with_field_conjunction_mode(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(ParseWithField(query="shoes", conjunction_mode=True))
-        )
-        assert "@@@ pdb.parse_with_field('shoes', conjunction_mode => true)" in str(
-            queryset.query
-        )
-
-    def test_parse_with_field_with_boost(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(ParseWithField(query="shoes", boost=2.0))
-        )
-        assert "@@@ pdb.parse_with_field('shoes')::pdb.boost(2.0)" in str(
-            queryset.query
-        )
-
-
-class TestRangeQuery:
-    """Test Range query SQL generation."""
-
-    def test_range_int4range(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(Range(range="[1, 10]", range_type="int4range"))
-        )
-        assert "@@@ pdb.range('[1, 10]'::int4range)" in str(queryset.query)
-
-    def test_range_numrange(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(Range(range="(0, 100)", range_type="numrange"))
-        )
-        assert "@@@ pdb.range('(0, 100)'::numrange)" in str(queryset.query)
-
-    def test_range_with_boost(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Range(range="[1, 10]", range_type="int4range", boost=2.0)
-            )
-        )
-        assert "@@@ pdb.range('[1, 10]'::int4range)::pdb.boost(2.0)" in str(
-            queryset.query
         )
 
 

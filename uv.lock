@@ -219,7 +219,7 @@ wheels = [
 
 [[package]]
 name = "django-paradedb"
-version = "0.4.0"
+version = "0.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "django", version = "5.2.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },

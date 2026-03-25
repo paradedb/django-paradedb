@@ -29,16 +29,13 @@ from django.db.models.sql.compiler import SQLCompiler
 
 from paradedb.api import (
     FN_ALL,
-    FN_EMPTY,
     FN_EXISTS,
     FN_FUZZY_TERM,
     FN_MORE_LIKE_THIS,
     FN_PARSE,
-    FN_PARSE_WITH_FIELD,
     FN_PHRASE_PREFIX,
     FN_PROX_ARRAY,
     FN_PROX_REGEX,
-    FN_RANGE,
     FN_RANGE_TERM,
     FN_REGEX,
     FN_REGEX_PHRASE,
@@ -468,14 +465,6 @@ class All:
 
 
 @dataclass(frozen=True)
-class Empty:
-    """Match-nothing query expression (opposite of All)."""
-
-    boost: float | None = None
-    const: float | None = None
-
-
-@dataclass(frozen=True)
 class Exists:
     """Field existence check — matches documents where the LHS field has any indexed value."""
 
@@ -501,44 +490,6 @@ class FuzzyTerm:
         )
         _validate_optional_bool("FuzzyTerm prefix", self.prefix)
         _validate_fuzzy_distance(self.distance)
-
-
-@dataclass(frozen=True)
-class ParseWithField:
-    """Query string parser scoped to the LHS field."""
-
-    query: str
-    lenient: bool | None = None
-    conjunction_mode: bool | None = None
-    boost: float | None = None
-    const: float | None = None
-
-    def __post_init__(self) -> None:
-        _validate_string("ParseWithField query", self.query)
-        _validate_optional_bool("ParseWithField lenient", self.lenient)
-        _validate_optional_bool(
-            "ParseWithField conjunction_mode", self.conjunction_mode
-        )
-
-
-@dataclass(frozen=True)
-class Range:
-    """Range query against the LHS field.
-
-    ``range`` is a PostgreSQL range literal (e.g. ``'[1, 10]'``) and
-    ``range_type`` is one of the supported PostgreSQL range types
-    (``int4range``, ``int8range``, ``numrange``, ``daterange``, ``tsrange``,
-    ``tstzrange``).
-    """
-
-    range: str
-    range_type: RangeType
-    boost: float | None = None
-    const: float | None = None
-
-    def __post_init__(self) -> None:
-        _validate_string("Range range", self.range)
-        _validate_range_type(self.range_type)
 
 
 @dataclass(frozen=True)
@@ -912,12 +863,9 @@ def _render_options(options: dict[str, object | None]) -> tuple[str, list[Any]]:
 
 TermType = (
     Match
-    | Empty
     | Exists
     | FuzzyTerm
     | MoreLikeThis
-    | ParseWithField
-    | Range
     | TermSet
     | Phrase
     | ProximityNode
@@ -1171,9 +1119,6 @@ class ParadeDB:
         if isinstance(term, Regex):
             rendered = f"{FN_REGEX}({self._quote_term(term.pattern)})"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, Empty):
-            rendered = f"{FN_EMPTY}()"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Exists):
             rendered = f"{FN_EXISTS}()"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
@@ -1197,17 +1142,6 @@ class ParadeDB:
                 and term.const is not None
             ):
                 rendered = f"{rendered}::{PDB_TYPE_QUERY}"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, ParseWithField):
-            rendered = (
-                f"{FN_PARSE_WITH_FIELD}({self._quote_term(term.query)}"
-                f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
-            )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
-        if isinstance(term, Range):
-            rendered = (
-                f"{FN_RANGE}({self._quote_range_literal(term.range, term.range_type)})"
-            )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, TermSet):
             array_sql = self._render_term_set_array(term.terms)
@@ -1334,7 +1268,6 @@ UUIDField.register_lookup(ParadeDBExact)
 
 __all__ = [
     "All",
-    "Empty",
     "Exists",
     "FuzzyTerm",
     "Match",
@@ -1342,12 +1275,10 @@ __all__ = [
     "ParadeDB",
     "ParadeOperator",
     "Parse",
-    "ParseWithField",
     "Phrase",
     "PhrasePrefix",
     "ProxRegex",
     "Proximity",
-    "Range",
     "RangeRelation",
     "RangeTerm",
     "RangeType",

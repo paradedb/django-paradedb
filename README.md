@@ -363,7 +363,6 @@ django-paradedb uses SQL literal escaping (rather than parameterized queries) fo
 
 ## Documentation
 
-- **Package Documentation**: <https://paradedb.github.io/django-paradedb>
 - **ParadeDB Official Docs**: <https://docs.paradedb.com>
 - **ParadeDB Website**: <https://paradedb.com>
 

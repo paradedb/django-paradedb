@@ -184,6 +184,9 @@
     "pdb.prox_term",
     "pdb.proximity",
     "pdb.proximity_in_order",
+    "pdb.range",
+    "pdb.parse_with_field",
+    "pdb.empty",
 
     "pdb.tokenize_alias",
     "pdb.tokenize_chinese_compatible",

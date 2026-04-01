@@ -161,7 +161,7 @@ jobs:
         run: uv run --with "${DJANGO_SPEC}" pytest -m integration --cov=paradedb --cov-append --cov-report=xml
 
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage.xml
           flags: django-paradedb,py${{ matrix.python-version }},dj${{ matrix.django-version }},pg${{ matrix.postgres-version }}

@@ -466,7 +466,7 @@ def test_multiple_tokenizers_with_ngram_options_migration() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-def test_add_index_concurrently() -> None:
+def test_add_and_remove_index_concurrently() -> None:
     """AddIndexConcurrently creates and reverses a BM25 index."""
     app_label = "migtests"
     table_name = "migtests_concurrent"
@@ -550,7 +550,7 @@ def test_add_index_concurrently() -> None:
 
 
 @pytest.mark.django_db(transaction=True)
-def test_remove_index_concurrently() -> None:
+def test_remove_and_add_index_concurrently() -> None:
     """RemoveIndexConcurrently drops and reverses a BM25 index."""
     app_label = "migtests"
     table_name = "migtests_concurrent_rm"

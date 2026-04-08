@@ -467,7 +467,7 @@ def test_multiple_tokenizers_with_ngram_options_migration() -> None:
 
 @pytest.mark.django_db(transaction=True)
 def test_add_index_concurrently() -> None:
-    """AddIndexConcurrently creates a BM25 index without holding table locks."""
+    """AddIndexConcurrently creates and reverses a BM25 index."""
     app_label = "migtests"
     table_name = "migtests_concurrent"
     index_name = "migtests_concurrent_bm25_idx"
@@ -534,6 +534,16 @@ def test_add_index_concurrently() -> None:
 
         assert _verify_index_usage(table_name, index_name)
 
+        # Step 4: Reverse the concurrent add and verify the index is dropped.
+        with connection.schema_editor(atomic=False) as editor:
+            add_index_op.database_backwards(
+                app_label, editor, after_state, before_state
+            )
+
+        assert _fetch_index_definition(table_name, index_name) is None, (
+            "Index was not dropped on reverse"
+        )
+
     finally:
         _drop_table_if_exists(table_name)
         connection.commit()
@@ -541,7 +551,7 @@ def test_add_index_concurrently() -> None:
 
 @pytest.mark.django_db(transaction=True)
 def test_remove_index_concurrently() -> None:
-    """RemoveIndexConcurrently drops a BM25 index without holding table locks."""
+    """RemoveIndexConcurrently drops and reverses a BM25 index."""
     app_label = "migtests"
     table_name = "migtests_concurrent_rm"
     index_name = "migtests_concurrent_rm_bm25_idx"
@@ -597,6 +607,14 @@ def test_remove_index_concurrently() -> None:
         assert _fetch_index_definition(table_name, index_name) is None, (
             "Index was not dropped"
         )
+
+        # Reverse the concurrent remove and verify the index is recreated.
+        with connection.schema_editor(atomic=False) as editor:
+            remove_op.database_backwards(app_label, editor, after_state, before_state)
+
+        index_def = _fetch_index_definition(table_name, index_name)
+        assert index_def is not None, "Index was not recreated on reverse"
+        assert "USING bm25" in index_def
 
     finally:
         _drop_table_if_exists(table_name)

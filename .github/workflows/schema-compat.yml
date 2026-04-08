@@ -7,6 +7,7 @@
 # or manually via workflow_dispatch.
 
 name: Schema Compatibility Check
+run-name: "Schema Compatibility Check — ParadeDB v${{ inputs.version || github.event.client_payload.version }}"
 
 on:
   repository_dispatch:

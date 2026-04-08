@@ -27,7 +27,7 @@ concurrency:
 
 jobs:
   release:
-    name: Release
+    name: Build and Publish to PyPI
     runs-on: ubuntu-latest
     permissions:
       contents: write

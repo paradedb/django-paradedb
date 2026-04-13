@@ -7,9 +7,10 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
+from django.db import models
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.migrations.writer import MigrationWriter
-from django.db.models import F, Q
+from django.db.models import F, Func, Q, Value
 from django.db.models.functions import Length, Lower
 
 from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
@@ -1473,6 +1474,34 @@ class TestBM25Index:
         assert (
             sql
             == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=false,stopwords_language=English,French,remove_long=20,remove_short=2,stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_indexed_expression_with_concat(self) -> None:
+        """Supports non-boolean token filter named args in DSL."""
+        index = BM25Index(
+            fields={"id": {}},
+            expressions=[
+                IndexExpression(
+                    Func(
+                        F("description"),
+                        Value(" "),
+                        F("category"),
+                        template="(%(expressions)s)",
+                        arg_joiner=" || ",
+                        output_field=models.TextField(),
+                    ),
+                    alias="description_concat",
+                    tokenizer="simple",
+                )
+            ],
+            key_field="id",
+            name="product_search_idx",
+        )
+        schema_editor = DummySchemaEditor()
+        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        assert (
+            sql
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((("tests_product"."description" || \' \' || "tests_product"."category"))::pdb.simple(\'alias=description_concat\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_legacy_options_key_raises(self) -> None:

@@ -16,23 +16,21 @@
   <a href="https://docs.paradedb.com/changelog/">Changelog</a>
 </h3>
 
+<p align="center">
+  <a href="https://pypi.org/project/django-paradedb/"><img src="https://img.shields.io/pypi/v/django-paradedb" alt="PyPI"></a>&nbsp;
+  <a href="https://pypi.org/project/django-paradedb/"><img src="https://img.shields.io/pypi/pyversions/django-paradedb" alt="Python Versions"></a>&nbsp;
+  <a href="https://pypi.org/project/django-paradedb/"><img src="https://img.shields.io/pypi/dm/django-paradedb" alt="Downloads"></a>&nbsp;
+  <a href="https://codecov.io/gh/paradedb/django-paradedb"><img src="https://codecov.io/gh/paradedb/django-paradedb/graph/badge.svg" alt="Codecov"></a>&nbsp;
+  <a href="https://github.com/paradedb/django-paradedb?tab=MIT-1-ov-file#readme"><img src="https://img.shields.io/github/license/paradedb/django-paradedb?color=blue" alt="License"></a>&nbsp;
+  <a href="https://paradedb.com/slack"><img src="https://img.shields.io/badge/Join%20Slack-purple?logo=slack" alt="Community"></a>&nbsp;
+  <a href="https://x.com/paradedb"><img src="https://img.shields.io/twitter/url?url=https%3A%2F%2Ftwitter.com%2Fparadedb&label=Follow%20%40paradedb" alt="Follow @paradedb"></a>
+</p>
+
 ---
 
-# django-paradedb
+## django-paradedb
 
-[![PyPI](https://img.shields.io/pypi/v/django-paradedb)](https://pypi.org/project/django-paradedb/)
-[![Python Versions](https://img.shields.io/pypi/pyversions/django-paradedb)](https://pypi.org/project/django-paradedb/)
-[![Downloads](https://img.shields.io/pypi/dm/django-paradedb)](https://pypi.org/project/django-paradedb/)
-[![Codecov](https://codecov.io/gh/paradedb/django-paradedb/graph/badge.svg)](https://codecov.io/gh/paradedb/django-paradedb)
-[![License](https://img.shields.io/github/license/paradedb/django-paradedb?color=blue)](https://github.com/paradedb/django-paradedb?tab=MIT-1-ov-file#readme)
-[![Slack URL](https://img.shields.io/badge/Join%20Slack-purple?logo=slack&link=https%3A%2F%2Fparadedb.com%2Fslack)](https://paradedb.com/slack)
-[![X URL](https://img.shields.io/twitter/url?url=https%3A%2F%2Ftwitter.com%2Fparadedb&label=Follow%20%40paradedb)](https://x.com/paradedb)
-
-The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com) including first class support for for managing BM25 indexes and running queries using the full ParadeDB API.
-
-## Usage
-
-Follow the [getting started guide](https://docs.paradedb.com/documentation/getting-started/environment#django) to begin.
+The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com) including first class support for for managing BM25 indexes and running queries using the full ParadeDB API. Follow the [getting started guide](https://docs.paradedb.com/documentation/getting-started/environment#django) to begin.
 
 ## Requirements & Compatibility
 

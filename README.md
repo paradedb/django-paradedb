@@ -30,7 +30,7 @@
 
 ## ParadeDB for Django
 
-The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com) including first class support for for managing BM25 indexes and running queries using the full ParadeDB API. Follow the [getting started guide](https://docs.paradedb.com/documentation/getting-started/environment#django) to begin.
+The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com), including first-class support for managing BM25 indexes and running queries using the full ParadeDB API. Follow the [getting started guide](https://docs.paradedb.com/documentation/getting-started/environment#django) to begin.
 
 ## Requirements & Compatibility
 

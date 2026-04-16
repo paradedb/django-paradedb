@@ -98,6 +98,8 @@ jobs:
     name: Notify on Failure
     runs-on: ubuntu-latest
     needs: [schema-compat, integration-tests]
+    permissions:
+      issues: write
     if: failure()
     steps:
       - name: Create GitHub Issue

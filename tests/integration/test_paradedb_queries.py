@@ -45,178 +45,305 @@ def _where_sql(lhs_sql: str, expr: ParadeDB) -> str:
     return sql
 
 
+def _assert_sql(sql: str, expected: str) -> None:
+    assert " ".join(sql.split()) == " ".join(expected.split())
+
+
 def test_multi_term_and() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("running", "shoes", operator="AND"))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("running", "shoes", operator="AND"))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& ARRAY['running', 'shoes']
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_exact_literal_disjunction_single() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("running shoes", operator="OR"))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("running shoes", operator="OR"))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| 'running shoes'
+        """,
+    )
+    ids = _ids(queryset)
     assert 3 in ids
     assert {3, 4, 5}.issubset(ids)
 
 
 def test_exact_literal_disjunction_multi() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("running", "wireless", operator="OR"))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("running", "wireless", operator="OR"))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| ARRAY['running', 'wireless']
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3, 12}
 
 
 def test_term_operator_for_plain_strings() -> None:
-    ids = _ids(MockItem.objects.filter(description=ParadeDB(Term("shoes"))))
+    queryset = MockItem.objects.filter(description=ParadeDB(Term("shoes")))
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.term('shoes')
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3, 4, 5}
 
 
 def test_phrase_with_slop() -> None:
-    ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(Phrase("running shoes", slop=1)))
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Phrase("running shoes", slop=1))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ### 'running shoes'::pdb.slop(1)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_unordered() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Proximity("keyboard").within(1, "metal"))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Proximity("keyboard").within(1, "metal"))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ ('keyboard' ## 1 ## 'metal')
+        """,
+    )
+    ids = _ids(queryset)
     assert 1 in ids
 
 
 def test_proximity_ordered() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Proximity("sleek").within(1, "running", ordered=True))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Proximity("sleek").within(1, "running", ordered=True))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ ('sleek' ##> 1 ##> 'running')
+        """,
+    )
+    ids = _ids(queryset)
     assert 3 in ids
 
 
 def test_proximity_with_boost() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Proximity("sleek").within(2, "running", ordered=True).boost(2.0)
-            )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Proximity("sleek").within(2, "running", ordered=True).boost(2.0)
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ ('sleek' ##> 2 ##> 'running')::pdb.boost(2.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_with_const() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Proximity("sleek").within(2, "running", ordered=True).const(1.0)
-            )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Proximity("sleek").within(2, "running", ordered=True).const(1.0)
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ ('sleek' ##> 2 ##> 'running')::pdb.const(1.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_regex_query() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Proximity("running").within(1, ProxRegex("sho.*")))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Proximity("running").within(1, ProxRegex("sho.*")))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ ('running' ## 1 ## pdb.prox_regex('sho.*'))
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_array_query() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Proximity(["sleek", "running"]).within(1, "shoes"))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Proximity(["sleek", "running"]).within(1, "shoes"))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ (pdb.prox_array('sleek', 'running') ## 1 ## 'shoes')
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_array_with_mixed_prox_regex_items() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Proximity(["sleek", ProxRegex("run.*")]).within(1, "shoes")
-            )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Proximity(["sleek", ProxRegex("run.*")]).within(1, "shoes")
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ (pdb.prox_array('sleek', pdb.prox_regex('run.*')) ## 1 ## 'shoes')
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_array_with_mixed_prox_regex_items_ordered() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Proximity(["sleek", ProxRegex("run.*")]).within(
-                    1,
-                    "shoes",
-                    ordered=True,
-                )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Proximity(["sleek", ProxRegex("run.*")]).within(
+                1,
+                "shoes",
+                ordered=True,
             )
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ (pdb.prox_array('sleek', pdb.prox_regex('run.*')) ##> 1 ##> 'shoes')
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_array_with_only_prox_regex_left_term() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Proximity(ProxRegex("run.*")).within(1, "shoes"))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Proximity(ProxRegex("run.*")).within(1, "shoes"))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ (pdb.prox_regex('run.*') ## 1 ## 'shoes')
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_array_with_prox_regex_custom_max_expansions() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Proximity(ProxRegex("run.*", max_expansions=100)).within(
-                    1,
-                    "shoes",
-                )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Proximity(ProxRegex("run.*", max_expansions=100)).within(
+                1,
+                "shoes",
             )
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ (pdb.prox_regex('run.*', 100) ## 1 ## 'shoes')
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_array_with_right_term_list() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Proximity("running").within(
-                    1,
-                    ["shoes", ProxRegex("boot.*")],
-                )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Proximity("running").within(
+                1,
+                ["shoes", ProxRegex("boot.*")],
             )
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ ('running' ## 1 ## pdb.prox_array('shoes', pdb.prox_regex('boot.*')))
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_proximity_with_nested_proximity_arrays() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Proximity("running").within(
-                    1,
-                    ["shoes", ["shoes", [ProxRegex("boot.*")]]],
-                )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Proximity("running").within(
+                1,
+                ["shoes", ["shoes", [ProxRegex("boot.*")]]],
             )
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ ('running' ## 1 ## pdb.prox_array('shoes', pdb.prox_array('shoes', pdb.prox_array(pdb.prox_regex('boot.*')))))
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
@@ -251,20 +378,34 @@ def test_proximity_array_with_invalid_prox_regex_pattern_raises() -> None:
 
 
 def test_fuzzy_distance() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("runnning", operator="OR", distance=1))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("runnning", operator="OR", distance=1))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| 'runnning'::pdb.fuzzy(1)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_fuzzy_conjunction() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("runnning shose", operator="AND", distance=2))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("runnning shose", operator="AND", distance=2))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& 'runnning shose'::pdb.fuzzy(2)
+        """,
+    )
+    ids = _ids(queryset)
     assert 3 in ids
 
 
@@ -273,151 +414,241 @@ def test_fuzzy_multi_term_or() -> None:
     qs = MockItem.objects.filter(
         description=ParadeDB(Match("runing", "shose", operator="OR", distance=2))
     )
+    _assert_sql(
+        str(qs.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| ARRAY['runing', 'shose']::pdb.fuzzy(2)
+        """,
+    )
     ids = _ids(qs)
     assert 3 in ids
 
 
 def test_fuzzy_multi_term_and() -> None:
     """Multi-term Match AND with distance uses ARRAY['t1', 't2']::pdb.fuzzy(N)."""
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("runing", "shose", operator="AND", distance=2))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("runing", "shose", operator="AND", distance=2))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& ARRAY['runing', 'shose']::pdb.fuzzy(2)
+        """,
+    )
+    ids = _ids(queryset)
     assert 3 in ids
 
 
 def test_fuzzy_term_form() -> None:
-    ids = _ids(MockItem.objects.filter(description=ParadeDB(Term("shose", distance=2))))
+    queryset = MockItem.objects.filter(description=ParadeDB(Term("shose", distance=2)))
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.term('shose')::pdb.fuzzy(2)
+        """,
+    )
+    ids = _ids(queryset)
     assert 3 in ids
 
 
 def test_fuzzy_prefix() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Term("runn", distance=0, prefix=True))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Term("runn", distance=0, prefix=True))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.term('runn')::pdb.fuzzy(0, t)
+        """,
+    )
+    ids = _ids(queryset)
     assert 3 in ids
 
 
 def test_fuzzy_transposition_cost_one() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Term("shose", distance=1, transposition_cost_one=True))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Term("shose", distance=1, transposition_cost_one=True))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.term('shose')::pdb.fuzzy(1, f, t)
+        """,
+    )
+    ids = _ids(queryset)
     assert 3 in ids
 
 
 def test_fuzzy_multi_term_prefix_and() -> None:
     """Multi-term Match AND with distance + prefix — docs/full-text/fuzzy.mdx snippet 3."""
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Match("slee", "rann", operator="AND", distance=1, prefix=True)
-            )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Match("slee", "rann", operator="AND", distance=1, prefix=True)
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& ARRAY['slee', 'rann']::pdb.fuzzy(1, t)
+        """,
+    )
+    ids = _ids(queryset)
     assert len(ids) > 0
 
 
 def test_all_query() -> None:
     """All() matches every indexed document — docs/aggregates/overview.mdx snippet 4."""
-    count = MockItem.objects.filter(id=ParadeDB(All())).count()
+    queryset = MockItem.objects.filter(id=ParadeDB(All()))
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.all()
+        """,
+    )
+    count = queryset.count()
     assert count > 0
 
 
 def test_filter_category_in_with_paradedb() -> None:
     """Term search with category__in filter — docs/filtering.mdx snippet 3."""
-    rows = list(
-        MockItem.objects.filter(
-            description=ParadeDB(Term("shoes")),
-            category__in=["Footwear", "Apparel"],
-        ).values("description", "rating", "category")
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Term("shoes")),
+        category__in=["Footwear", "Apparel"],
+    ).values("description", "rating", "category")
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."description" AS "description", "mock_items"."rating" AS "rating", "mock_items"."category" AS "category"
+        FROM "mock_items"
+        WHERE ("mock_items"."category" IN (Footwear, Apparel) AND "mock_items"."description" @@@ pdb.term('shoes'))
+        """,
     )
+    rows = list(queryset)
     for row in rows:
         assert row["category"] in ("Footwear", "Apparel")
 
 
 def test_tokenizer_override_match() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Match("running shoes", operator="AND", tokenizer="whitespace")
-            )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Match("running shoes", operator="AND", tokenizer="whitespace")
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& 'running shoes'::pdb.whitespace
+        """,
+    )
+    ids = _ids(queryset)
     assert 3 in ids
 
 
 def test_tokenizer_override_phrase() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Phrase("running shoes", tokenizer="whitespace"))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Phrase("running shoes", tokenizer="whitespace"))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ### 'running shoes'::pdb.whitespace
+        """,
+    )
+    ids = _ids(queryset)
     assert 3 in ids
 
 
 def test_tokenizer_override_match_with_args_sql() -> None:
-    where_sql = _where_sql(
-        '"description"',
-        ParadeDB(
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
             Match(
                 "running shoes",
                 operator="AND",
                 tokenizer="whitespace('lowercase=false')",
             )
-        ),
+        )
     )
-    assert (
-        where_sql
-        == "\"description\" &&& 'running shoes'::pdb.whitespace('lowercase=false')"
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& 'running shoes'::pdb.whitespace('lowercase=false')
+        """,
     )
 
 
 def test_tokenizer_override_or_with_args_sql() -> None:
-    where_sql = _where_sql(
-        '"description"',
-        ParadeDB(
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
             Match(
                 "wireless keyboard",
                 operator="OR",
                 tokenizer="simple('lowercase=false')",
             )
-        ),
+        )
     )
-    assert (
-        where_sql
-        == "\"description\" ||| 'wireless keyboard'::pdb.simple('lowercase=false')"
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| 'wireless keyboard'::pdb.simple('lowercase=false')
+        """,
     )
 
 
 def test_tokenizer_override_phrase_with_args_sql() -> None:
-    where_sql = _where_sql(
-        '"description"',
-        ParadeDB(Phrase("running shoes", tokenizer="raw('lowercase=false')")),
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Phrase("running shoes", tokenizer="raw('lowercase=false')")
+        )
     )
-    assert (
-        where_sql == "\"description\" ### 'running shoes'::pdb.raw('lowercase=false')"
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ### 'running shoes'::pdb.raw('lowercase=false')
+        """,
     )
 
 
 def test_tokenizer_override_phrase_with_multi_args_sql() -> None:
-    where_sql = _where_sql(
-        '"description"',
-        ParadeDB(
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
             Phrase(
                 "wireless mouse",
                 slop=2,
                 tokenizer="ngram('min_gram=3', 'max_gram=8')",
             )
-        ),
+        )
     )
-    assert (
-        where_sql
-        == "\"description\" ### 'wireless mouse'::pdb.slop(2)::pdb.ngram('min_gram=3', 'max_gram=8')"
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ### 'wireless mouse'::pdb.slop(2)::pdb.ngram('min_gram=3', 'max_gram=8')
+        """,
     )
 
 
@@ -438,70 +669,117 @@ def test_phrase_tokenizer_invalid_identifier() -> None:
 
 
 def test_boost_does_not_change_result_set() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND", boost=2.0))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("shoes", operator="AND", boost=2.0))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& 'shoes'::pdb.boost(2.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3, 4, 5}
 
 
 def test_boost_with_fuzzy_integration() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Match("runnning", operator="OR", distance=1, boost=2.0)
-            )
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("runnning", operator="OR", distance=1, boost=2.0))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| 'runnning'::pdb.fuzzy(1)::pdb.boost(2.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_const_with_fuzzy_integration() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("shose", operator="OR", distance=2, const=1.0))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("shose", operator="OR", distance=2, const=1.0))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| 'shose'::pdb.fuzzy(2)::pdb.query::pdb.const(1.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3, 4, 5}
 
 
 def test_const_with_phrase_slop_integration() -> None:
     # Verifies pdb.slop::pdb.query::pdb.const executes (previously failed with
     # "cannot cast type pdb.slop to pdb.const").
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Phrase("running shoes", slop=2, const=1.0))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Phrase("running shoes", slop=2, const=1.0))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ### 'running shoes'::pdb.slop(2)::pdb.query::pdb.const(1.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_const_does_not_change_result_set() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND", const=1.0))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("shoes", operator="AND", const=1.0))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& 'shoes'::pdb.const(1.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3, 4, 5}
 
 
 def test_boost_multi_term_or_query() -> None:
     # Verifies ARRAY['shoes', 'boots']::pdb.boost(2.0) is valid SQL and executes.
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", "boots", operator="OR", boost=2.0))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("shoes", "boots", operator="OR", boost=2.0))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| ARRAY['shoes', 'boots']::pdb.boost(2.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3, 4, 5, 13}
 
 
 def test_const_multi_term_or_query() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", "boots", operator="OR", const=1.5))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("shoes", "boots", operator="OR", const=1.5))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| ARRAY['shoes', 'boots']::pdb.const(1.5)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3, 4, 5, 13}
 
 
@@ -542,92 +820,185 @@ def test_boost_and_const_error_deferred_to_database() -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(Match("shoes", operator="AND", boost=2.0, const=1.0))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& 'shoes'::pdb.boost(2.0)::pdb.const(1.0)
+        """,
+    )
     with pytest.raises(DatabaseError, match="cannot cast type"):
         list(queryset)
 
 
 def test_regex_query() -> None:
-    ids = _ids(MockItem.objects.filter(description=ParadeDB(Regex(".*running.*"))))
+    queryset = MockItem.objects.filter(description=ParadeDB(Regex(".*running.*")))
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.regex('.*running.*')
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_parse_lenient() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Parse("running AND shoes", lenient=True))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Parse("running AND shoes", lenient=True))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.parse('running AND shoes', lenient => true)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_parse_conjunction_mode() -> None:
-    default_ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(Parse("running shoes")))
+    default_queryset = MockItem.objects.filter(
+        description=ParadeDB(Parse("running shoes"))
     )
-    conjunction_ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Parse("running shoes", conjunction_mode=True))
-        )
+    conjunction_queryset = MockItem.objects.filter(
+        description=ParadeDB(Parse("running shoes", conjunction_mode=True))
     )
+    _assert_sql(
+        str(default_queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.parse('running shoes')
+        """,
+    )
+    _assert_sql(
+        str(conjunction_queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.parse('running shoes', conjunction_mode => true)
+        """,
+    )
+    default_ids = _ids(default_queryset)
+    conjunction_ids = _ids(conjunction_queryset)
     assert conjunction_ids == {3}
     assert conjunction_ids.issubset(default_ids)
     assert len(default_ids) > len(conjunction_ids)
 
 
 def test_phrase_prefix_query() -> None:
-    ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(PhrasePrefix("running", "sh")))
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(PhrasePrefix("running", "sh"))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY['running', 'sh'])
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_phrase_prefix_with_max_expansion() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(PhrasePrefix("running", "sh", max_expansion=100))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(PhrasePrefix("running", "sh", max_expansion=100))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY['running', 'sh'], max_expansion => 100)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_phrase_prefix_with_boost() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(PhrasePrefix("running", "sh", boost=2.0))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(PhrasePrefix("running", "sh", boost=2.0))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY['running', 'sh'])::pdb.boost(2.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_phrase_prefix_with_const() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(PhrasePrefix("running", "sh", const=1.0))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(PhrasePrefix("running", "sh", const=1.0))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY['running', 'sh'])::pdb.const(1.0)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_regex_phrase_query() -> None:
-    ids = _ids(
-        MockItem.objects.filter(description=ParadeDB(RegexPhrase("run.*", "sho.*")))
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(RegexPhrase("run.*", "sho.*"))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.regex_phrase(ARRAY['run.*', 'sho.*'])
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_regex_phrase_with_options() -> None:
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                RegexPhrase("run.*", "sho.*", slop=2, max_expansions=100)
-            )
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(RegexPhrase("run.*", "sho.*", slop=2, max_expansions=100))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.regex_phrase(ARRAY['run.*', 'sho.*'], slop => 2, max_expansions => 100)
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3}
 
 
 def test_term_query() -> None:
-    ids = _ids(MockItem.objects.filter(description=ParadeDB(Term("shoes"))))
+    queryset = MockItem.objects.filter(description=ParadeDB(Term("shoes")))
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" @@@ pdb.term('shoes')
+        """,
+    )
+    ids = _ids(queryset)
     assert ids == {3, 4, 5}
 
 
@@ -730,46 +1101,80 @@ def test_paradedb_operators_over_expression_lhs() -> None:
 
 
 def test_snippet_rendering() -> None:
-    snippet = (
+    queryset = (
         MockItem.objects.filter(
             description=ParadeDB(Match("running shoes", operator="AND"))
         )
         .annotate(snippet=Snippet("description"))
         .order_by("id")
         .values_list("snippet", flat=True)
-        .first()
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT
+            pdb.snippet("mock_items"."description") AS "snippet"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& 'running shoes'
+        ORDER BY "mock_items"."id" ASC
+        """,
+    )
+    snippet = queryset.first()
     assert snippet is not None
     assert "<b>running</b>" in snippet and "<b>shoes</b>" in snippet
 
 
 def test_more_like_this_by_id() -> None:
     """MLT by ID with fields=['description'] returns similar items."""
-    ids = _ids(
-        MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(id=3, fields=["description"]))
-        ).order_by("id")
+    queryset = MockItem.objects.filter(
+        id=ParadeDB(MoreLikeThis(id=3, fields=["description"]))
+    ).order_by("id")
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(3, ARRAY[description]::text[])
+        ORDER BY "mock_items"."id" ASC
+        """,
     )
+    ids = _ids(queryset)
     assert ids == {3, 4, 5}
 
 
 def test_more_like_this_multiple_ids() -> None:
     """MLT with multiple IDs and fields=['description'] returns union."""
-    ids = _ids(
-        MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(ids=[3, 12], fields=["description"]))
-        ).order_by("id")
+    queryset = MockItem.objects.filter(
+        id=ParadeDB(MoreLikeThis(ids=[3, 12], fields=["description"]))
+    ).order_by("id")
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE ("mock_items"."id" @@@ pdb.more_like_this(3, ARRAY[description]::text[]) OR "mock_items"."id" @@@ pdb.more_like_this(12, ARRAY[description]::text[]))
+        ORDER BY "mock_items"."id" ASC
+        """,
     )
+    ids = _ids(queryset)
     assert ids == {3, 4, 5, 12}
 
 
 def test_more_like_this_by_document() -> None:
     """MLT with document finds similar documents."""
-    ids = _ids(
-        MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(document={"description": "wireless earbuds"}))
-        )
+    query = MockItem.objects.filter(
+        id=ParadeDB(MoreLikeThis(document={"description": "wireless earbuds"}))
     )
+    sql, _ = query.query.sql_with_params()
+    _assert_sql(
+        sql,
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(%s)
+        """,
+    )
+    ids = _ids(query)
     # Should find documents similar to the text
     assert 12 in ids  # "Innovative wireless earbuds"
 
@@ -777,29 +1182,43 @@ def test_more_like_this_by_document() -> None:
 def test_more_like_this_with_stopwords() -> None:
     """MLT with stopwords excludes terms from matching - verified by comparing results."""
     # Get baseline results without stopwords
-    baseline_ids = _ids(
-        MockItem.objects.filter(
-            id=ParadeDB(
-                MoreLikeThis(
-                    id=3,  # "Sleek running shoes"
-                    fields=["description"],
-                )
+    baseline_query = MockItem.objects.filter(
+        id=ParadeDB(
+            MoreLikeThis(
+                id=3,  # "Sleek running shoes"
+                fields=["description"],
             )
         )
     )
+    _assert_sql(
+        str(baseline_query.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(3, ARRAY[description]::text[])
+        """,
+    )
+    baseline_ids = _ids(baseline_query)
 
     # Get results with "shoes" as stopword
-    with_stopword_ids = _ids(
-        MockItem.objects.filter(
-            id=ParadeDB(
-                MoreLikeThis(
-                    id=3,
-                    fields=["description"],
-                    stopwords=["shoes"],
-                )
+    with_stopword_query = MockItem.objects.filter(
+        id=ParadeDB(
+            MoreLikeThis(
+                id=3,
+                fields=["description"],
+                stopwords=["shoes"],
             )
         )
     )
+    _assert_sql(
+        str(with_stopword_query.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(3, ARRAY[description]::text[], stopwords => ARRAY[shoes])
+        """,
+    )
+    with_stopword_ids = _ids(with_stopword_query)
 
     # Source item always included in both
     assert 3 in baseline_ids
@@ -821,29 +1240,43 @@ def test_more_like_this_with_stopwords() -> None:
 def test_more_like_this_with_word_length() -> None:
     """MLT with min/max word length filters terms - verified by comparing results."""
     # Get baseline without word length filter
-    baseline_ids = _ids(
-        MockItem.objects.filter(
-            id=ParadeDB(
-                MoreLikeThis(
-                    id=3,  # "Sleek running shoes"
-                    fields=["description"],
-                )
+    baseline_query = MockItem.objects.filter(
+        id=ParadeDB(
+            MoreLikeThis(
+                id=3,  # "Sleek running shoes"
+                fields=["description"],
             )
         )
     )
+    _assert_sql(
+        str(baseline_query.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(3, ARRAY[description]::text[])
+        """,
+    )
+    baseline_ids = _ids(baseline_query)
 
     # Get results with min_word_length=6 (filters out "shoes" which is 5 chars)
-    with_min_length_ids = _ids(
-        MockItem.objects.filter(
-            id=ParadeDB(
-                MoreLikeThis(
-                    id=3,
-                    fields=["description"],
-                    min_word_length=6,
-                )
+    with_min_length_query = MockItem.objects.filter(
+        id=ParadeDB(
+            MoreLikeThis(
+                id=3,
+                fields=["description"],
+                min_word_length=6,
             )
         )
     )
+    _assert_sql(
+        str(with_min_length_query.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(3, ARRAY[description]::text[], min_word_length => 6)
+        """,
+    )
+    with_min_length_ids = _ids(with_min_length_query)
 
     # Source item always included
     assert 3 in baseline_ids
@@ -857,28 +1290,42 @@ def test_more_like_this_with_word_length() -> None:
 
 def test_more_like_this_stopwords_reversible() -> None:
     """Verify stopwords effect is consistent and reversible."""
-    ids_with = _ids(
-        MockItem.objects.filter(
-            id=ParadeDB(
-                MoreLikeThis(
-                    id=3,
-                    fields=["description"],
-                    stopwords=["shoes"],  # The main matching term
-                )
+    query_with = MockItem.objects.filter(
+        id=ParadeDB(
+            MoreLikeThis(
+                id=3,
+                fields=["description"],
+                stopwords=["shoes"],  # The main matching term
             )
         )
     )
+    _assert_sql(
+        str(query_with.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(3, ARRAY[description]::text[], stopwords => ARRAY[shoes])
+        """,
+    )
+    ids_with = _ids(query_with)
 
-    ids_without = _ids(
-        MockItem.objects.filter(
-            id=ParadeDB(
-                MoreLikeThis(
-                    id=3,
-                    fields=["description"],
-                )
+    query_without = MockItem.objects.filter(
+        id=ParadeDB(
+            MoreLikeThis(
+                id=3,
+                fields=["description"],
             )
         )
     )
+    _assert_sql(
+        str(query_without.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(3, ARRAY[description]::text[])
+        """,
+    )
+    ids_without = _ids(query_without)
 
     assert ids_with == {3}
     assert ids_without == {3, 4, 5}
@@ -919,8 +1366,13 @@ def test_more_like_this_document_input_generates_correct_sql() -> None:
     sql, params = query.query.sql_with_params()
 
     # With parameterized SQL, the SQL should contain placeholder
-    assert "pdb.more_like_this(%s)" in sql, (
-        f"Expected parameterized format: pdb.more_like_this(%s)\nGot SQL: {sql}"
+    _assert_sql(
+        sql,
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(%s)
+        """,
     )
 
     # Check that the parameter contains the JSON string
@@ -955,9 +1407,13 @@ def test_more_like_this_empty_stopwords_generates_correct_sql() -> None:
 
     sql, _params = query.query.sql_with_params()
 
-    # Check that stopwords is not present at all
-    assert "stopwords" not in sql, (
-        f"Empty stopwords should be omitted entirely\nGot SQL: {sql}"
+    _assert_sql(
+        sql,
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(%s, ARRAY[%s]::text[])
+        """,
     )
 
 
@@ -975,9 +1431,14 @@ def test_more_like_this_with_key_field() -> None:
 
     sql, _ = query.query.sql_with_params()
 
-    # Should use the specified key_field column
-    assert '"mock_items"."id"' in sql, f"Expected key_field column in SQL: {sql}"
-    assert "pdb.more_like_this" in sql
+    _assert_sql(
+        sql,
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(%s, ARRAY[%s]::text[])
+        """,
+    )
     # Verify the query executes without error
     ids = _ids(query)
     assert 3 in ids
@@ -994,8 +1455,14 @@ def test_more_like_this_document_as_json_string() -> None:
 
     sql, params = query.query.sql_with_params()
 
-    # Should use parameterized JSON
-    assert "pdb.more_like_this(%s)" in sql, f"Expected parameterized SQL: {sql}"
+    _assert_sql(
+        sql,
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(%s)
+        """,
+    )
 
     # Verify the JSON string is in params
     json_params = [p for p in params if isinstance(p, str) and "wireless" in p]
@@ -1025,42 +1492,69 @@ def test_more_like_this_word_length_min_greater_than_max() -> None:
     query = MockItem.objects.filter(id=ParadeDB(mlt))
     sql, _params = query.query.sql_with_params()
 
-    assert "min_word_length => 10" in sql
-    assert "max_word_length => 5" in sql
+    _assert_sql(
+        sql,
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."id" @@@ pdb.more_like_this(%s, ARRAY[%s]::text[], min_word_length => 10, max_word_length => 5)
+        """,
+    )
 
 
 def test_multi_term_fuzzy_match_or() -> None:
     """FUZZY-1: Match with multiple terms and OR operator uses fuzzy on array."""
     # This should generate: ARRAY['runing', 'shose']::pdb.fuzzy(2)
     # NOT: ARRAY['runing'::pdb.fuzzy(2), 'shose'::pdb.fuzzy(2)]
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("runing", "shose", operator="OR", distance=2))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("runing", "shose", operator="OR", distance=2))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" ||| ARRAY['runing', 'shose']::pdb.fuzzy(2)
+        """,
+    )
+    ids = _ids(queryset)
     # Should match item 3 (running shoes) with fuzzy distance 2
     assert 3 in ids
 
 
 def test_multi_term_fuzzy_match_and() -> None:
     """FUZZY-2: Match with multiple terms and AND operator uses fuzzy on array."""
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(Match("runing", "shose", operator="AND", distance=2))
-        )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Match("runing", "shose", operator="AND", distance=2))
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& ARRAY['runing', 'shose']::pdb.fuzzy(2)
+        """,
+    )
+    ids = _ids(queryset)
     # Should match item 3 (running shoes) with fuzzy distance 2
     assert 3 in ids
 
 
 def test_multi_term_fuzzy_match_and_prefix() -> None:
     """FUZZY-5: Match with multiple terms, AND operator, distance=1, and prefix."""
-    ids = _ids(
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Match("slee", "rann", operator="AND", distance=1, prefix=True)
-            )
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Match("slee", "rann", operator="AND", distance=1, prefix=True)
         )
     )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& ARRAY['slee', 'rann']::pdb.fuzzy(1, t)
+        """,
+    )
+    ids = _ids(queryset)
     # Should match item 3 (sleek running) with prefix fuzzy
     assert 3 in ids

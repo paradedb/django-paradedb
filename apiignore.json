@@ -73,6 +73,16 @@
     "pdb.whitespace_out",
     "pdb.whitespace_recv",
     "pdb.whitespace_send",
+    "pdb.edge_ngram_in",
+    "pdb.edge_ngram_out",
+    "pdb.edge_ngram_recv",
+    "pdb.edge_ngram_send",
+    "pdb.json_to_edge_ngram",
+    "pdb.jsonb_to_edge_ngram",
+    "pdb.text_array_to_edge_ngram",
+    "pdb.tokenize_edge_ngram",
+    "pdb.uuid_to_edge_ngram",
+    "pdb.varchar_array_to_edge_ngram",
 
     "pdb.bigint_array_to_alias",
     "pdb.bigint_to_alias",
@@ -205,6 +215,7 @@
 
   "types": [
     "pdb.icu",
-    "pdb.proximityclause"
+    "pdb.proximityclause",
+    "pdb.edge_ngram"
   ]
 }

@@ -653,19 +653,21 @@ def test_tokenizer_override_phrase_with_multi_args_sql() -> None:
 
 
 def test_tokenizer_override_invalid_identifier() -> None:
-    with pytest.raises(DatabaseError, match="does not exist"):
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Match("running shoes", operator="AND", tokenizer="bad-tokenizer;")
-            )
-        ).exists()
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Match("running shoes", operator="AND", tokenizer="bad-tokenizer;")
+        )
+    )
+    with pytest.raises(ValueError, match="Invalid tokenizer"):
+        str(queryset.query)
 
 
 def test_phrase_tokenizer_invalid_identifier() -> None:
-    with pytest.raises(DatabaseError, match="does not exist"):
-        MockItem.objects.filter(
-            description=ParadeDB(Phrase("running shoes", tokenizer="bad tokenizer"))
-        ).exists()
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(Phrase("running shoes", tokenizer="bad tokenizer"))
+    )
+    with pytest.raises(ValueError, match="Invalid tokenizer"):
+        str(queryset.query)
 
 
 def test_boost_does_not_change_result_set() -> None:

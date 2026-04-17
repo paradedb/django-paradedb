@@ -71,16 +71,15 @@ from paradedb.api import (
 ParadeOperator = Literal["OR", "AND"]
 
 
-# Regex to detect simple PostgreSQL identifiers (no quoting needed) vs complex ones.
-# Simple identifiers can be used directly as `pdb.name`. We also support tokenizer
-# invocation syntax such as `whitespace('lowercase=false')`.
-_SIMPLE_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-_TOKENIZER_CALL_RE = re.compile(
-    r"^(?P<name>[A-Za-z_][A-Za-z0-9_]*)\((?P<args>.*)\)$", re.DOTALL
+# Tokenizer overrides accept a bare identifier like `whitespace` or a call like
+# `ngram(3, 3)` / `whitespace('lowercase=false')`.
+_TOKENIZER_IDENTIFIER = r"[A-Za-z_][A-Za-z0-9_]*"
+_TOKENIZER_ARG = rf"(?:'(?:[^']|'')*'|{_TOKENIZER_IDENTIFIER}|[0-9]+)"
+_TOKENIZER_RE = re.compile(
+    rf"^(?P<name>{_TOKENIZER_IDENTIFIER})(?:\((?P<args>.*)\))?$", re.DOTALL
 )
-# Tokenizer args must be SQL string literals: 'k=v'[, 'k=v', ...]
-_TOKENIZER_CALL_ARGS_RE = re.compile(
-    r"^\s*(?:'(?:[^']|'')*'\s*(?:,\s*'(?:[^']|'')*'\s*)*)?$"
+_TOKENIZER_ARGS_RE = re.compile(
+    rf"^\s*(?:{_TOKENIZER_ARG}(?:\s*,\s*{_TOKENIZER_ARG})*)?\s*$"
 )
 
 # Maps the bare tokenizer name (e.g. "whitespace") to its qualified pdb type constant.
@@ -111,24 +110,23 @@ def _tokenizer_cast(name: str) -> str:
 
     Supported forms:
     - ``tokenizer``
+    - ``tokenizer(3, 3)``
+    - ``tokenizer(chinese)``
     - ``tokenizer('k=v')``
     - ``tokenizer('k=v', 'k2=v2')``
-
-    Any other form is treated as an identifier and quoted to avoid injection.
     """
-    if _SIMPLE_IDENTIFIER_RE.match(name):
-        return _KNOWN_TOKENIZERS.get(name, f"pdb.{name}")
+    match = _TOKENIZER_RE.match(name)
+    if match is None:
+        raise ValueError(f"Invalid tokenizer: {name!r}")
 
-    tokenizer_call = _TOKENIZER_CALL_RE.match(name)
-    if tokenizer_call is not None:
-        tokenizer_name = tokenizer_call.group("name")
-        tokenizer_args = tokenizer_call.group("args")
-        if _TOKENIZER_CALL_ARGS_RE.match(tokenizer_args):
-            qualified = _KNOWN_TOKENIZERS.get(tokenizer_name, f"pdb.{tokenizer_name}")
-            return f"{qualified}({tokenizer_args.strip()})"
-
-    escaped = name.replace('"', '""')
-    return f'pdb."{escaped}"'
+    tokenizer_name = match.group("name")
+    tokenizer_args = match.group("args")
+    qualified = _KNOWN_TOKENIZERS.get(tokenizer_name, f"pdb.{tokenizer_name}")
+    if tokenizer_args is None:
+        return qualified
+    if not _TOKENIZER_ARGS_RE.match(tokenizer_args):
+        raise ValueError(f"Invalid tokenizer: {name!r}")
+    return f"{qualified}({tokenizer_args.strip()})"
 
 
 def _is_fuzzy_enabled(

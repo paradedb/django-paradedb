@@ -461,6 +461,17 @@ class TestTokenizerOverride:
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'wireless keyboard\'::pdb.simple(\'lowercase=false\', \'remove_long=20\')'
         )
 
+    def test_match_with_tokenizer_positional_args(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Match("running shoes", operator="AND", tokenizer="ngram(3, 3)")
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'running shoes\'::pdb.ngram(3, 3)'
+        )
+
     def test_phrase_with_tokenizer_args(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(

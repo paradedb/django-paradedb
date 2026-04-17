@@ -98,14 +98,14 @@ class TestSpecialCharacterEscaping:
 class TestParadeDBValidation:
     """Test input validation for ParadeDB wrapper."""
 
-    def test_paradedb_invalid_tokenizer_deferred_to_database(self) -> None:
-        """Tokenizer names are quoted in SQL; validity is deferred to database execution."""
+    def test_paradedb_invalid_tokenizer_raises(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
                 Match("shoes", operator="AND", tokenizer="bad-tokenizer;")
             )
         )
-        assert '::pdb."bad-tokenizer;"' in str(queryset.query)
+        with pytest.raises(ValueError, match="Invalid tokenizer"):
+            str(queryset.query)
 
 
 class TestPhraseValidation:
@@ -142,12 +142,12 @@ class TestPhraseValidation:
         with pytest.raises(TypeError, match="Phrase tokenizer must be a string"):
             Phrase("test", tokenizer=1)  # type: ignore[arg-type]
 
-    def test_phrase_invalid_tokenizer_deferred_to_database(self) -> None:
-        """Phrase tokenizer names are quoted in SQL; validity is deferred to database execution."""
+    def test_phrase_invalid_tokenizer_raises(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(Phrase("test", tokenizer="bad tokenizer"))
         )
-        assert '::pdb."bad tokenizer"' in str(queryset.query)
+        with pytest.raises(ValueError, match="Invalid tokenizer"):
+            str(queryset.query)
 
 
 class TestDistanceValidation:

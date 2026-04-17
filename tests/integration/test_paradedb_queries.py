@@ -20,6 +20,7 @@ from paradedb.search import (
     Regex,
     RegexPhrase,
     Term,
+    Tokenizer,
 )
 from tests.models import MockItem
 
@@ -545,7 +546,7 @@ def test_filter_category_in_with_paradedb() -> None:
 def test_tokenizer_override_match() -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(
-            Match("running shoes", operator="AND", tokenizer="whitespace")
+            Match("running shoes", operator="AND", tokenizer=Tokenizer.whitespace())
         )
     )
     _assert_sql(
@@ -582,7 +583,7 @@ def test_tokenizer_override_match_with_args_sql() -> None:
             Match(
                 "running shoes",
                 operator="AND",
-                tokenizer="whitespace('lowercase=false')",
+                tokenizer=Tokenizer.whitespace(options={"lowercase": "false"}),
             )
         )
     )
@@ -602,7 +603,7 @@ def test_tokenizer_override_or_with_args_sql() -> None:
             Match(
                 "wireless keyboard",
                 operator="OR",
-                tokenizer="simple('lowercase=false')",
+                tokenizer=Tokenizer.simple(options={"lowercase": "false"}),
             )
         )
     )
@@ -650,22 +651,6 @@ def test_tokenizer_override_phrase_with_multi_args_sql() -> None:
         WHERE "mock_items"."description" ### 'wireless mouse'::pdb.slop(2)::pdb.ngram('min_gram=3', 'max_gram=8')
         """,
     )
-
-
-def test_tokenizer_override_invalid_identifier() -> None:
-    with pytest.raises(DatabaseError, match="does not exist"):
-        MockItem.objects.filter(
-            description=ParadeDB(
-                Match("running shoes", operator="AND", tokenizer="bad-tokenizer;")
-            )
-        ).exists()
-
-
-def test_phrase_tokenizer_invalid_identifier() -> None:
-    with pytest.raises(DatabaseError, match="does not exist"):
-        MockItem.objects.filter(
-            description=ParadeDB(Phrase("running shoes", tokenizer="bad tokenizer"))
-        ).exists()
 
 
 def test_boost_does_not_change_result_set() -> None:
@@ -1091,7 +1076,9 @@ def test_paradedb_operators_over_expression_lhs() -> None:
 
     expr_where = _where_sql(
         "(description || ' ' || category)",
-        ParadeDB(Match("running Sportswear", operator="AND", tokenizer="simple")),
+        ParadeDB(
+            Match("running Sportswear", operator="AND", tokenizer=Tokenizer.simple())
+        ),
     )
     ids = _raw_ids(f"SELECT id FROM tmp_expr_ops WHERE {expr_where} ORDER BY id;")
     assert ids == {1}
@@ -1558,3 +1545,20 @@ def test_multi_term_fuzzy_match_and_prefix() -> None:
     ids = _ids(queryset)
     # Should match item 3 (sleek running) with prefix fuzzy
     assert 3 in ids
+
+
+def test_all_tokenizers() -> None:
+    """Run through every tokenizer"""
+    queryset = MockItem.objects.filter(
+        description=ParadeDB(
+            Match("running shoes", operator="AND", tokenizer=Tokenizer.whitespace())
+        )
+    )
+    _assert_sql(
+        str(queryset.query),
+        """
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        FROM "mock_items"
+        WHERE "mock_items"."description" &&& 'running shoes'::pdb.whitespace
+        """,
+    )

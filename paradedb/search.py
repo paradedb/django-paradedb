@@ -167,6 +167,55 @@ def _validate_optional_bool(name: str, value: bool | None) -> None:
         raise TypeError(f"{name} must be a boolean.")
 
 
+class Tokenizer:
+    """A ParadeDB Tokenizer call"""
+
+    tokenizer: str
+    params: list[int | str] | None
+    options: dict[str, str] | None
+
+    def __init__(
+        self,
+        tokenizer: str,
+        params: list[int | str] | None = None,
+        options: dict[str, str] | None = None,
+    ) -> None:
+        self.tokenizer = tokenizer
+        self.params = params
+        self.options = options
+
+    @staticmethod
+    def whitespace(options: dict[str, str] | None = None) -> Tokenizer:
+        return Tokenizer("whitespace", None, options)
+
+    @staticmethod
+    def simple(options: dict[str, str] | None = None) -> Tokenizer:
+        return Tokenizer("simple", None, options)
+
+
+def _render_tokenizer(tokenizer: Tokenizer) -> str:
+    if tokenizer.params is None and tokenizer.options is None:
+        return f"pdb.{tokenizer.tokenizer}"
+
+    arguments: list[str] = []
+
+    if tokenizer.params:
+        for param in tokenizer.params:
+            if isinstance(param, str):
+                arguments.append(_quote_term(param))
+            elif isinstance(param, int):
+                arguments.append(str(int))
+            else:
+                raise TypeError("Unsupported type for tokenizer parameters", param)
+
+    if tokenizer.options:
+        arguments.append(
+            _quote_term(",".join(f"{k}={v}" for k, v in tokenizer.options.items()))
+        )
+
+    return f"pdb.{tokenizer.tokenizer}({', '.join(arguments)})"
+
+
 @dataclass(frozen=True)
 class Phrase:
     """Phrase search expression.
@@ -549,7 +598,7 @@ class Match:
 
     terms: tuple[str, ...]
     operator: ParadeOperator
-    tokenizer: str | None = None
+    tokenizer: Tokenizer | None = None
     distance: int | None = None
     prefix: bool = False
     transposition_cost_one: bool = False
@@ -560,7 +609,7 @@ class Match:
         self,
         *terms: str,
         operator: ParadeOperator,
-        tokenizer: str | None = None,
+        tokenizer: Tokenizer | None = None,
         distance: int | None = None,
         prefix: bool = False,
         transposition_cost_one: bool = False,
@@ -573,8 +622,6 @@ class Match:
             raise ValueError("Match operator must be 'AND' or 'OR'.")
         if not all(isinstance(term, str) for term in terms):
             raise TypeError("Match terms must be strings.")
-        if tokenizer is not None and not isinstance(tokenizer, str):
-            raise TypeError("Match tokenizer must be a string.")
         if not isinstance(prefix, bool):
             raise TypeError("Match prefix must be a boolean.")
         if not isinstance(transposition_cost_one, bool):
@@ -945,13 +992,6 @@ class ParadeDB:
         return OP_SEARCH
 
     @staticmethod
-    def _quote_term(term: str) -> str:
-        if not isinstance(term, str):
-            raise TypeError("Search term literal must be a string.")
-        escaped = term.replace("'", "''")
-        return f"'{escaped}'"
-
-    @staticmethod
     def _quote_range_literal(
         value: int | float | str | date | datetime, range_type: RangeType
     ) -> str:
@@ -960,7 +1000,7 @@ class ParadeDB:
         else:
             literal = str(value)
         safe_range_type = _validate_range_type(range_type)
-        return f"{ParadeDB._quote_term(literal)}::{safe_range_type}"
+        return f"{_quote_term(literal)}::{safe_range_type}"
 
     @staticmethod
     def _render_scoring_number(value: float | None, *, name: str) -> str | None:
@@ -1024,11 +1064,13 @@ class ParadeDB:
 
     def _render_proximity_term(self, term: ProximityTerm) -> str:
         if isinstance(term, str):
-            return self._quote_term(term)
+            return _quote_term(term)
         if isinstance(term, ProxRegex):
             if term.max_expansions is None:
-                return f"{FN_PROX_REGEX}({self._quote_term(term.pattern)})"
-            return f"{FN_PROX_REGEX}({self._quote_term(term.pattern)}, {term.max_expansions})"
+                return f"{FN_PROX_REGEX}({_quote_term(term.pattern)})"
+            return (
+                f"{FN_PROX_REGEX}({_quote_term(term.pattern)}, {term.max_expansions})"
+            )
         if isinstance(term, list):
             parts = [self._render_proximity_term(x) for x in term]
             return f"{FN_PROX_ARRAY}({', '.join(parts)})"
@@ -1037,9 +1079,9 @@ class ParadeDB:
     def _render_term(self, term: TermType) -> str:
         if isinstance(term, Phrase):
             if len(term.terms) == 1:
-                rendered = self._quote_term(term.terms[0])
+                rendered = _quote_term(term.terms[0])
             else:
-                quoted = [self._quote_term(item) for item in term.terms]
+                quoted = [_quote_term(item) for item in term.terms]
                 rendered = f"ARRAY[{', '.join(quoted)}]"
             if term.slop is not None:
                 rendered = f"{rendered}::{PDB_TYPE_SLOP}({term.slop})"
@@ -1067,19 +1109,19 @@ class ParadeDB:
             return self._append_scoring(rendered, boost=boost, const=const)
         if isinstance(term, Parse):
             rendered = (
-                f"{FN_PARSE}({self._quote_term(term.query)}"
+                f"{FN_PARSE}({_quote_term(term.query)}"
                 f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, PhrasePrefix):
-            phrases_sql = ", ".join(self._quote_term(phrase) for phrase in term.phrases)
+            phrases_sql = ", ".join(_quote_term(phrase) for phrase in term.phrases)
             rendered = (
                 f"{FN_PHRASE_PREFIX}(ARRAY[{phrases_sql}]"
                 f"{self._render_options({'max_expansion': term.max_expansion})})"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, RegexPhrase):
-            regex_sql = ", ".join(self._quote_term(regex) for regex in term.regexes)
+            regex_sql = ", ".join(_quote_term(regex) for regex in term.regexes)
             rendered = (
                 f"{FN_REGEX_PHRASE}(ARRAY[{regex_sql}]"
                 f"{self._render_options({'slop': term.slop, 'max_expansions': term.max_expansions})})"
@@ -1093,12 +1135,12 @@ class ParadeDB:
                 rendered = (
                     f"{FN_RANGE_TERM}("
                     f"{self._quote_range_literal(term.value, term.range_type)}, "
-                    f"{self._quote_term(term.relation)}"
+                    f"{_quote_term(term.relation)}"
                     ")"
                 )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Term):
-            rendered = f"{FN_TERM}({self._quote_term(term.text)})"
+            rendered = f"{FN_TERM}({_quote_term(term.text)})"
             rendered = self._append_fuzzy(
                 rendered,
                 distance=term.distance,
@@ -1117,14 +1159,14 @@ class ParadeDB:
                 rendered = f"{rendered}::{PDB_TYPE_QUERY}"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Regex):
-            rendered = f"{FN_REGEX}({self._quote_term(term.pattern)})"
+            rendered = f"{FN_REGEX}({_quote_term(term.pattern)})"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Exists):
             rendered = f"{FN_EXISTS}()"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, FuzzyTerm):
             if term.value is not None:
-                rendered = f"{FN_FUZZY_TERM}({self._quote_term(term.value)})"
+                rendered = f"{FN_FUZZY_TERM}({_quote_term(term.value)})"
             else:
                 rendered = f"{FN_FUZZY_TERM}()"
             rendered = self._append_fuzzy(
@@ -1151,12 +1193,12 @@ class ParadeDB:
             return f"{FN_ALL}()"
         if isinstance(term, Match):
             if len(term.terms) == 1:
-                rendered = self._quote_term(term.terms[0])
+                rendered = _quote_term(term.terms[0])
             else:
-                quoted = [self._quote_term(item) for item in term.terms]
+                quoted = [_quote_term(item) for item in term.terms]
                 rendered = f"ARRAY[{', '.join(quoted)}]"
             if term.tokenizer is not None:
-                rendered = f"{rendered}::{_tokenizer_cast(term.tokenizer)}"
+                rendered = f"{rendered}::{_render_tokenizer(term.tokenizer)}"
             rendered = self._append_fuzzy(
                 rendered,
                 distance=term.distance,
@@ -1203,17 +1245,15 @@ class ParadeDB:
                 if not isinstance(term, datetime):
                     raise TypeError("TermSet terms must all be datetime values.")
                 datetime_terms.append(term)
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(term.isoformat()) for term in datetime_terms)}]::timestamptz[]"
+            return f"ARRAY[{', '.join(_quote_term(term.isoformat()) for term in datetime_terms)}]::timestamptz[]"
         if isinstance(first, date):
             date_terms: list[date] = []
             for term in terms:
                 if not isinstance(term, date) or isinstance(term, datetime):
                     raise TypeError("TermSet terms must all be date values.")
                 date_terms.append(term)
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(term.isoformat()) for term in date_terms)}]::date[]"
-        return (
-            f"ARRAY[{', '.join(ParadeDB._quote_term(str(t)) for t in terms)}]::text[]"
-        )
+            return f"ARRAY[{', '.join(_quote_term(term.isoformat()) for term in date_terms)}]::date[]"
+        return f"ARRAY[{', '.join(_quote_term(str(t)) for t in terms)}]::text[]"
 
     @staticmethod
     def _render_options(options: dict[str, object | None]) -> str:
@@ -1233,10 +1273,17 @@ class ParadeDB:
         if isinstance(value, int | float):
             return str(value)
         if isinstance(value, date | datetime):
-            return ParadeDB._quote_term(value.isoformat())
+            return _quote_term(value.isoformat())
         if isinstance(value, str):
-            return ParadeDB._quote_term(value)
+            return _quote_term(value)
         raise TypeError("Unsupported option value type.")
+
+
+def _quote_term(term: str) -> str:
+    if not isinstance(term, str):
+        raise TypeError("Search term literal must be a string.")
+    escaped = term.replace("'", "''")
+    return f"'{escaped}'"
 
 
 class ParadeDBExact(Exact):  # type: ignore[type-arg]

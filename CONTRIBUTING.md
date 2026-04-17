@@ -55,8 +55,8 @@ uv run ruff format .
 uv run mypy paradedb
 
 # Run API/package consistency checks
-python3 scripts/check_api_coverage.py
-python3 scripts/check_api_stub_sync.py
+uv run python scripts/check_api_coverage.py
+uv run python scripts/check_api_stub_sync.py
 bash scripts/smoke_wheel_install.sh
 ```
 

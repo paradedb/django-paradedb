@@ -1,5 +1,5 @@
 {
-  "_comment": "Symbols present in the pg_search schema that django-paradedb intentionally does not wrap. Remove an entry here when you add it to api.json. Sections can be either a flat list or grouped object of lists.",
+  "_comment": "Symbols present in the pg_search schema that django-paradedb intentionally does not wrap. Remove an entry here when you add it to api.json5. Sections can be either a flat list or grouped object of lists.",
 
   "operators": [
     "==="
@@ -21,6 +21,9 @@
     "pdb.alias_out_safe",
     "pdb.alias_recv",
     "pdb.alias_send",
+
+    // These functions are tokenizer implementation details that the ORM
+    // doesn't need to interact with
     "pdb.chinese_compatible_in",
     "pdb.chinese_compatible_out",
     "pdb.chinese_compatible_recv",

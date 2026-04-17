@@ -1,27 +1,27 @@
-#!/usr/bin/env python3
-"""Validate that api.json matches the Django wrapper surface."""
+"""Validate that api.json5 matches the Django wrapper surface."""
 
 from __future__ import annotations
 
 import ast
-import json
 import re
 import sys
 from pathlib import Path
 
+import json5
+
 ROOT = Path(__file__).resolve().parents[1]
-API_JSON = ROOT / "api.json"
-APIIGNORE_JSON = ROOT / "apiignore.json"
+API_JSON5 = ROOT / "api.json5"
+APIIGNORE_JSON5 = ROOT / "apiignore.json5"
 PDB_SYMBOL_RE = re.compile(r"\bpdb\.[A-Za-z_][A-Za-z0-9_]*\b")
 
 
-def load_json(path: Path) -> object:
+def load_json5(path: Path) -> object:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json5.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
         raise FileNotFoundError(f"{path} not found") from exc
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid JSON in {path}: {exc}") from exc
+    except ValueError as exc:
+        raise ValueError(f"invalid JSON5 in {path}: {exc}") from exc
 
 
 def flatten_ignore(section: object, *, kind: str) -> set[str]:
@@ -68,17 +68,17 @@ def collect_string_literals(module: ast.AST) -> list[str]:
 
 def main() -> int:
     try:
-        api = load_json(API_JSON)
-        apiignore = load_json(APIIGNORE_JSON) if APIIGNORE_JSON.is_file() else {}
+        api = load_json5(API_JSON5)
+        apiignore = load_json5(APIIGNORE_JSON5) if APIIGNORE_JSON5.is_file() else {}
     except (FileNotFoundError, ValueError) as exc:
         print(f"❌ {exc}", file=sys.stderr)
         return 1
 
     if not isinstance(api, dict):
-        print("❌ api.json must contain a JSON object.", file=sys.stderr)
+        print("❌ api.json5 must contain a JSON object.", file=sys.stderr)
         return 1
     if not isinstance(apiignore, dict):
-        print("❌ apiignore.json must contain a JSON object.", file=sys.stderr)
+        print("❌ apiignore.json5 must contain a JSON object.", file=sys.stderr)
         return 1
 
     try:
@@ -86,12 +86,12 @@ def main() -> int:
         functions = api["functions"]
         types = api["types"]
     except KeyError as exc:
-        print(f"❌ api.json missing required section: {exc}", file=sys.stderr)
+        print(f"❌ api.json5 missing required section: {exc}", file=sys.stderr)
         return 1
 
     if not all(isinstance(section, dict) for section in (operators, functions, types)):
         print(
-            "❌ api.json sections operators/functions/types must all be objects.",
+            "❌ api.json5 sections operators/functions/types must all be objects.",
             file=sys.stderr,
         )
         return 1
@@ -137,12 +137,12 @@ def main() -> int:
     issues: list[str] = []
     if missing_api_names:
         issues.append(
-            "api.json names not referenced by Django wrappers: "
+            "api.json5 names not referenced by Django wrappers: "
             + ", ".join(missing_api_names)
         )
     if untracked_symbols:
         issues.append(
-            "pdb.* symbols used in package source but missing from api.json/apiignore.json: "
+            "pdb.* symbols used in package source but missing from api.json5/apiignore.json5: "
             + ", ".join(untracked_symbols)
         )
 
@@ -151,7 +151,7 @@ def main() -> int:
         for issue in issues:
             print(f"   - {issue}", file=sys.stderr)
         print(
-            "\nUpdate api.json, apiignore.json, or the Django wrappers so they stay in sync.",
+            "\nUpdate api.json5, apiignore.json5, or the Django wrappers so they stay in sync.",
             file=sys.stderr,
         )
         return 1

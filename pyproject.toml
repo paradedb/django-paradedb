@@ -49,6 +49,7 @@ classifiers = [
 ]
 dependencies = [
     "Django>=4.2",
+    "json5>=0.10",
 ]
 
 [project.optional-dependencies]
@@ -83,7 +84,7 @@ Changelog = "https://github.com/paradedb/django-paradedb/blob/main/CHANGELOG.md"
 packages = ["paradedb"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"api.json" = "paradedb/api.json"
+"api.json5" = "paradedb/api.json5"
 
 [tool.ruff]
 target-version = "py310"

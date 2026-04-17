@@ -1,4 +1,4 @@
-"""Unit tests for api.json loading and validation helpers."""
+"""Unit tests for api.json5 loading and validation helpers."""
 
 from __future__ import annotations
 

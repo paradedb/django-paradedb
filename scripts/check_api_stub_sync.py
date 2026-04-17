@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
-"""Validate that api.json and paradedb/api.pyi expose the same constants."""
+"""Validate that api.json5 and paradedb/api.pyi expose the same constants."""
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 from pathlib import Path
+
+import json5
 
 _STUB_SYMBOL_RE = re.compile(r"^([A-Z][A-Z0-9_]*)\s*:\s*str\s*$")
 
 
 def _load_api_symbols(api_path: Path) -> set[str]:
-    data = json.loads(api_path.read_text(encoding="utf-8"))
+    data = json5.loads(api_path.read_text(encoding="utf-8"))
     symbols: set[str] = set()
     for section in ("operators", "functions", "types"):
         values = data.get(section)
         if not isinstance(values, dict):
-            raise ValueError(f"api.json section {section!r} must be an object.")
+            raise ValueError(f"api.json5 section {section!r} must be an object.")
         symbols.update(values.keys())
     return symbols
 
@@ -33,11 +34,11 @@ def _load_stub_symbols(stub_path: Path) -> set[str]:
 
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
-    api_path = root / "api.json"
+    api_path = root / "api.json5"
     stub_path = root / "paradedb" / "api.pyi"
 
     if not api_path.is_file():
-        print(f"❌ api.json not found at {api_path}", file=sys.stderr)
+        print(f"❌ api.json5 not found at {api_path}", file=sys.stderr)
         return 1
     if not stub_path.is_file():
         print(f"❌ api.pyi not found at {stub_path}", file=sys.stderr)
@@ -50,7 +51,7 @@ def main() -> int:
     missing_in_api = sorted(stub_symbols - api_symbols)
 
     if missing_in_stub or missing_in_api:
-        print("❌ api.json and api.pyi are out of sync.", file=sys.stderr)
+        print("❌ api.json5 and api.pyi are out of sync.", file=sys.stderr)
         if missing_in_stub:
             print(
                 "   Missing in api.pyi: " + ", ".join(missing_in_stub),
@@ -58,12 +59,12 @@ def main() -> int:
             )
         if missing_in_api:
             print(
-                "   Missing in api.json: " + ", ".join(missing_in_api),
+                "   Missing in api.json5: " + ", ".join(missing_in_api),
                 file=sys.stderr,
             )
         return 1
 
-    print(f"✅ api.json and api.pyi are in sync ({len(api_symbols)} symbols).")
+    print(f"✅ api.json5 and api.pyi are in sync ({len(api_symbols)} symbols).")
     return 0
 
 

@@ -1,13 +1,14 @@
-"""Load ParadeDB SQL API constants from api.json.
+"""Load ParadeDB SQL API constants from api.json5.
 
-To add or modify a symbol, edit api.json only. Every key in every section
+To add or modify a symbol, edit api.json5 only. Every key in every section
 (operators/functions/types) is exposed as a module-level name::
 
     from paradedb.api import FN_ALL, OP_SEARCH, PDB_TYPE_BOOST
 """
 
-import json
 from pathlib import Path
+
+import json5
 
 
 def _validate_api_payload(payload: object) -> dict[str, dict[str, str]]:
@@ -38,19 +39,21 @@ def _validate_api_payload(payload: object) -> dict[str, dict[str, str]]:
 
 
 def _load_api() -> dict[str, dict[str, str]]:
-    # In installed wheels, api.json is bundled into the package directory.
-    packaged_api = Path(__file__).with_name("api.json")
+    # In installed wheels, api.json5 is bundled into the package directory.
+    packaged_api = Path(__file__).with_name("api.json5")
     if packaged_api.is_file():
         return _validate_api_payload(
-            json.loads(packaged_api.read_text(encoding="utf-8"))
+            json5.loads(packaged_api.read_text(encoding="utf-8"))
         )
 
     # In editable/source checkouts, fall back to the repository-root file.
-    source_api = Path(__file__).resolve().parents[1] / "api.json"
+    source_api = Path(__file__).resolve().parents[1] / "api.json5"
     if source_api.is_file():
-        return _validate_api_payload(json.loads(source_api.read_text(encoding="utf-8")))
+        return _validate_api_payload(
+            json5.loads(source_api.read_text(encoding="utf-8"))
+        )
 
-    raise FileNotFoundError("Could not locate api.json for paradedb.api.")
+    raise FileNotFoundError("Could not locate api.json5 for paradedb.api.")
 
 
 _api = _load_api()

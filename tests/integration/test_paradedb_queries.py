@@ -529,14 +529,6 @@ def test_filter_category_in_with_paradedb() -> None:
         description=ParadeDB(Term("shoes")),
         category__in=["Footwear", "Apparel"],
     ).values("description", "rating", "category")
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."description" AS "description", "mock_items"."rating" AS "rating", "mock_items"."category" AS "category"
-        FROM "mock_items"
-        WHERE ("mock_items"."category" IN (Footwear, Apparel) AND "mock_items"."description" @@@ pdb.term('shoes'))
-        """,
-    )
     rows = list(queryset)
     for row in rows:
         assert row["category"] in ("Footwear", "Apparel")

@@ -1562,251 +1562,37 @@ def test_multi_term_fuzzy_match_and_prefix() -> None:
     assert 3 in ids
 
 
-def test_all_tokenizers() -> None:
+@pytest.mark.parametrize(
+    "tokenizer",
+    [
+        "whitespace",
+        "whitespace('alias=my_column')",
+        "unicode_words",
+        "literal",
+        "literal_normalized",
+        "ngram(3, 3)",
+        "edge_ngram(3, 3)",
+        "simple(3, 3)",
+        "regex_pattern('.*')",
+        "chinese_compatible()",
+        "lindera(chinese)",
+        "icu",
+        "jieba",
+        "source_code",
+    ],
+)
+def test_all_tokenizers(tokenizer: str) -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(
-            Match("running shoes", operator="AND", tokenizer="whitespace")
+            Match("running shoes", operator="AND", tokenizer=tokenizer)
         )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.whitespace
-        """,
     )
 
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="whitespace('alias=my_column')",
-            )
-        )
-    )
     _assert_sql(
         str(queryset.query),
-        """
+        f"""
         SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
         FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.whitespace('alias=my_column')
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="unicode_words",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.unicode_words
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="literal",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.literal
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="literal_normalized",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.literal_normalized
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="ngram(3, 3)",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.ngram(3, 3)
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="edge_ngram(3, 3)",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.edge_ngram(3, 3)
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="simple(3, 3)",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.simple(3, 3)
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="regex_pattern('.*')",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.regex_pattern('.*')
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="chinese_compatible()",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.chinese_compatible()
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="lindera(chinese)",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.lindera(chinese)
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="icu",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.icu
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="jieba",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.jieba
-        """,
-    )
-
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match(
-                "running shoes",
-                operator="AND",
-                tokenizer="source_code",
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'running shoes'::pdb.source_code
+        WHERE "mock_items"."description" &&& 'running shoes'::pdb.{tokenizer}
         """,
     )

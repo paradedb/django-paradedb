@@ -1571,10 +1571,11 @@ def test_multi_term_fuzzy_match_and_prefix() -> None:
         "literal",
         "literal_normalized",
         "ngram(3, 3)",
+        "ngram(3, 3, 'positions=true')",
         "edge_ngram(3, 3)",
-        "simple(3, 3)",
+        "simple",
         "regex_pattern('.*')",
-        "chinese_compatible()",
+        "chinese_compatible",
         "lindera(chinese)",
         "icu",
         "jieba",
@@ -1588,6 +1589,7 @@ def test_all_tokenizers(tokenizer: str) -> None:
         )
     )
 
+    _ = _ids(queryset)
     _assert_sql(
         str(queryset.query),
         f"""

@@ -214,8 +214,6 @@
   ],
 
   "types": [
-    "pdb.icu",
-    "pdb.proximityclause",
-    "pdb.edge_ngram"
+    "pdb.proximityclause"
   ]
 }

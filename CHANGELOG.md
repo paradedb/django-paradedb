@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+### Added
+
+- Added support for `icu` and `edge_ngram` tokenizers.
+
+### Fixed
+
+- Allowed tokenizers with integer arguments like `ngram(3, 3)` to work as expected.
+
 ### Changed
 
 - **BREAKING**: Removed the `Empty`, `ParseWithField`, and `Range` query expressions

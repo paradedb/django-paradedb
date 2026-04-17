@@ -107,6 +107,15 @@ class TestParadeDBValidation:
         with pytest.raises(ValueError, match="Invalid tokenizer"):
             str(queryset.query)
 
+    def test_paradedb_valid_tokenizer_with_invalid_arguments(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(
+                Match("shoes", operator="AND", tokenizer="whitespace(foo bar baz)")
+            )
+        )
+        with pytest.raises(ValueError, match="Invalid tokenizer"):
+            str(queryset.query)
+
 
 class TestPhraseValidation:
     """Test Phrase dataclass validation."""

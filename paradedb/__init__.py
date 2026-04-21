@@ -40,6 +40,7 @@ __all__ = [
     "Snippets",
     "Term",
     "TermSet",
+    "Tokenizer",
     "paradedb_index_segments",
     "paradedb_indexes",
     "paradedb_verify_all_indexes",
@@ -82,6 +83,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "RegexPhrase": ("paradedb.search", "RegexPhrase"),
     "Term": ("paradedb.search", "Term"),
     "TermSet": ("paradedb.search", "TermSet"),
+    "Tokenizer": ("paradedb.search", "Tokenizer"),
 }
 
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -52,7 +51,6 @@ from paradedb.api import (
     PDB_TYPE_FUZZY,
     PDB_TYPE_QUERY,
     PDB_TYPE_SLOP,
-    PDB_TYPE_TOKENIZER_ALIAS,
     PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE,
     PDB_TYPE_TOKENIZER_EDGE_NGRAM,
     PDB_TYPE_TOKENIZER_ICU,
@@ -69,64 +67,6 @@ from paradedb.api import (
 )
 
 ParadeOperator = Literal["OR", "AND"]
-
-
-# Tokenizer overrides accept a bare identifier like `whitespace` or a call like
-# `ngram(3, 3)` / `whitespace('lowercase=false')`.
-_TOKENIZER_IDENTIFIER = r"[A-Za-z_][A-Za-z0-9_]*"
-_TOKENIZER_ARG = rf"(?:'(?:[^']|'')*'|{_TOKENIZER_IDENTIFIER}|[0-9]+)"
-_TOKENIZER_RE = re.compile(
-    rf"^(?P<name>{_TOKENIZER_IDENTIFIER})(?:\((?P<args>.*)\))?$", re.DOTALL
-)
-_TOKENIZER_ARGS_RE = re.compile(
-    rf"^\s*(?:{_TOKENIZER_ARG}(?:\s*,\s*{_TOKENIZER_ARG})*)?\s*$"
-)
-
-# Maps the bare tokenizer name (e.g. "whitespace") to its qualified pdb type constant.
-# Built from the PDB_TYPE_TOKENIZER_* constants so the lookup is tied to api.py.
-_KNOWN_TOKENIZERS: dict[str, str] = {
-    t[len("pdb.") :]: t
-    for t in (
-        PDB_TYPE_TOKENIZER_ALIAS,
-        PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE,
-        PDB_TYPE_TOKENIZER_JIEBA,
-        PDB_TYPE_TOKENIZER_LINDERA,
-        PDB_TYPE_TOKENIZER_LITERAL,
-        PDB_TYPE_TOKENIZER_LITERAL_NORMALIZED,
-        PDB_TYPE_TOKENIZER_NGRAM,
-        PDB_TYPE_TOKENIZER_REGEX,
-        PDB_TYPE_TOKENIZER_SIMPLE,
-        PDB_TYPE_TOKENIZER_SOURCE_CODE,
-        PDB_TYPE_TOKENIZER_UNICODE_WORDS,
-        PDB_TYPE_TOKENIZER_WHITESPACE,
-        PDB_TYPE_TOKENIZER_ICU,
-        PDB_TYPE_TOKENIZER_EDGE_NGRAM,
-    )
-}
-
-
-def _tokenizer_cast(name: str) -> str:
-    """Return safe ``pdb.<tokenizer>`` SQL for tokenizer casts.
-
-    Supported forms:
-    - ``tokenizer``
-    - ``tokenizer(3, 3)``
-    - ``tokenizer(chinese)``
-    - ``tokenizer('k=v')``
-    - ``tokenizer('k=v', 'k2=v2')``
-    """
-    match = _TOKENIZER_RE.match(name)
-    if match is None:
-        raise ValueError(f"Invalid tokenizer: {name!r}")
-
-    tokenizer_name = match.group("name")
-    tokenizer_args = match.group("args")
-    qualified = _KNOWN_TOKENIZERS.get(tokenizer_name, f"pdb.{tokenizer_name}")
-    if tokenizer_args is None:
-        return qualified
-    if not _TOKENIZER_ARGS_RE.match(tokenizer_args):
-        raise ValueError(f"Invalid tokenizer: {name!r}")
-    return f"{qualified}({tokenizer_args.strip()})"
 
 
 def _is_fuzzy_enabled(
@@ -169,6 +109,138 @@ def _validate_optional_bool(name: str, value: bool | None) -> None:
         raise TypeError(f"{name} must be a boolean.")
 
 
+class Tokenizer:
+    """A ParadeDB Tokenizer call"""
+
+    name: str
+    positional_arguments: tuple[bool | int | float | str, ...] | None
+    options: dict[str, bool | int | float | str] | None
+
+    def __init__(
+        self,
+        tokenizer: str,
+        params: tuple[bool | int | float | str, ...] | None = None,
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> None:
+        self.name = tokenizer
+        self.positional_arguments = params
+        self.options = options
+
+    @staticmethod
+    def unicode_words(
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_UNICODE_WORDS, options=options)
+
+    @staticmethod
+    def simple(options: dict[str, bool | int | float | str] | None = None) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_SIMPLE, options=options)
+
+    @staticmethod
+    def whitespace(
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_WHITESPACE, None, options)
+
+    @staticmethod
+    def icu(options: dict[str, bool | int | float | str] | None = None) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_ICU, options=options)
+
+    @staticmethod
+    def chinese_compatible(
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE, options=options)
+
+    @staticmethod
+    def jieba(options: dict[str, bool | int | float | str] | None = None) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_JIEBA, options=options)
+
+    @staticmethod
+    def literal(
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_LITERAL, options=options)
+
+    @staticmethod
+    def literal_normalized(
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_LITERAL_NORMALIZED, options=options)
+
+    @staticmethod
+    def ngram(
+        min_gram: int,
+        max_gram: int,
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_NGRAM, (min_gram, max_gram), options)
+
+    @staticmethod
+    def edge_ngram(
+        min_gram: int,
+        max_gram: int,
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_EDGE_NGRAM, (min_gram, max_gram), options)
+
+    @staticmethod
+    def lindera(
+        dictionary: str,
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_LINDERA, (dictionary,), options)
+
+    @staticmethod
+    def regex_pattern(
+        pattern: str,
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_REGEX, (pattern,), options)
+
+    @staticmethod
+    def source_code(
+        options: dict[str, bool | int | float | str] | None = None,
+    ) -> Tokenizer:
+        return Tokenizer(PDB_TYPE_TOKENIZER_SOURCE_CODE, options=options)
+
+
+def _render_tokenizer(tokenizer: Tokenizer) -> str:
+    if tokenizer.positional_arguments is None and tokenizer.options is None:
+        return tokenizer.name
+
+    arguments: list[str] = []
+
+    if tokenizer.positional_arguments is not None:
+        for param in tokenizer.positional_arguments:
+            if isinstance(param, bool):
+                arguments.append("true" if param else "false")
+            elif isinstance(param, int | float):
+                arguments.append(str(param))
+            elif isinstance(param, str):
+                arguments.append(_quote_term(param))
+            else:
+                raise TypeError(
+                    f"Unsupported tokenizer arg type: {type(param).__name__}"
+                )
+
+    if tokenizer.options:
+        for key, value in tokenizer.options.items():
+            if isinstance(value, bool):
+                rendered = "true" if value else "false"
+            elif isinstance(value, int | float):
+                rendered = str(value)
+            elif isinstance(value, str):
+                rendered = value
+            else:
+                raise TypeError(
+                    f"Unsupported tokenizer named arg type: {type(value).__name__}"
+                )
+            arguments.append(_quote_term(f"{key}={rendered}"))
+
+    return f"{tokenizer.name}({','.join(arguments)})"
+
+
 @dataclass(frozen=True)
 class Phrase:
     """Phrase search expression.
@@ -181,7 +253,7 @@ class Phrase:
 
     terms: list[str]
     slop: int | None = None
-    tokenizer: str | None = None
+    tokenizer: Tokenizer | None = None
     boost: float | None = None
     const: float | None = None
 
@@ -189,7 +261,7 @@ class Phrase:
         self,
         *terms: str,
         slop: int | None = None,
-        tokenizer: str | None = None,
+        tokenizer: Tokenizer | None = None,
         boost: float | None = None,
         const: float | None = None,
     ) -> None:
@@ -199,7 +271,6 @@ class Phrase:
             _validate_string("Phrase term", term)
         if slop is not None:
             _validate_non_negative_int("Phrase slop", slop)
-        _validate_optional_string("Phrase tokenizer", tokenizer)
 
         object.__setattr__(self, "terms", terms)
         object.__setattr__(self, "slop", slop)
@@ -551,7 +622,7 @@ class Match:
 
     terms: tuple[str, ...]
     operator: ParadeOperator
-    tokenizer: str | None = None
+    tokenizer: Tokenizer | None = None
     distance: int | None = None
     prefix: bool = False
     transposition_cost_one: bool = False
@@ -562,7 +633,7 @@ class Match:
         self,
         *terms: str,
         operator: ParadeOperator,
-        tokenizer: str | None = None,
+        tokenizer: Tokenizer | None = None,
         distance: int | None = None,
         prefix: bool = False,
         transposition_cost_one: bool = False,
@@ -575,8 +646,6 @@ class Match:
             raise ValueError("Match operator must be 'AND' or 'OR'.")
         if not all(isinstance(term, str) for term in terms):
             raise TypeError("Match terms must be strings.")
-        if tokenizer is not None and not isinstance(tokenizer, str):
-            raise TypeError("Match tokenizer must be a string.")
         if not isinstance(prefix, bool):
             raise TypeError("Match prefix must be a boolean.")
         if not isinstance(transposition_cost_one, bool):
@@ -947,13 +1016,6 @@ class ParadeDB:
         return OP_SEARCH
 
     @staticmethod
-    def _quote_term(term: str) -> str:
-        if not isinstance(term, str):
-            raise TypeError("Search term literal must be a string.")
-        escaped = term.replace("'", "''")
-        return f"'{escaped}'"
-
-    @staticmethod
     def _quote_range_literal(
         value: int | float | str | date | datetime, range_type: RangeType
     ) -> str:
@@ -962,7 +1024,7 @@ class ParadeDB:
         else:
             literal = str(value)
         safe_range_type = _validate_range_type(range_type)
-        return f"{ParadeDB._quote_term(literal)}::{safe_range_type}"
+        return f"{_quote_term(literal)}::{safe_range_type}"
 
     @staticmethod
     def _render_scoring_number(value: float | None, *, name: str) -> str | None:
@@ -1026,11 +1088,13 @@ class ParadeDB:
 
     def _render_proximity_term(self, term: ProximityTerm) -> str:
         if isinstance(term, str):
-            return self._quote_term(term)
+            return _quote_term(term)
         if isinstance(term, ProxRegex):
             if term.max_expansions is None:
-                return f"{FN_PROX_REGEX}({self._quote_term(term.pattern)})"
-            return f"{FN_PROX_REGEX}({self._quote_term(term.pattern)}, {term.max_expansions})"
+                return f"{FN_PROX_REGEX}({_quote_term(term.pattern)})"
+            return (
+                f"{FN_PROX_REGEX}({_quote_term(term.pattern)}, {term.max_expansions})"
+            )
         if isinstance(term, list):
             parts = [self._render_proximity_term(x) for x in term]
             return f"{FN_PROX_ARRAY}({', '.join(parts)})"
@@ -1039,9 +1103,9 @@ class ParadeDB:
     def _render_term(self, term: TermType) -> str:
         if isinstance(term, Phrase):
             if len(term.terms) == 1:
-                rendered = self._quote_term(term.terms[0])
+                rendered = _quote_term(term.terms[0])
             else:
-                quoted = [self._quote_term(item) for item in term.terms]
+                quoted = [_quote_term(item) for item in term.terms]
                 rendered = f"ARRAY[{', '.join(quoted)}]"
             if term.slop is not None:
                 rendered = f"{rendered}::{PDB_TYPE_SLOP}({term.slop})"
@@ -1050,7 +1114,7 @@ class ParadeDB:
                 if term.const is not None:
                     rendered = f"{rendered}::{PDB_TYPE_QUERY}"
             if term.tokenizer is not None:
-                rendered = f"{rendered}::{_tokenizer_cast(term.tokenizer)}"
+                rendered = f"{rendered}::{_render_tokenizer(term.tokenizer)}"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, ProximityNode):
             return self._render_proximity_node(term)
@@ -1069,19 +1133,19 @@ class ParadeDB:
             return self._append_scoring(rendered, boost=boost, const=const)
         if isinstance(term, Parse):
             rendered = (
-                f"{FN_PARSE}({self._quote_term(term.query)}"
+                f"{FN_PARSE}({_quote_term(term.query)}"
                 f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, PhrasePrefix):
-            phrases_sql = ", ".join(self._quote_term(phrase) for phrase in term.phrases)
+            phrases_sql = ", ".join(_quote_term(phrase) for phrase in term.phrases)
             rendered = (
                 f"{FN_PHRASE_PREFIX}(ARRAY[{phrases_sql}]"
                 f"{self._render_options({'max_expansion': term.max_expansion})})"
             )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, RegexPhrase):
-            regex_sql = ", ".join(self._quote_term(regex) for regex in term.regexes)
+            regex_sql = ", ".join(_quote_term(regex) for regex in term.regexes)
             rendered = (
                 f"{FN_REGEX_PHRASE}(ARRAY[{regex_sql}]"
                 f"{self._render_options({'slop': term.slop, 'max_expansions': term.max_expansions})})"
@@ -1095,12 +1159,12 @@ class ParadeDB:
                 rendered = (
                     f"{FN_RANGE_TERM}("
                     f"{self._quote_range_literal(term.value, term.range_type)}, "
-                    f"{self._quote_term(term.relation)}"
+                    f"{_quote_term(term.relation)}"
                     ")"
                 )
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Term):
-            rendered = f"{FN_TERM}({self._quote_term(term.text)})"
+            rendered = f"{FN_TERM}({_quote_term(term.text)})"
             rendered = self._append_fuzzy(
                 rendered,
                 distance=term.distance,
@@ -1119,14 +1183,14 @@ class ParadeDB:
                 rendered = f"{rendered}::{PDB_TYPE_QUERY}"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Regex):
-            rendered = f"{FN_REGEX}({self._quote_term(term.pattern)})"
+            rendered = f"{FN_REGEX}({_quote_term(term.pattern)})"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Exists):
             rendered = f"{FN_EXISTS}()"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, FuzzyTerm):
             if term.value is not None:
-                rendered = f"{FN_FUZZY_TERM}({self._quote_term(term.value)})"
+                rendered = f"{FN_FUZZY_TERM}({_quote_term(term.value)})"
             else:
                 rendered = f"{FN_FUZZY_TERM}()"
             rendered = self._append_fuzzy(
@@ -1153,12 +1217,12 @@ class ParadeDB:
             return f"{FN_ALL}()"
         if isinstance(term, Match):
             if len(term.terms) == 1:
-                rendered = self._quote_term(term.terms[0])
+                rendered = _quote_term(term.terms[0])
             else:
-                quoted = [self._quote_term(item) for item in term.terms]
+                quoted = [_quote_term(item) for item in term.terms]
                 rendered = f"ARRAY[{', '.join(quoted)}]"
             if term.tokenizer is not None:
-                rendered = f"{rendered}::{_tokenizer_cast(term.tokenizer)}"
+                rendered = f"{rendered}::{_render_tokenizer(term.tokenizer)}"
             rendered = self._append_fuzzy(
                 rendered,
                 distance=term.distance,
@@ -1205,17 +1269,15 @@ class ParadeDB:
                 if not isinstance(term, datetime):
                     raise TypeError("TermSet terms must all be datetime values.")
                 datetime_terms.append(term)
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(term.isoformat()) for term in datetime_terms)}]::timestamptz[]"
+            return f"ARRAY[{', '.join(_quote_term(term.isoformat()) for term in datetime_terms)}]::timestamptz[]"
         if isinstance(first, date):
             date_terms: list[date] = []
             for term in terms:
                 if not isinstance(term, date) or isinstance(term, datetime):
                     raise TypeError("TermSet terms must all be date values.")
                 date_terms.append(term)
-            return f"ARRAY[{', '.join(ParadeDB._quote_term(term.isoformat()) for term in date_terms)}]::date[]"
-        return (
-            f"ARRAY[{', '.join(ParadeDB._quote_term(str(t)) for t in terms)}]::text[]"
-        )
+            return f"ARRAY[{', '.join(_quote_term(term.isoformat()) for term in date_terms)}]::date[]"
+        return f"ARRAY[{', '.join(_quote_term(str(t)) for t in terms)}]::text[]"
 
     @staticmethod
     def _render_options(options: dict[str, object | None]) -> str:
@@ -1235,10 +1297,17 @@ class ParadeDB:
         if isinstance(value, int | float):
             return str(value)
         if isinstance(value, date | datetime):
-            return ParadeDB._quote_term(value.isoformat())
+            return _quote_term(value.isoformat())
         if isinstance(value, str):
-            return ParadeDB._quote_term(value)
+            return _quote_term(value)
         raise TypeError("Unsupported option value type.")
+
+
+def _quote_term(term: str) -> str:
+    if not isinstance(term, str):
+        raise TypeError("Search term literal must be a string.")
+    escaped = term.replace("'", "''")
+    return f"'{escaped}'"
 
 
 class ParadeDBExact(Exact):  # type: ignore[type-arg]
@@ -1288,4 +1357,5 @@ __all__ = [
     "RegexPhrase",
     "Term",
     "TermSet",
+    "Tokenizer",
 ]

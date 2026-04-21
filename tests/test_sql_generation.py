@@ -27,6 +27,7 @@ from paradedb.search import (
     Regex,
     RegexPhrase,
     Term,
+    Tokenizer,
 )
 from tests.models import Product
 
@@ -371,7 +372,7 @@ class TestDistanceOption:
             Match(
                 "running shoes",
                 operator="AND",
-                tokenizer="whitespace",
+                tokenizer=Tokenizer.whitespace(),
                 distance=1,
             )
 
@@ -392,7 +393,11 @@ class TestTokenizerOverride:
     def test_match_with_tokenizer(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match("running shoes", operator="AND", tokenizer="whitespace")
+                Match(
+                    "running shoes",
+                    operator="AND",
+                    tokenizer=Tokenizer.whitespace(),
+                )
             )
         )
         assert (
@@ -403,7 +408,7 @@ class TestTokenizerOverride:
     def test_match_or_with_tokenizer(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match("running shoes", operator="OR", tokenizer="whitespace")
+                Match("running shoes", operator="OR", tokenizer=Tokenizer.whitespace())
             )
         )
         assert (
@@ -413,7 +418,9 @@ class TestTokenizerOverride:
 
     def test_phrase_with_tokenizer(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Phrase("running shoes", tokenizer="whitespace"))
+            description=ParadeDB(
+                Phrase("running shoes", tokenizer=Tokenizer.whitespace())
+            )
         )
         assert (
             str(queryset.query)
@@ -423,7 +430,7 @@ class TestTokenizerOverride:
     def test_phrase_with_slop_and_tokenizer(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Phrase("running shoes", slop=2, tokenizer="whitespace")
+                Phrase("running shoes", slop=2, tokenizer=Tokenizer.whitespace())
             )
         )
         assert (
@@ -437,7 +444,7 @@ class TestTokenizerOverride:
                 Match(
                     "running shoes",
                     operator="AND",
-                    tokenizer="whitespace('lowercase=false')",
+                    tokenizer=Tokenizer.whitespace(options={"lowercase": False}),
                 )
             )
         )
@@ -452,35 +459,26 @@ class TestTokenizerOverride:
                 Match(
                     "wireless keyboard",
                     operator="OR",
-                    tokenizer="simple('lowercase=false', 'remove_long=20')",
+                    tokenizer=Tokenizer.simple(
+                        options={"lowercase": False, "remove_long": 20}
+                    ),
                 )
             )
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'wireless keyboard\'::pdb.simple(\'lowercase=false\', \'remove_long=20\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'wireless keyboard\'::pdb.simple(\'lowercase=false\',\'remove_long=20\')'
         )
 
     def test_match_with_tokenizer_positional_args(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match("running shoes", operator="AND", tokenizer="ngram(3, 3)")
+                Match("running shoes", operator="AND", tokenizer=Tokenizer.ngram(3, 3))
             )
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'running shoes\'::pdb.ngram(3, 3)'
-        )
-
-    def test_phrase_with_tokenizer_args(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Phrase("running shoes", tokenizer="raw('lowercase=false')")
-            )
-        )
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.raw(\'lowercase=false\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'running shoes\'::pdb.ngram(3,3)'
         )
 
     def test_phrase_with_slop_and_tokenizer_multi_args(self) -> None:
@@ -489,19 +487,21 @@ class TestTokenizerOverride:
                 Phrase(
                     "wireless mouse",
                     slop=2,
-                    tokenizer="ngram('min_gram=3', 'max_gram=8')",
+                    tokenizer=Tokenizer.ngram(3, 8),
                 )
             )
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'wireless mouse\'::pdb.slop(2)::pdb.ngram(\'min_gram=3\', \'max_gram=8\')'
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'wireless mouse\'::pdb.slop(2)::pdb.ngram(3,8)'
         )
 
     def test_tokenizer_with_boost(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match("shoes", operator="AND", tokenizer="whitespace", boost=2.0)
+                Match(
+                    "shoes", operator="AND", tokenizer=Tokenizer.whitespace(), boost=2.0
+                )
             )
         )
         assert (

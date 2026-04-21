@@ -23,6 +23,7 @@ from paradedb.search import (
     Regex,
     RegexPhrase,
     Term,
+    Tokenizer,
 )
 from tests.models import Product
 
@@ -95,28 +96,6 @@ class TestSpecialCharacterEscaping:
         assert "test.*[a-z]+\\d{2,3}" in sql
 
 
-class TestParadeDBValidation:
-    """Test input validation for ParadeDB wrapper."""
-
-    def test_paradedb_invalid_tokenizer_raises(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shoes", operator="AND", tokenizer="bad-tokenizer;")
-            )
-        )
-        with pytest.raises(ValueError, match="Invalid tokenizer"):
-            str(queryset.query)
-
-    def test_paradedb_valid_tokenizer_with_invalid_arguments(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shoes", operator="AND", tokenizer="whitespace(foo bar baz)")
-            )
-        )
-        with pytest.raises(ValueError, match="Invalid tokenizer"):
-            str(queryset.query)
-
-
 class TestPhraseValidation:
     """Test Phrase dataclass validation."""
 
@@ -146,17 +125,6 @@ class TestPhraseValidation:
     def test_phrase_slop_must_be_integer(self) -> None:
         with pytest.raises(TypeError, match="Phrase slop must be an integer"):
             Phrase("test", slop=True)  # type: ignore[arg-type]
-
-    def test_phrase_tokenizer_must_be_string(self) -> None:
-        with pytest.raises(TypeError, match="Phrase tokenizer must be a string"):
-            Phrase("test", tokenizer=1)  # type: ignore[arg-type]
-
-    def test_phrase_invalid_tokenizer_raises(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(Phrase("test", tokenizer="bad tokenizer"))
-        )
-        with pytest.raises(ValueError, match="Invalid tokenizer"):
-            str(queryset.query)
 
 
 class TestDistanceValidation:
@@ -194,7 +162,12 @@ class TestDistanceValidation:
         with pytest.raises(
             ValueError, match="Match tokenizer cannot be combined with fuzzy options"
         ):
-            Match("test", operator="AND", tokenizer="whitespace", distance=1)
+            Match(
+                "test",
+                operator="AND",
+                tokenizer=Tokenizer.whitespace(),
+                distance=1,
+            )
 
     def test_match_multi_term_fuzzy_with_boost_rejected(self) -> None:
         with pytest.raises(
@@ -215,10 +188,6 @@ class TestDistanceValidation:
     def test_match_non_string_terms_rejected(self) -> None:
         with pytest.raises(TypeError, match="Match terms must be strings"):
             Match("ok", 123, operator="AND")  # type: ignore[arg-type]
-
-    def test_match_non_string_tokenizer_rejected(self) -> None:
-        with pytest.raises(TypeError, match="Match tokenizer must be a string"):
-            Match("ok", operator="AND", tokenizer=123)  # type: ignore[arg-type]
 
     def test_match_prefix_must_be_boolean(self) -> None:
         with pytest.raises(TypeError, match="Match prefix must be a boolean"):

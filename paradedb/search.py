@@ -110,19 +110,22 @@ def _validate_optional_bool(name: str, value: bool | None) -> None:
         raise TypeError(f"{name} must be a boolean.")
 
 
+_TOKENIZER_OPTIONS = dict[str, bool | int | float | str]
+
+
 @deconstructible(path="paradedb.search.Tokenizer")
 class Tokenizer:
     """A ParadeDB Tokenizer call"""
 
     name: str
     positional_arguments: tuple[bool | int | float | str, ...] | None
-    options: dict[str, bool | int | float | str] | None
+    options: _TOKENIZER_OPTIONS | None
 
     def __init__(
         self,
         tokenizer: str,
         params: tuple[bool | int | float | str, ...] | None = None,
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> None:
         self.name = tokenizer
         self.positional_arguments = params
@@ -130,43 +133,43 @@ class Tokenizer:
 
     @staticmethod
     def unicode_words(
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_UNICODE_WORDS, options=options)
 
     @staticmethod
-    def simple(options: dict[str, bool | int | float | str] | None = None) -> Tokenizer:
+    def simple(options: _TOKENIZER_OPTIONS | None = None) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_SIMPLE, options=options)
 
     @staticmethod
     def whitespace(
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_WHITESPACE, None, options)
 
     @staticmethod
-    def icu(options: dict[str, bool | int | float | str] | None = None) -> Tokenizer:
+    def icu(options: _TOKENIZER_OPTIONS | None = None) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_ICU, options=options)
 
     @staticmethod
     def chinese_compatible(
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE, options=options)
 
     @staticmethod
-    def jieba(options: dict[str, bool | int | float | str] | None = None) -> Tokenizer:
+    def jieba(options: _TOKENIZER_OPTIONS | None = None) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_JIEBA, options=options)
 
     @staticmethod
     def literal(
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_LITERAL, options=options)
 
     @staticmethod
     def literal_normalized(
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_LITERAL_NORMALIZED, options=options)
 
@@ -174,7 +177,7 @@ class Tokenizer:
     def ngram(
         min_gram: int,
         max_gram: int,
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_NGRAM, (min_gram, max_gram), options)
 
@@ -182,27 +185,27 @@ class Tokenizer:
     def edge_ngram(
         min_gram: int,
         max_gram: int,
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_EDGE_NGRAM, (min_gram, max_gram), options)
 
     @staticmethod
     def lindera(
         dictionary: str,
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_LINDERA, (dictionary,), options)
 
     @staticmethod
     def regex_pattern(
         pattern: str,
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_REGEX, (pattern,), options)
 
     @staticmethod
     def source_code(
-        options: dict[str, bool | int | float | str] | None = None,
+        options: _TOKENIZER_OPTIONS | None = None,
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_SOURCE_CODE, options=options)
 

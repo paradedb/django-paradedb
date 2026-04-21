@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+## [0.6.0] - 2026-03-23
+
 ### Added
 
 - Added support for `icu` and `edge_ngram` tokenizers.
@@ -14,7 +16,7 @@ All notable changes to this project will be documented in this file. The format 
 
 - **BREAKING**: Removed the `Empty`, `ParseWithField`, and `Range` query expressions
   from the public search API.
-- **BREAKING**: Updated tokenizers to be configured with a function-based API instead of using strings: `Tokenizer.simple(options={"lowercase": False})`
+- **BREAKING**: Updated tokenizers to be configured with a function-based API instead of using strings. Before: `"simple('lowercase=false')` After: `Tokenizer.simple(options={"lowercase": False})`
 
 ## [0.5.0] - 2026-03-23
 
@@ -186,6 +188,7 @@ All notable changes to this project will be documented in this file. The format 
 - JSON field key indexing support
 - Full Django ORM integration with `Q` objects and standard filters
 
+[0.6.0]: https://github.com/paradedb/django-paradedb/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/paradedb/django-paradedb/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/paradedb/django-paradedb/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/paradedb/django-paradedb/compare/v0.2.0...v0.3.0

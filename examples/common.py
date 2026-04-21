@@ -12,6 +12,7 @@ from django.conf import settings
 
 from paradedb.indexes import BM25Index
 from paradedb.queryset import ParadeDBManager
+from paradedb.search import Tokenizer
 
 
 def configure_django() -> None:
@@ -94,7 +95,7 @@ def _mock_items_indexes() -> list[BM25Index]:
                 "id": {},
                 "description": {},
                 "rating": {},
-                "category": {"tokenizer": "literal", "alias": "category"},
+                "category": {"tokenizer": Tokenizer.literal({"alias": "category"})},
                 "metadata": {"json_fields": {"fast": True}},
             },
             key_field="id",

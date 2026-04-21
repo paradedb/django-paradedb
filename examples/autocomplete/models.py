@@ -5,6 +5,7 @@ from django.db import models
 
 from paradedb.indexes import BM25Index
 from paradedb.queryset import ParadeDBManager
+from paradedb.search import Tokenizer
 
 configure_django()
 
@@ -29,15 +30,15 @@ class AutocompleteItem(models.Model):
                     "id": {},
                     "description": {
                         "tokenizers": [
-                            {"tokenizer": "unicode_words"},
+                            {"tokenizer": Tokenizer.unicode_words()},
                             {
-                                "tokenizer": "ngram",
-                                "args": [3, 8],
-                                "alias": "description_ngram",
+                                "tokenizer": Tokenizer.ngram(
+                                    3, 8, {"alias": "description_ngram"}
+                                ),
                             },
                         ]
                     },
-                    "category": {"tokenizer": "literal", "alias": "category"},
+                    "category": {"tokenizer": Tokenizer.literal({"alias": "category"})},
                 },
                 key_field="id",
                 name="autocomplete_items_idx",

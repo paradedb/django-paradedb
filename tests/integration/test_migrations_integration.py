@@ -13,6 +13,7 @@ from django.db.models import F, Q
 from django.db.models.functions import Lower
 
 from paradedb.indexes import BM25Index, IndexExpression
+from paradedb.search import Tokenizer
 
 pytestmark = [
     pytest.mark.integration,
@@ -86,19 +87,30 @@ def _verify_index_usage(table_name: str, index_name: str) -> bool:  # noqa: ARG0
 
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.parametrize(
-    ("tokenizer", "table_name", "index_name"),
+    ("tokenizer_name", "tokenizer", "table_name", "index_name"),
     [
-        ("simple", "migtests_items_simple", "migtests_items_simple_bm25_idx"),
+        (
+            "simple",
+            Tokenizer.simple(),
+            "migtests_items_simple",
+            "migtests_items_simple_bm25_idx",
+        ),
         (
             "unicode_words",
+            Tokenizer.unicode_words(),
             "migtests_items_unicode_words",
             "migtests_items_unicode_words_bm25_idx",
         ),
-        ("literal", "migtests_items_literal", "migtests_items_literal_bm25_idx"),
+        (
+            "literal",
+            Tokenizer.literal(),
+            "migtests_items_literal",
+            "migtests_items_literal_bm25_idx",
+        ),
     ],
 )
 def test_apply_and_unapply_create_model_migration(
-    tokenizer: str, table_name: str, index_name: str
+    tokenizer_name: str, tokenizer: Tokenizer, table_name: str, index_name: str
 ) -> None:
     """
     CreateModel with BM25Index migrates forwards/backwards, creates the index,
@@ -114,7 +126,7 @@ def test_apply_and_unapply_create_model_migration(
     connection.commit()
 
     create_model = migrations.CreateModel(
-        name=f"MigratedItem_{tokenizer}",
+        name=f"MigratedItem_{tokenizer_name}",
         fields=[
             ("id", models.AutoField(primary_key=True)),
             ("title", models.TextField()),
@@ -129,7 +141,7 @@ def test_apply_and_unapply_create_model_migration(
                         "title": {"tokenizer": tokenizer},
                         "metadata": {
                             "json_keys": {
-                                "color": {"tokenizer": "literal"},
+                                "color": {"tokenizer": Tokenizer.literal()},
                             }
                         },
                     },
@@ -169,7 +181,7 @@ def test_apply_and_unapply_create_model_migration(
             .replace(")", "")
             .replace(" ", "")
         )
-        assert f"title::pdb.{tokenizer}" in normalized_index_def, index_def
+        assert f"title::pdb.{tokenizer_name}" in normalized_index_def, index_def
         assert {"id", "title", "metadata"}.issubset(column_names)
 
         # Insert test data in a separate transaction (simulates real usage)
@@ -225,7 +237,7 @@ def test_create_model_migration_with_index_expressions() -> None:
                 BM25Index(
                     fields={
                         "id": {},
-                        "title": {"tokenizer": "unicode_words"},
+                        "title": {"tokenizer": Tokenizer.unicode_words()},
                         "rating": {},
                         "metadata": {},
                     },
@@ -233,7 +245,9 @@ def test_create_model_migration_with_index_expressions() -> None:
                         IndexExpression(
                             Lower("title"),
                             alias="title_lower",
-                            tokenizer="simple",
+                            tokenizer=Tokenizer.simple(
+                                options={"alias": "title_lower"}
+                            ),
                         ),
                         IndexExpression(
                             F("rating") + 1,
@@ -318,8 +332,12 @@ def test_multiple_tokenizers_per_field_migration() -> None:
                         "id": {},
                         "title": {
                             "tokenizers": [
-                                {"tokenizer": "literal"},
-                                {"tokenizer": "simple", "alias": "title_simple"},
+                                {"tokenizer": Tokenizer.literal()},
+                                {
+                                    "tokenizer": Tokenizer.simple(
+                                        options={"alias": "title_simple"}
+                                    )
+                                },
                             ]
                         },
                     },
@@ -408,15 +426,17 @@ def test_multiple_tokenizers_with_ngram_options_migration() -> None:
                         "id": {},
                         "title": {
                             "tokenizers": [
-                                {"tokenizer": "literal"},
+                                {"tokenizer": Tokenizer.literal()},
                                 {
-                                    "tokenizer": "ngram",
-                                    "args": [3, 3],
-                                    "named_args": {
-                                        "prefix_only": True,
-                                        "positions": True,
-                                    },
-                                    "alias": "title_ngram",
+                                    "tokenizer": Tokenizer.ngram(
+                                        3,
+                                        3,
+                                        options={
+                                            "alias": "title_ngram",
+                                            "prefix_only": True,
+                                            "positions": True,
+                                        },
+                                    ),
                                 },
                             ]
                         },
@@ -478,7 +498,7 @@ def test_add_and_remove_index_concurrently() -> None:
     bm25_index = BM25Index(
         fields={
             "id": {},
-            "title": {"tokenizer": "unicode_words"},
+            "title": {"tokenizer": Tokenizer.unicode_words()},
         },
         key_field="id",
         name=index_name,
@@ -562,7 +582,7 @@ def test_remove_and_add_index_concurrently() -> None:
     bm25_index = BM25Index(
         fields={
             "id": {},
-            "title": {"tokenizer": "unicode_words"},
+            "title": {"tokenizer": Tokenizer.unicode_words()},
         },
         key_field="id",
         name=index_name,
@@ -634,7 +654,7 @@ def test_add_partial_index() -> None:
     bm25_index = BM25Index(
         fields={
             "id": {},
-            "title": {"tokenizer": "unicode_words"},
+            "title": {"tokenizer": Tokenizer.unicode_words()},
         },
         key_field="id",
         name=index_name,

@@ -8,6 +8,7 @@ import pytest
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
 from paradedb.indexes import BM25Index
+from paradedb.search import Tokenizer
 from tests.models import Product
 
 
@@ -23,54 +24,13 @@ class DummySchemaEditor(BaseDatabaseSchemaEditor):
         return f'"{name}"'
 
 
-@pytest.mark.parametrize(
-    ("description_config", "error_match"),
-    [
-        ({"stemmer": "english"}, "no tokenizer"),
-        ({"filters": ["lowercase"]}, "no tokenizer"),
-        ({"args": [3, 8]}, "no tokenizer"),
-        ({"named_args": {"positions": True}}, "no tokenizer"),
-        ({"alias": "description_alias"}, "no tokenizer"),
-    ],
-)
-def test_field_config_without_tokenizer_raises_value_error(
-    description_config: dict[str, object], error_match: str
-) -> None:
-    index = BM25Index(
-        fields={
-            "id": {},
-            "description": description_config,
-        },
-        key_field="id",
-        name="product_search_idx",
-    )
-    with pytest.raises(ValueError, match=error_match):
-        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
-
-
-def test_legacy_options_key_raises_value_error() -> None:
-    index = BM25Index(
-        fields={
-            "id": {},
-            "description": {
-                "tokenizer": "simple",
-                "options": {"remove_long": 20},
-            },
-        },
-        key_field="id",
-        name="product_search_idx",
-    )
-    with pytest.raises(ValueError, match="deprecated 'options'"):
-        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
-
-
 def test_tokenizers_mixed_with_top_level_tokenizer_config_raises_value_error() -> None:
     index = BM25Index(
         fields={
             "id": {},
             "description": {
-                "tokenizers": [{"tokenizer": "literal"}],
-                "tokenizer": "simple",
+                "tokenizers": [{"tokenizer": Tokenizer.literal()}],
+                "tokenizer": Tokenizer.simple(),
             },
         },
         key_field="id",
@@ -80,33 +40,7 @@ def test_tokenizers_mixed_with_top_level_tokenizer_config_raises_value_error() -
         index.create_sql(model=Product, schema_editor=DummySchemaEditor())
 
 
-@pytest.mark.parametrize(
-    ("tokenizers_value", "error_match"),
-    [
-        ([], "non-empty list"),
-        ("not-a-list", "non-empty list"),
-        ([123], "must be a dictionary"),
-        ([{}], "requires 'tokenizer'"),
-    ],
-)
-def test_invalid_tokenizers_list_shapes_raise_value_error(
-    tokenizers_value: object, error_match: str
-) -> None:
-    index = BM25Index(
-        fields={
-            "id": {},
-            "description": {
-                "tokenizers": tokenizers_value,
-            },
-        },
-        key_field="id",
-        name="product_search_idx",
-    )
-    with pytest.raises(ValueError, match=error_match):
-        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
-
-
-def test_json_key_without_tokenizer_raises_value_error() -> None:
+def test_json_key_without_tokenizer_raises_type_error() -> None:
     index = BM25Index(
         fields={
             "id": {},
@@ -119,7 +53,7 @@ def test_json_key_without_tokenizer_raises_value_error() -> None:
         key_field="id",
         name="product_search_idx",
     )
-    with pytest.raises(ValueError, match="requires an explicit tokenizer"):
+    with pytest.raises(TypeError, match="tokenizer must be a Tokenizer"):
         index.create_sql(model=Product, schema_editor=DummySchemaEditor())
 
 
@@ -136,51 +70,3 @@ def test_native_json_fields_on_non_json_field_raises_value_error() -> None:
     )
     with pytest.raises(ValueError, match="is not a JSONField"):
         index.create_sql(model=Product, schema_editor=DummySchemaEditor())
-
-
-def test_native_json_fields_cannot_mix_with_legacy_json_keys() -> None:
-    index = BM25Index(
-        fields={
-            "id": {},
-            "metadata": {
-                "json_fields": {"fast": True},
-                "json_keys": {"color": {"tokenizer": "literal"}},
-            },
-        },
-        key_field="id",
-        name="product_search_idx",
-    )
-    with pytest.raises(ValueError, match="cannot mix 'json_fields'"):
-        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
-
-
-def test_stemmer_filter_without_stemmer_language_raises_value_error() -> None:
-    index = BM25Index(
-        fields={
-            "id": {},
-            "description": {
-                "tokenizer": "simple",
-                "filters": ["stemmer"],
-            },
-        },
-        key_field="id",
-        name="product_search_idx",
-    )
-    with pytest.raises(ValueError, match="requires a stemmer language"):
-        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
-
-
-def test_pre_rendered_tokenizer_string_with_named_args_is_rendered_verbatim() -> None:
-    index = BM25Index(
-        fields={
-            "id": {},
-            "description": {
-                "tokenizer": "ngram(3,8)",
-                "named_args": {"prefix_only": True},
-            },
-        },
-        key_field="id",
-        name="product_search_idx",
-    )
-    sql = str(index.create_sql(model=Product, schema_editor=DummySchemaEditor()))
-    assert "pdb.ngram(3,8)('prefix_only=true')" in sql

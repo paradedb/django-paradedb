@@ -1150,9 +1150,9 @@ class TestBM25Index:
             fields={
                 "id": {},
                 "description": {
-                    "tokenizer": "simple",
-                    "filters": ["lowercase", "stemmer"],
-                    "stemmer": "english",
+                    "tokenizer": Tokenizer.simple(
+                        options={"lowercase": True, "stemmer": "english"}
+                    ),
                 },
             },
             key_field="id",
@@ -1162,7 +1162,7 @@ class TestBM25Index:
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=true,stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=true\',\'stemmer=english\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_with_tokenizer_only(self) -> None:
@@ -1170,7 +1170,7 @@ class TestBM25Index:
         index = BM25Index(
             fields={
                 "id": {},
-                "description": {"tokenizer": "simple"},
+                "description": {"tokenizer": Tokenizer.simple()},
             },
             key_field="id",
             name="product_search_idx",
@@ -1189,8 +1189,19 @@ class TestBM25Index:
                 "id": {},
                 "metadata": {
                     "json_keys": {
-                        "title": {"tokenizer": "simple", "filters": ["lowercase"]},
-                        "brand": {"tokenizer": "simple"},
+                        "title": {
+                            "tokenizer": Tokenizer.simple(
+                                options={
+                                    "alias": "metadata_title",
+                                    "lowercase": True,
+                                }
+                            )
+                        },
+                        "brand": {
+                            "tokenizer": Tokenizer.simple(
+                                options={"alias": "metadata_brand"}
+                            )
+                        },
                     }
                 },
             },
@@ -1201,7 +1212,7 @@ class TestBM25Index:
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
-            == "CREATE INDEX \"product_search_idx\" ON \"tests_product\"\nUSING bm25 (\n    \"id\",\n    ((\"metadata\"->>'title')::pdb.simple('alias=metadata_title,lowercase=true')),\n    ((\"metadata\"->>'brand')::pdb.simple('alias=metadata_brand'))\n)\nWITH (key_field='id')"
+            == "CREATE INDEX \"product_search_idx\" ON \"tests_product\"\nUSING bm25 (\n    \"id\",\n    ((\"metadata\"->>'title')::pdb.simple('alias=metadata_title','lowercase=true')),\n    ((\"metadata\"->>'brand')::pdb.simple('alias=metadata_brand'))\n)\nWITH (key_field='id')"
         )
 
     def test_json_field_native_json_fields(self) -> None:
@@ -1226,53 +1237,8 @@ class TestBM25Index:
             == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "metadata"\n)\nWITH (key_field=\'id\', json_fields=\'{"metadata":{"expand_dots":false,"fast":true}}\')'
         )
 
-    def test_field_filters_without_tokenizer_raises(self) -> None:
-        """Specifying filters or stemmer without a tokenizer raises ValueError."""
-        index = BM25Index(
-            fields={
-                "id": {},
-                "description": {"stemmer": "english"},
-            },
-            key_field="id",
-            name="product_search_idx",
-        )
-        schema_editor = DummySchemaEditor()
-        with pytest.raises(ValueError, match="no tokenizer"):
-            index.create_sql(model=Product, schema_editor=schema_editor)
-
-    def test_stemmer_filter_requires_stemmer_language(self) -> None:
-        """The stemmer filter must be paired with an explicit stemmer language."""
-        index = BM25Index(
-            fields={
-                "id": {},
-                "description": {
-                    "tokenizer": "simple",
-                    "filters": ["stemmer"],
-                },
-            },
-            key_field="id",
-            name="product_search_idx",
-        )
-        schema_editor = DummySchemaEditor()
-        with pytest.raises(ValueError, match="requires a stemmer language"):
-            index.create_sql(model=Product, schema_editor=schema_editor)
-
-    def test_field_filters_only_without_tokenizer_raises(self) -> None:
-        """Specifying only filters without a tokenizer raises ValueError."""
-        index = BM25Index(
-            fields={
-                "id": {},
-                "description": {"filters": ["lowercase"]},
-            },
-            key_field="id",
-            name="product_search_idx",
-        )
-        schema_editor = DummySchemaEditor()
-        with pytest.raises(ValueError, match="no tokenizer"):
-            index.create_sql(model=Product, schema_editor=schema_editor)
-
     def test_json_key_without_tokenizer_raises(self) -> None:
-        """JSON keys without an explicit tokenizer raise ValueError."""
+        """JSON keys without an explicit tokenizer raise TypeError."""
         index = BM25Index(
             fields={
                 "id": {},
@@ -1286,7 +1252,7 @@ class TestBM25Index:
             name="product_search_idx",
         )
         schema_editor = DummySchemaEditor()
-        with pytest.raises(ValueError, match="requires an explicit tokenizer"):
+        with pytest.raises(TypeError, match="tokenizer must be a Tokenizer"):
             index.create_sql(model=Product, schema_editor=schema_editor)
 
     def test_json_field_literal_alias(self) -> None:
@@ -1297,8 +1263,16 @@ class TestBM25Index:
                 "description": {},
                 "metadata": {
                     "json_keys": {
-                        "color": {"tokenizer": "literal"},
-                        "location": {"tokenizer": "literal"},
+                        "color": {
+                            "tokenizer": Tokenizer.literal(
+                                options={"alias": "metadata_color"}
+                            )
+                        },
+                        "location": {
+                            "tokenizer": Tokenizer.literal(
+                                options={"alias": "metadata_location"}
+                            )
+                        },
                     }
                 },
             },
@@ -1319,11 +1293,14 @@ class TestBM25Index:
                 "id": {},
                 "description": {
                     "tokenizers": [
-                        {"tokenizer": "literal"},
+                        {"tokenizer": Tokenizer.literal()},
                         {
-                            "tokenizer": "simple",
-                            "filters": ["lowercase"],
-                            "alias": "description_simple",
+                            "tokenizer": Tokenizer.simple(
+                                options={
+                                    "alias": "description_simple",
+                                    "lowercase": True,
+                                }
+                            ),
                         },
                     ]
                 },
@@ -1335,7 +1312,7 @@ class TestBM25Index:
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple(\'alias=description_simple,lowercase=true\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple(\'alias=description_simple\',\'lowercase=true\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_multiple_tokenizers_allows_secondary_entries_without_alias(self) -> None:
@@ -1345,8 +1322,8 @@ class TestBM25Index:
                 "id": {},
                 "description": {
                     "tokenizers": [
-                        {"tokenizer": "literal"},
-                        {"tokenizer": "simple"},
+                        {"tokenizer": Tokenizer.literal()},
+                        {"tokenizer": Tokenizer.simple()},
                     ]
                 },
             },
@@ -1366,8 +1343,8 @@ class TestBM25Index:
             fields={
                 "id": {},
                 "description": {
-                    "tokenizers": [{"tokenizer": "literal"}],
-                    "tokenizer": "simple",
+                    "tokenizers": [{"tokenizer": Tokenizer.literal()}],
+                    "tokenizer": Tokenizer.simple(),
                 },
             },
             key_field="id",
@@ -1384,15 +1361,17 @@ class TestBM25Index:
                 "id": {},
                 "description": {
                     "tokenizers": [
-                        {"tokenizer": "literal"},
+                        {"tokenizer": Tokenizer.literal()},
                         {
-                            "tokenizer": "ngram",
-                            "args": [3, 3],
-                            "named_args": {
-                                "prefix_only": True,
-                                "positions": True,
-                            },
-                            "alias": "description_ngram",
+                            "tokenizer": Tokenizer.ngram(
+                                3,
+                                3,
+                                options={
+                                    "alias": "description_ngram",
+                                    "prefix_only": True,
+                                    "positions": True,
+                                },
+                            ),
                         },
                     ]
                 },
@@ -1404,7 +1383,7 @@ class TestBM25Index:
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.ngram(3,3,\'alias=description_ngram,prefix_only=true,positions=true\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.ngram(3,3,\'alias=description_ngram\',\'prefix_only=true\',\'positions=true\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_structured_regex_pattern_and_alias_in_multi_tokenizer_dsl(self) -> None:
@@ -1414,11 +1393,12 @@ class TestBM25Index:
                 "id": {},
                 "description": {
                     "tokenizers": [
-                        {"tokenizer": "literal"},
+                        {"tokenizer": Tokenizer.literal()},
                         {
-                            "tokenizer": "regex_pattern",
-                            "args": [r"(?i)\bh\w*"],
-                            "alias": "description_regex",
+                            "tokenizer": Tokenizer.regex_pattern(
+                                r"(?i)\bh\w*",
+                                options={"alias": "description_regex"},
+                            ),
                         },
                     ]
                 },
@@ -1442,11 +1422,12 @@ class TestBM25Index:
                 "id": {},
                 "description": {
                     "tokenizers": [
-                        {"tokenizer": "literal"},
+                        {"tokenizer": Tokenizer.literal()},
                         {
-                            "tokenizer": "lindera",
-                            "args": ["japanese"],
-                            "alias": "description_jp",
+                            "tokenizer": Tokenizer.lindera(
+                                "japanese",
+                                options={"alias": "description_jp"},
+                            ),
                         },
                     ]
                 },
@@ -1462,19 +1443,20 @@ class TestBM25Index:
         )
 
     def test_value_based_token_filter_named_args(self) -> None:
-        """Supports non-boolean token filter named args in DSL."""
+        """Supports non-boolean tokenizer options."""
         index = BM25Index(
             fields={
                 "id": {},
                 "description": {
-                    "tokenizer": "simple",
-                    "named_args": {
-                        "lowercase": False,
-                        "stopwords_language": "English,French",
-                        "remove_long": 20,
-                        "remove_short": 2,
-                    },
-                    "stemmer": "english",
+                    "tokenizer": Tokenizer.simple(
+                        options={
+                            "lowercase": False,
+                            "stopwords_language": "English,French",
+                            "remove_long": 20,
+                            "remove_short": 2,
+                            "stemmer": "english",
+                        }
+                    ),
                 },
             },
             key_field="id",
@@ -1484,7 +1466,7 @@ class TestBM25Index:
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=false,stopwords_language=English,French,remove_long=20,remove_short=2,stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+            == "CREATE INDEX \"product_search_idx\" ON \"tests_product\"\nUSING bm25 (\n    \"id\",\n    (\"description\"::pdb.simple('lowercase=false','stopwords_language=English,French','remove_long=20','remove_short=2','stemmer=english'))\n)\nWITH (key_field='id')"
         )
 
     def test_indexed_expression_with_concat(self) -> None:
@@ -1502,7 +1484,7 @@ class TestBM25Index:
                         output_field=models.TextField(),
                     ),
                     alias="description_concat",
-                    tokenizer="simple",
+                    tokenizer=Tokenizer.simple(options={"alias": "description_concat"}),
                 )
             ],
             key_field="id",
@@ -1515,61 +1497,10 @@ class TestBM25Index:
             == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((("tests_product"."description" || \' \' || "tests_product"."category"))::pdb.simple(\'alias=description_concat\'))\n)\nWITH (key_field=\'id\')'
         )
 
-    def test_legacy_options_key_raises(self) -> None:
-        """Legacy 'options' key is no longer accepted."""
-        index = BM25Index(
-            fields={
-                "id": {},
-                "description": {
-                    "tokenizer": "simple",
-                    "options": {"remove_long": 20},
-                },
-            },
-            key_field="id",
-            name="product_search_idx",
-        )
-        schema_editor = DummySchemaEditor()
-        with pytest.raises(ValueError, match="deprecated 'options'"):
-            index.create_sql(model=Product, schema_editor=schema_editor)
-
-    def test_named_args_invalid_key_raises(self) -> None:
-        index = BM25Index(
-            fields={
-                "id": {},
-                "description": {
-                    "tokenizer": "simple",
-                    "named_args": {"bad-key": True},
-                },
-            },
-            key_field="id",
-            name="product_search_idx",
-        )
-        schema_editor = DummySchemaEditor()
-        with pytest.raises(ValueError, match="Tokenizer named arg keys must match"):
-            index.create_sql(model=Product, schema_editor=schema_editor)
-
-    def test_named_args_value_with_equals_raises(self) -> None:
-        index = BM25Index(
-            fields={
-                "id": {},
-                "description": {
-                    "tokenizer": "simple",
-                    "named_args": {"language": "en=us"},
-                },
-            },
-            key_field="id",
-            name="product_search_idx",
-        )
-        schema_editor = DummySchemaEditor()
-        with pytest.raises(
-            ValueError, match="named arg string values cannot contain '='"
-        ):
-            index.create_sql(model=Product, schema_editor=schema_editor)
-
     def test_create_sql_concurrently(self) -> None:
         """create_sql with concurrently=True emits CREATE INDEX CONCURRENTLY."""
         index = BM25Index(
-            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
             name="product_search_idx",
         )
@@ -1585,7 +1516,7 @@ class TestBM25Index:
     def test_create_sql_without_concurrently(self) -> None:
         """create_sql without concurrently does not emit CONCURRENTLY."""
         index = BM25Index(
-            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
             name="product_search_idx",
         )
@@ -1597,7 +1528,7 @@ class TestBM25Index:
     def test_create_sql_with_condition(self) -> None:
         """create_sql with condition appends a WHERE clause."""
         index = BM25Index(
-            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
             name="product_search_idx",
             condition=Q(description__isnull=False),
@@ -1612,7 +1543,7 @@ class TestBM25Index:
     def test_create_sql_with_condition_and_concurrently(self) -> None:
         """create_sql with both condition and concurrently emits both."""
         index = BM25Index(
-            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
             name="product_search_idx",
             condition=Q(description__isnull=False),
@@ -1644,7 +1575,7 @@ class TestBM25Index:
     def test_create_sql_without_condition_no_where(self) -> None:
         """create_sql without condition does not append WHERE clause."""
         index = BM25Index(
-            fields={"id": {}, "description": {"tokenizer": "simple"}},
+            fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
             name="product_search_idx",
         )
@@ -1660,7 +1591,7 @@ class TestBM25Index:
                 IndexExpression(
                     Lower("description"),
                     alias="description_lower",
-                    tokenizer="simple",
+                    tokenizer=Tokenizer.simple(options={"alias": "description_lower"}),
                 ),
             ],
             key_field="id",
@@ -1701,9 +1632,13 @@ class TestBM25Index:
                 IndexExpression(
                     Lower("description"),
                     alias="desc_processed",
-                    tokenizer="simple",
-                    filters=["lowercase", "stemmer"],
-                    stemmer="english",
+                    tokenizer=Tokenizer.simple(
+                        options={
+                            "alias": "desc_processed",
+                            "lowercase": True,
+                            "stemmer": "english",
+                        }
+                    ),
                 ),
             ],
             key_field="id",
@@ -1713,7 +1648,7 @@ class TestBM25Index:
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((LOWER("tests_product"."description"))::pdb.simple(\'alias=desc_processed,lowercase=true,stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((LOWER("tests_product"."description"))::pdb.simple(\'alias=desc_processed\',\'lowercase=true\',\'stemmer=english\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_expression_with_arithmetic(self) -> None:
@@ -1803,9 +1738,11 @@ class TestBM25Index:
                 IndexExpression(
                     Lower("description"),
                     alias="desc_ngram",
-                    tokenizer="ngram",
-                    args=[3, 3],
-                    named_args={"prefix_only": True},
+                    tokenizer=Tokenizer.ngram(
+                        3,
+                        3,
+                        options={"alias": "desc_ngram", "prefix_only": True},
+                    ),
                 ),
             ],
             key_field="id",
@@ -1813,7 +1750,7 @@ class TestBM25Index:
         )
         schema_editor = DummySchemaEditor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
-        assert "pdb.ngram(3,3,'alias=desc_ngram,prefix_only=true')" in sql
+        assert "pdb.ngram(3,3,'alias=desc_ngram','prefix_only=true')" in sql
 
     def test_multiple_index_expressions(self) -> None:
         """Multiple IndexExpressions in a single index."""
@@ -1823,7 +1760,7 @@ class TestBM25Index:
                 IndexExpression(
                     Lower("description"),
                     alias="desc_lower",
-                    tokenizer="simple",
+                    tokenizer=Tokenizer.simple(options={"alias": "desc_lower"}),
                 ),
                 IndexExpression(
                     F("rating"),
@@ -1843,7 +1780,7 @@ class TestBM25Index:
         expr = IndexExpression(
             Lower("description"),
             alias="desc_lower",
-            tokenizer="simple",
+            tokenizer=Tokenizer.simple(options={"alias": "desc_lower"}),
         )
         index = BM25Index(
             fields={"id": {}},
@@ -1864,7 +1801,7 @@ class TestBM25Index:
                 IndexExpression(
                     Lower("description"),
                     alias="desc_lower",
-                    tokenizer="simple",
+                    tokenizer=Tokenizer.simple(options={"alias": "desc_lower"}),
                 )
             ],
             key_field="id",

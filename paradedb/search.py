@@ -25,6 +25,7 @@ from django.db.models import (
 from django.db.models.expressions import Expression
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
+from django.utils.deconstruct import deconstructible
 
 from paradedb.api import (
     FN_ALL,
@@ -109,6 +110,7 @@ def _validate_optional_bool(name: str, value: bool | None) -> None:
         raise TypeError(f"{name} must be a boolean.")
 
 
+@deconstructible(path="paradedb.search.Tokenizer")
 class Tokenizer:
     """A ParadeDB Tokenizer call"""
 

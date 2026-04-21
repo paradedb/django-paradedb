@@ -10,14 +10,11 @@ All notable changes to this project will be documented in this file. The format 
 
 - Added support for `icu` and `edge_ngram` tokenizers.
 
-### Fixed
-
-- Allowed tokenizers with integer arguments like `ngram(3, 3)` to work as expected.
-
 ### Changed
 
 - **BREAKING**: Removed the `Empty`, `ParseWithField`, and `Range` query expressions
   from the public search API.
+- **BREAKING**: Updated tokenizers to be configured with a function-based API instead of using strings: `Tokenizer.simple(options={"lowercase": False})`
 
 ## [0.5.0] - 2026-03-23
 

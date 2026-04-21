@@ -204,41 +204,40 @@ class Tokenizer:
     ) -> Tokenizer:
         return Tokenizer(PDB_TYPE_TOKENIZER_SOURCE_CODE, options=options)
 
+    def render(self: Tokenizer) -> str:
+        if self.positional_arguments is None and self.options is None:
+            return self.name
 
-def _render_tokenizer(tokenizer: Tokenizer) -> str:
-    if tokenizer.positional_arguments is None and tokenizer.options is None:
-        return tokenizer.name
+        arguments: list[str] = []
 
-    arguments: list[str] = []
+        if self.positional_arguments is not None:
+            for param in self.positional_arguments:
+                if isinstance(param, bool):
+                    arguments.append("true" if param else "false")
+                elif isinstance(param, int | float):
+                    arguments.append(str(param))
+                elif isinstance(param, str):
+                    arguments.append(_quote_term(param))
+                else:
+                    raise TypeError(
+                        f"Unsupported self arg type: {type(param).__name__}"
+                    )
 
-    if tokenizer.positional_arguments is not None:
-        for param in tokenizer.positional_arguments:
-            if isinstance(param, bool):
-                arguments.append("true" if param else "false")
-            elif isinstance(param, int | float):
-                arguments.append(str(param))
-            elif isinstance(param, str):
-                arguments.append(_quote_term(param))
-            else:
-                raise TypeError(
-                    f"Unsupported tokenizer arg type: {type(param).__name__}"
-                )
+        if self.options:
+            for key, value in self.options.items():
+                if isinstance(value, bool):
+                    rendered = "true" if value else "false"
+                elif isinstance(value, int | float):
+                    rendered = str(value)
+                elif isinstance(value, str):
+                    rendered = value
+                else:
+                    raise TypeError(
+                        f"Unsupported self named arg type: {type(value).__name__}"
+                    )
+                arguments.append(_quote_term(f"{key}={rendered}"))
 
-    if tokenizer.options:
-        for key, value in tokenizer.options.items():
-            if isinstance(value, bool):
-                rendered = "true" if value else "false"
-            elif isinstance(value, int | float):
-                rendered = str(value)
-            elif isinstance(value, str):
-                rendered = value
-            else:
-                raise TypeError(
-                    f"Unsupported tokenizer named arg type: {type(value).__name__}"
-                )
-            arguments.append(_quote_term(f"{key}={rendered}"))
-
-    return f"{tokenizer.name}({','.join(arguments)})"
+        return f"{self.name}({','.join(arguments)})"
 
 
 @dataclass(frozen=True)
@@ -1114,7 +1113,7 @@ class ParadeDB:
                 if term.const is not None:
                     rendered = f"{rendered}::{PDB_TYPE_QUERY}"
             if term.tokenizer is not None:
-                rendered = f"{rendered}::{_render_tokenizer(term.tokenizer)}"
+                rendered = f"{rendered}::{term.tokenizer.render()}"
             return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, ProximityNode):
             return self._render_proximity_node(term)
@@ -1222,7 +1221,7 @@ class ParadeDB:
                 quoted = [_quote_term(item) for item in term.terms]
                 rendered = f"ARRAY[{', '.join(quoted)}]"
             if term.tokenizer is not None:
-                rendered = f"{rendered}::{_render_tokenizer(term.tokenizer)}"
+                rendered = f"{rendered}::{term.tokenizer.render()}"
             rendered = self._append_fuzzy(
                 rendered,
                 distance=term.distance,

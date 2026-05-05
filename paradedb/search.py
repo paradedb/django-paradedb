@@ -131,6 +131,15 @@ class Tokenizer:
         self.positional_arguments = params
         self.options = options
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Tokenizer):
+            return NotImplemented
+        return (
+            self.name == other.name
+            and self.positional_arguments == other.positional_arguments
+            and self.options == other.options
+        )
+
     @staticmethod
     def unicode_words(
         options: _TOKENIZER_OPTIONS | None = None,

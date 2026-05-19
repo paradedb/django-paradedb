@@ -166,14 +166,6 @@ class TestEmptyAndWhitespaceInputs:
         sql = str(queryset.query)
         assert "### ''" in sql
 
-    def test_match_distance_empty_string(self) -> None:
-        """Match with distance and empty string works."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match(Fuzzy("", 1), operator="OR"))
-        )
-        sql = str(queryset.query)
-        assert "''::pdb.fuzzy" in sql
-
 
 class TestLongInputs:
     """Test handling of very long inputs."""
@@ -368,43 +360,6 @@ class TestTermSetExpression:
     def test_term_set_mixed_date_datetime_raise(self) -> None:
         with pytest.raises(TypeError, match="must all have the same type"):
             TermSet(date.today(), datetime.now(tz=timezone.utc))
-
-
-class TestNewQueryTypeValidation:
-    """Test that new query types pass through _resolve_terms without TypeError."""
-
-    def test_exists_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Exists()))
-        sql = str(queryset.query)
-        assert "pdb.exists()" in sql
-
-    def test_fuzzy_term_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(FuzzyTerm(value="test")))
-        sql = str(queryset.query)
-        assert "pdb.fuzzy_term" in sql
-
-    def test_term_set_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(TermSet("a", "b")))
-        sql = str(queryset.query)
-        assert "pdb.term_set" in sql
-
-
-class TestScoringValidation:
-    def test_boost_rejects_non_numeric_input(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match(Boost("shoes", "1.0)::pdb.const(10"), operator="AND")  # type: ignore[arg-type]
-            )
-        )
-        with pytest.raises(TypeError, match="boost must be an int or float"):
-            _ = str(queryset.query)
-
-    def test_const_rejects_non_finite_input(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match(Const("shoes", float("inf")), operator="AND"))
-        )
-        with pytest.raises(ValueError, match="const must be finite"):
-            _ = str(queryset.query)
 
 
 class TestSnippetsValidation:

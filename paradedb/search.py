@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -926,26 +925,13 @@ class ParadeDB:
         return f"{_quote_term(literal)}::{safe_range_type}"
 
     @staticmethod
-    def _render_scoring_number(value: float | None, *, name: str) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, bool) or not isinstance(value, int | float):
-            raise TypeError(f"{name} must be an int or float.")
-        numeric = float(value)
-        if not math.isfinite(numeric):
-            raise ValueError(f"{name} must be finite.")
-        return str(value)
-
-    @staticmethod
     def _render_search_value(value: object) -> str:
         if isinstance(value, Boost):
             rendered = ParadeDB._render_search_value(value.value)
-            factor = ParadeDB._render_scoring_number(value.factor, name="boost")
-            return f"{rendered}::{PDB_TYPE_BOOST}({factor})"
+            return f"{rendered}::{PDB_TYPE_BOOST}({value.factor})"
         if isinstance(value, Const):
             rendered = ParadeDB._render_search_value(value.value)
-            score = ParadeDB._render_scoring_number(value.score, name="const")
-            return f"{rendered}::{PDB_TYPE_CONST}({score})"
+            return f"{rendered}::{PDB_TYPE_CONST}({value.score})"
         if isinstance(value, Fuzzy):
             rendered = ParadeDB._render_search_value(value.value)
             fuzzy_args = [str(value.distance)]
@@ -971,11 +957,9 @@ class ParadeDB:
 
     def _append_cast(self, value: object, rendered: str) -> str:
         if isinstance(value, Boost):
-            factor = self._render_scoring_number(value.factor, name="boost")
-            return f"{rendered}::{PDB_TYPE_BOOST}({factor})"
+            return f"{rendered}::{PDB_TYPE_BOOST}({value.factor})"
         if isinstance(value, Const):
-            score = self._render_scoring_number(value.score, name="const")
-            return f"{rendered}::{PDB_TYPE_CONST}({score})"
+            return f"{rendered}::{PDB_TYPE_CONST}({value.score})"
         if isinstance(value, Fuzzy):
             fuzzy_args = [str(value.distance)]
             if value.prefix is not None:

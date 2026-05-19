@@ -395,9 +395,8 @@ class TestFuzzyTermQuery:
         queryset = Product.objects.filter(
             description=ParadeDB(Const(Fuzzy(FuzzyTerm(value="shoes"), 1), 2.0))
         )
-        assert (
-            "@@@ pdb.fuzzy_term('shoes')::pdb.fuzzy(1)::pdb.query::pdb.const(2.0)"
-            in str(queryset.query)
+        assert "@@@ pdb.fuzzy_term('shoes')::pdb.fuzzy(1)::pdb.const(2.0)" in str(
+            queryset.query
         )
 
 

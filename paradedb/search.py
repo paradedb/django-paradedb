@@ -111,10 +111,6 @@ class Slop(Modifier):
 class Tokenized(Modifier):
     tokenizer: Tokenizer
 
-    def __post_init__(self) -> None:
-        if not isinstance(self.tokenizer, Tokenizer):
-            raise TypeError("tokenizer must be a Tokenizer.")
-
 
 def _validate_fuzzy_distance(distance: int | None) -> None:
     if distance is None:
@@ -955,24 +951,6 @@ class ParadeDB:
             return f"ARRAY[{', '.join(quoted)}]"
         raise TypeError(f"Unsupported search value type. {value}")
 
-    def _append_cast(self, value: object, rendered: str) -> str:
-        if isinstance(value, Boost):
-            return f"{rendered}::{PDB_TYPE_BOOST}({value.factor})"
-        if isinstance(value, Const):
-            return f"{rendered}::{PDB_TYPE_CONST}({value.score})"
-        if isinstance(value, Fuzzy):
-            fuzzy_args = [str(value.distance)]
-            if value.prefix is not None:
-                fuzzy_args.append("t" if value.prefix else "f")
-            if value.transposition_cost_one is not None:
-                fuzzy_args.append("t" if value.transposition_cost_one else "f")
-            return f"{rendered}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
-        if isinstance(value, Slop):
-            return f"{rendered}::{PDB_TYPE_SLOP}({value.distance})"
-        if isinstance(value, Tokenized):
-            return f"{rendered}::{value.tokenizer.render()}"
-        raise AssertionError(f"Unsupported cast value: {value!r}")
-
     def _render_proximity_node(self, node: ProximityNode) -> str:
         return f"({self._render_proximity(node)})"
 
@@ -1005,11 +983,7 @@ class ParadeDB:
 
     def _render_term(self, term: TermType) -> str:
         if isinstance(term, Boost | Const | Fuzzy | Slop | Tokenized):
-            if isinstance(term.value, QueryExpression):
-                rendered = self._render_term(term.value)
-            else:
-                rendered = self._render_search_value(term.value)
-            return self._append_cast(term, rendered)
+            return self._render_search_value(term)
         if isinstance(term, Phrase):
             return self._render_search_value(
                 term.terms[0] if len(term.terms) == 1 else term.terms

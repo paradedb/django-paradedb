@@ -48,7 +48,7 @@ if not settings.configured:
 django.setup()
 
 from django.db import models
-from paradedb.search import Match, ParadeDB
+from paradedb.search import MatchAll, ParadeDB
 
 
 class SmokeModel(models.Model):
@@ -59,7 +59,7 @@ class SmokeModel(models.Model):
 
 
 sql = str(
-    SmokeModel.objects.filter(description=ParadeDB(Match("shoes", operator="AND"))).query
+    SmokeModel.objects.filter(description=ParadeDB(MatchAll("shoes"))).query
 )
 if "&&&" not in sql:
     raise SystemExit("Wheel smoke test failed: expected ParadeDB SQL operator.")

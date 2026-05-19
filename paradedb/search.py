@@ -65,7 +65,6 @@ from paradedb.api import (
     PDB_TYPE_TOKENIZER_WHITESPACE,
 )
 
-ParadeOperator = Literal["OR", "AND"]
 SearchValue: TypeAlias = "str | list[str] | tuple[str, ...] | Modifier"
 Modifiable: TypeAlias = "SearchValue | QueryExpression"
 
@@ -570,19 +569,29 @@ class TermSet:
 
 
 @dataclass(frozen=True)
-class Match:
-    """Explicit text-match query expression."""
+class MatchAny:
+    """Explicit text-match query expression using OR semantics."""
 
     terms: tuple[SearchValue, ...]
-    operator: ParadeOperator
 
     def __init__(
         self,
         *terms: SearchValue,
-        operator: ParadeOperator,
     ) -> None:
         object.__setattr__(self, "terms", tuple(terms))
-        object.__setattr__(self, "operator", operator)
+
+
+@dataclass(frozen=True)
+class MatchAll:
+    """Explicit text-match query expression using AND semantics."""
+
+    terms: tuple[SearchValue, ...]
+
+    def __init__(
+        self,
+        *terms: SearchValue,
+    ) -> None:
+        object.__setattr__(self, "terms", tuple(terms))
 
 
 class MoreLikeThis(Expression):
@@ -819,7 +828,8 @@ def _render_options(options: dict[str, object | None]) -> tuple[str, list[Any]]:
 
 
 QueryExpression: TypeAlias = (
-    Match
+    MatchAny
+    | MatchAll
     | Exists
     | FuzzyTerm
     | TermSet
@@ -841,10 +851,10 @@ class ParadeDB:
 
     Usage:
         # Explicit literal match query
-        ParadeDB(Match('running', 'shoes', operator='AND'))
+        ParadeDB(MatchAll('running', 'shoes'))
 
         # Complex mixed AND/OR logic is expressed by combining multiple
-        # ParadeDB(Match(...)) clauses with Django Q objects.
+        # ParadeDB(MatchAny(...))/ParadeDB(MatchAll(...)) clauses with Django Q objects.
 
         # Query expressions (SINGLE expression only)
         ParadeDB(Parse('query'))             # ✅ Valid
@@ -888,17 +898,12 @@ class ParadeDB:
         rendered = self._render_term(self._term)
         return f"{lhs_sql} {self._lookup_operator()} {rendered}", []
 
-    # TODO We should create separate functions for match any and match all
-    # to remove the need for this
     def _lookup_operator(self) -> str:
         term = self._unwrap_term(self._term)
-        if isinstance(term, Match):
-            if term.operator == "OR":
-                return OP_OR
-            elif term.operator == "AND":
-                return OP_AND
-            else:
-                raise ValueError("Match operator must be 'AND' or 'OR'.")
+        if isinstance(term, MatchAny):
+            return OP_OR
+        if isinstance(term, MatchAll):
+            return OP_AND
         if isinstance(term, Phrase):
             return OP_PHRASE
         return OP_SEARCH
@@ -1035,7 +1040,7 @@ class ParadeDB:
             return f"{FN_TERM_SET}({array_sql})"
         if isinstance(term, All):
             return f"{FN_ALL}()"
-        if isinstance(term, Match):
+        if isinstance(term, MatchAny | MatchAll):
             return self._render_search_value(
                 term.terms[0] if len(term.terms) == 1 else term.terms
             )
@@ -1139,10 +1144,10 @@ __all__ = [
     "Exists",
     "Fuzzy",
     "FuzzyTerm",
-    "Match",
+    "MatchAll",
+    "MatchAny",
     "MoreLikeThis",
     "ParadeDB",
-    "ParadeOperator",
     "Parse",
     "Phrase",
     "PhrasePrefix",

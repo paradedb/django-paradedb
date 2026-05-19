@@ -21,7 +21,7 @@ from django_cte import CTE, with_cte
 from pgvector.django import CosineDistance
 
 from paradedb.functions import Score
-from paradedb.search import Match, ParadeDB
+from paradedb.search import MatchAll, ParadeDB
 
 if MockItem is None:
     raise ImportError(
@@ -72,7 +72,7 @@ def hybrid_search(
     """
     # CTE 1: BM25 full-text search with ROW_NUMBER rank
     fulltext_qs = (
-        MockItem.objects.filter(description=ParadeDB(Match(query, operator="AND")))
+        MockItem.objects.filter(description=ParadeDB(MatchAll(query)))
         .annotate(bm25=Score())
         .annotate(rank=Window(expression=RowNumber(), order_by=F("bm25").desc()))
         .order_by("-bm25")

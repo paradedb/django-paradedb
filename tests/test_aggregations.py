@@ -13,7 +13,7 @@ import pytest
 from django.db.models import Window
 
 from paradedb.functions import Agg
-from paradedb.search import All, Match, ParadeDB, Term
+from paradedb.search import All, MatchAll, ParadeDB, Term
 from tests.models import MockItem, Product
 
 pytestmark = [
@@ -264,7 +264,7 @@ class TestDjangoORMWithAgg:
         # This validates that the SQL generation works correctly
         json_spec = '{"category":{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}}'
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(facets=Window(expression=Agg(json_spec)))
 
         # Verify SQL is generated correctly

@@ -15,7 +15,7 @@ from paradedb.search import (
     Exists,
     Fuzzy,
     FuzzyTerm,
-    Match,
+    MatchAll,
     MoreLikeThis,
     ParadeDB,
     Phrase,
@@ -175,8 +175,8 @@ class TestDjangoIntegration:
         queryset = Product.objects.filter(
             Q(description=ParadeDB(Phrase("running shoes")), rating__gte=4)
             | Q(
-                category=ParadeDB(Match("Electronics", operator="AND")),
-                description=ParadeDB(Match("wireless", operator="AND")),
+                category=ParadeDB(MatchAll("Electronics")),
+                description=ParadeDB(MatchAll("wireless")),
             )
         )
         sql = str(queryset.query)
@@ -189,8 +189,8 @@ class TestDjangoIntegration:
     def test_negation_with_q(self) -> None:
         """Negation using ~Q with ParadeDB."""
         queryset = Product.objects.filter(
-            Q(description=ParadeDB(Match("running", "athletic", operator="AND"))),
-            ~Q(description=ParadeDB(Match("cheap", operator="AND"))),
+            Q(description=ParadeDB(MatchAll("running", "athletic"))),
+            ~Q(description=ParadeDB(MatchAll("cheap"))),
         )
         sql = str(queryset.query)
         assert (
@@ -201,7 +201,7 @@ class TestDjangoIntegration:
     def test_with_standard_filters(self) -> None:
         """ParadeDB search combined with standard ORM filters."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND")),
+            description=ParadeDB(MatchAll("shoes")),
             price__lt=100,
             in_stock=True,
             rating__gte=4,
@@ -214,7 +214,7 @@ class TestDjangoIntegration:
     def test_with_window_functions(self) -> None:
         """ParadeDB search with Django window functions."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(
             rank_in_category=Window(
                 expression=RowNumber(),
@@ -235,7 +235,7 @@ class TestDjangoIntegration:
                 F("category"),
                 output_field=TextField(),
             )
-        ).filter(combined=ParadeDB(Match("running", operator="AND")))
+        ).filter(combined=ParadeDB(MatchAll("running")))
         sql = str(queryset.query)
         assert "&&& 'running'" in sql
         assert '"tests_product"."description"' in sql
@@ -249,7 +249,7 @@ class TestFacets:
         """Facets window annotation uses pdb.agg() OVER ()."""
         json_spec = '{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}'
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(facets=Window(expression=Agg(json_spec)))
         sql = str(queryset.query)
         assert (
@@ -262,7 +262,7 @@ class TestFacets:
         """Non-exact (exact=False) facets emit the second pdb.agg argument."""
         json_spec = '{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}'
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(facets=Window(expression=Agg(json_spec, exact=False)))
         assert (
             str(queryset.query)
@@ -277,24 +277,20 @@ class TestFacets:
 
     def test_facets_requires_order_by_and_limit(self) -> None:
         """facets() raises if include_rows requires order_by + LIMIT."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("shoes")))
         with pytest.raises(ValueError, match="order_by\\(\\) and a LIMIT"):
             queryset.facets("category")
 
     def test_facets_exact_false_requires_window(self) -> None:
         """exact=False facets require windowed aggregations."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("shoes")))
         with pytest.raises(ValueError, match="exact=False"):
             queryset.facets("category", include_rows=False, exact=False)
 
     def test_facets_multiple_fields_specs(self) -> None:
         """facets() generates correct specs for multiple fields."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).order_by("price")[:5]
         specs = queryset._build_agg_specs(
             fields=["category", "rating"],
@@ -311,7 +307,7 @@ class TestFacets:
     def test_facets_single_field_spec_shape(self) -> None:
         """Single field facets use terms as the root aggregation."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).order_by("price")[:5]
         specs = queryset._build_agg_specs(
             fields=["category"],
@@ -328,7 +324,7 @@ class TestFacets:
     def test_facets_missing_allows_non_string(self) -> None:
         """Missing values accept non-string JSON types."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).order_by("price")[:5]
         specs = queryset._build_agg_specs(
             fields=["in_stock"],
@@ -344,7 +340,7 @@ class TestFacets:
     def test_facets_requires_unique_fields(self) -> None:
         """facets() raises when fields are duplicated."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).order_by("price")[:5]
         with pytest.raises(ValueError, match="unique"):
             queryset.facets("category", "category")

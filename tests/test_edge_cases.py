@@ -11,7 +11,7 @@ import pytest
 from paradedb.search import (
     Boost,
     Const,
-    Match,
+    MatchAll,
     MoreLikeThis,
     ParadeDB,
     Parse,
@@ -31,48 +31,40 @@ class TestSpecialCharacterEscaping:
 
     def test_single_quote_in_search_term(self) -> None:
         """Single quotes are escaped to prevent SQL injection."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("it's", operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("it's")))
         sql = str(queryset.query)
         assert "it''s" in sql
 
     def test_double_single_quotes(self) -> None:
         """Multiple single quotes are all escaped."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("don''t", operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("don''t")))
         sql = str(queryset.query)
         assert "don''''t" in sql
 
     def test_backslash_in_search_term(self) -> None:
         """Backslashes are preserved in search terms."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("path\\to\\file", operator="AND"))
+            description=ParadeDB(MatchAll("path\\to\\file"))
         )
         sql = str(queryset.query)
         assert "path\\to\\file" in sql
 
     def test_unicode_characters(self) -> None:
         """Unicode characters work in search terms."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("日本語", operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("日本語")))
         sql = str(queryset.query)
         assert "日本語" in sql
 
     def test_emoji_in_search(self) -> None:
         """Emoji characters work in search terms."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("👟 shoes", operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("👟 shoes")))
         sql = str(queryset.query)
         assert "👟 shoes" in sql
 
     def test_special_sql_keywords(self) -> None:
         """SQL keywords in search terms are quoted safely."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("SELECT * FROM", operator="AND"))
+            description=ParadeDB(MatchAll("SELECT * FROM"))
         )
         sql = str(queryset.query)
         assert "'SELECT * FROM'" in sql

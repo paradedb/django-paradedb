@@ -17,7 +17,8 @@ from paradedb.search import (
     Exists,
     Fuzzy,
     FuzzyTerm,
-    Match,
+    MatchAll,
+    MatchAny,
     ParadeDB,
     Parse,
     Phrase,
@@ -37,7 +38,7 @@ class TestScoreEdgeCases:
     def test_score_default_uses_pk(self) -> None:
         """Score defaults to pk field."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(s=Score())
         sql = str(queryset.query)
         assert "pdb.score" in sql
@@ -49,7 +50,7 @@ class TestSnippetEdgeCases:
     def test_snippet_partial_formatting(self) -> None:
         """Snippet with only start_sel."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(s=Snippet("description", start_sel="<b>"))
         sql = str(queryset.query)
         assert "<b>" in sql
@@ -57,7 +58,7 @@ class TestSnippetEdgeCases:
     def test_snippet_only_max_chars(self) -> None:
         """Snippet with only max_num_chars."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(s=Snippet("description", max_num_chars=50))
         sql = str(queryset.query)
         assert "50" in sql
@@ -146,17 +147,13 @@ class TestEmptyAndWhitespaceInputs:
 
     def test_empty_string_search(self) -> None:
         """Empty string search term works (ParadeDB handles it)."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("", operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("")))
         sql = str(queryset.query)
         assert "&&& ''" in sql
 
     def test_whitespace_only_search(self) -> None:
         """Whitespace-only search term works."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("   ", operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("   ")))
         sql = str(queryset.query)
         assert "'   '" in sql
 
@@ -173,18 +170,14 @@ class TestLongInputs:
     def test_very_long_search_term(self) -> None:
         """Very long search term is handled."""
         long_term = "a" * 10000
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match(long_term, operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll(long_term)))
         sql = str(queryset.query)
         assert long_term in sql
 
     def test_many_or_terms(self) -> None:
         """Many OR terms work."""
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match(*[f"term{i}" for i in range(1, 101)], operator="OR")
-            )
+            description=ParadeDB(MatchAny(*[f"term{i}" for i in range(1, 101)]))
         )
         sql = str(queryset.query)
         assert "term100" in sql
@@ -193,9 +186,7 @@ class TestLongInputs:
     def test_many_and_terms(self) -> None:
         """Many AND terms work."""
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match(*[f"term{i}" for i in range(100)], operator="AND")
-            )
+            description=ParadeDB(MatchAll(*[f"term{i}" for i in range(100)]))
         )
         sql = str(queryset.query)
         assert "term99" in sql
@@ -376,10 +367,11 @@ class TestTopLevelExports:
         expected_exports = [
             "Exists",
             "FuzzyTerm",
+            "MatchAll",
+            "MatchAny",
             "RangeRelation",
             "RangeType",
             "TermSet",
-            "ParadeOperator",
             "ParadeDBManager",
             "ParadeDBQuerySet",
         ]

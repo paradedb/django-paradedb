@@ -22,8 +22,6 @@ from paradedb.search import (
     ProxRegex,
     Regex,
     RegexPhrase,
-    Term,
-    Tokenizer,
 )
 from tests.models import Product
 
@@ -96,119 +94,17 @@ class TestSpecialCharacterEscaping:
         assert "test.*[a-z]+\\d{2,3}" in sql
 
 
-class TestPhraseValidation:
-    """Test Phrase dataclass validation."""
-
-    def test_phrase_slop_zero_is_valid(self) -> None:
-        """Slop of 0 is valid."""
-        phrase = Phrase("test", slop=0)
-        assert phrase.slop == 0
-
-    def test_phrase_negative_slop_raises(self) -> None:
-        """Negative slop raises ValueError."""
-        with pytest.raises(ValueError, match="zero or positive"):
-            Phrase("test", slop=-1)
-
-    def test_phrase_large_slop(self) -> None:
-        """Large slop values work."""
-        phrase = Phrase("test", slop=100)
-        assert phrase.slop == 100
-
-    def test_phrase_must_include_at_least_one_term(self) -> None:
-        with pytest.raises(ValueError, match="Phrase requires at least one term"):
-            Phrase()
-
-    def test_phrase_text_must_be_string(self) -> None:
-        with pytest.raises(TypeError, match="Phrase term must be a string"):
-            Phrase(123)  # type: ignore[arg-type]
-
-    def test_phrase_slop_must_be_integer(self) -> None:
-        with pytest.raises(TypeError, match="Phrase slop must be an integer"):
-            Phrase("test", slop=True)  # type: ignore[arg-type]
-
-
-class TestDistanceValidation:
-    """Test distance validation on Match and Term."""
-
-    def test_match_default_distance(self) -> None:
-        match = Match("test", operator="AND")
-        assert match.distance is None
-
-    def test_match_distance_zero_is_valid(self) -> None:
-        match = Match("test", operator="AND", distance=0)
-        assert match.distance == 0
-
-    def test_match_negative_distance_raises(self) -> None:
-        with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
-            Match("test", operator="AND", distance=-1)
-
-    def test_match_large_distance_raises(self) -> None:
-        with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
-            Match("test", operator="AND", distance=10)
-
-    def test_match_distance_must_be_integer(self) -> None:
-        with pytest.raises(TypeError, match="Distance must be an integer"):
-            Match("test", operator="AND", distance=True)  # type: ignore[arg-type]
-
-    def test_term_distance_validation(self) -> None:
-        term = Term("test", distance=1)
-        assert term.distance == 1
-
-    def test_term_distance_must_be_integer(self) -> None:
-        with pytest.raises(TypeError, match="Distance must be an integer"):
-            Term("test", distance=True)  # type: ignore[arg-type]
-
-    def test_match_tokenizer_and_fuzzy_options_rejected(self) -> None:
-        with pytest.raises(
-            ValueError, match="Match tokenizer cannot be combined with fuzzy options"
-        ):
-            Match(
-                "test",
-                operator="AND",
-                tokenizer=Tokenizer.whitespace(),
-                distance=1,
-            )
-
-    def test_match_multi_term_fuzzy_with_boost_rejected(self) -> None:
-        with pytest.raises(
-            ValueError, match="Multi-term fuzzy Match does not support boost or const"
-        ):
-            Match("a", "b", operator="OR", distance=1, boost=2.0)
-
-    def test_match_multi_term_fuzzy_with_const_rejected(self) -> None:
-        with pytest.raises(
-            ValueError, match="Multi-term fuzzy Match does not support boost or const"
-        ):
-            Match("a", "b", operator="OR", distance=1, const=1.0)
-
-    def test_term_non_string_rejected(self) -> None:
-        with pytest.raises(TypeError, match="Term text must be a string"):
-            Term(123)  # type: ignore[arg-type]
-
-    def test_match_non_string_terms_rejected(self) -> None:
-        with pytest.raises(TypeError, match="Match terms must be strings"):
-            Match("ok", 123, operator="AND")  # type: ignore[arg-type]
-
-    def test_match_prefix_must_be_boolean(self) -> None:
-        with pytest.raises(TypeError, match="Match prefix must be a boolean"):
-            Match("ok", operator="AND", prefix=1)  # type: ignore[arg-type]
-
-    def test_term_prefix_must_be_boolean(self) -> None:
-        with pytest.raises(TypeError, match="Term prefix must be a boolean"):
-            Term("ok", prefix=1)  # type: ignore[arg-type]
-
-
 class TestExpressionValidation:
     """Validation coverage for expression dataclasses."""
 
     def test_proximity_boost_and_const_wrap_query_node(self) -> None:
         proximity = Proximity("a").within(1, "b")
-        boosted = proximity.boost(1.0)
-        constant = proximity.const(1.0)
-        assert boosted.node == proximity
-        assert boosted.relevance_modifier == Boost(1.0)
-        assert constant.node == proximity
-        assert constant.relevance_modifier == Const(1.0)
+        boosted = Boost(proximity, 1.0)
+        constant = Const(proximity, 1.0)
+        assert boosted.value == proximity
+        assert boosted.factor == 1.0
+        assert constant.value == proximity
+        assert constant.score == 1.0
 
     def test_proximity_start_must_be_string_or_proxregex(self) -> None:
         with pytest.raises(
@@ -217,9 +113,9 @@ class TestExpressionValidation:
             Proximity(1)  # type: ignore[arg-type]
 
     def test_parse_boost_and_const_deferred_to_database(self) -> None:
-        parsed = Parse("query", boost=1.0, const=1.0)
-        assert parsed.boost == 1.0
-        assert parsed.const == 1.0
+        parsed = Const(Boost(Parse("query"), 1.0), 1.0)
+        assert parsed.value.factor == 1.0
+        assert parsed.score == 1.0
 
     def test_parse_query_must_be_string(self) -> None:
         with pytest.raises(TypeError, match="Parse query must be a string"):
@@ -248,9 +144,9 @@ class TestExpressionValidation:
             RegexPhrase("a.*", max_expansions=True)  # type: ignore[arg-type]
 
     def test_regex_phrase_boost_and_const_deferred_to_database(self) -> None:
-        regex_phrase = RegexPhrase("a.*", boost=1.0, const=1.0)
-        assert regex_phrase.boost == 1.0
-        assert regex_phrase.const == 1.0
+        regex_phrase = Const(Boost(RegexPhrase("a.*"), 1.0), 1.0)
+        assert regex_phrase.value.factor == 1.0
+        assert regex_phrase.score == 1.0
 
     def test_phrase_prefix_terms_must_be_strings(self) -> None:
         with pytest.raises(TypeError, match="PhrasePrefix phrase must be a string"):
@@ -278,8 +174,8 @@ class TestExpressionValidation:
 
     def test_proximity_with_prox_regex_boost_and_const_wrap_query_node(self) -> None:
         proximity = Proximity("left").within(1, ProxRegex("right.*"))
-        assert proximity.boost(1.0).relevance_modifier == Boost(1.0)
-        assert proximity.const(1.0).relevance_modifier == Const(1.0)
+        assert Boost(proximity, 1.0).factor == 1.0
+        assert Const(proximity, 1.0).score == 1.0
 
     def test_proximity_allows_empty_start_term_list(self) -> None:
         proximity = Proximity([])
@@ -301,8 +197,8 @@ class TestExpressionValidation:
 
     def test_proximity_boost_and_const_with_step_wrap_query_node(self) -> None:
         proximity = Proximity("left").within(1, "right")
-        assert proximity.boost(1.0).node == proximity
-        assert proximity.const(1.0).node == proximity
+        assert Boost(proximity, 1.0).value == proximity
+        assert Const(proximity, 1.0).value == proximity
 
     def test_proximity_accepts_prox_regex_items_in_start(self) -> None:
         proximity = Proximity(["chicken", ProxRegex("r..s")]).within(1, "delicious")

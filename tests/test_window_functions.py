@@ -21,7 +21,7 @@ from django.db.models.functions import (
 )
 
 from paradedb.functions import Score, Snippet
-from paradedb.search import Match, ParadeDB, Phrase
+from paradedb.search import Match, ParadeDB, Phrase, Slop
 from tests.models import MockItem
 
 pytestmark = [
@@ -446,7 +446,7 @@ class TestWindowWithPhraseAndComplexSearch:
         """Phrase search with window ranking."""
         queryset = (
             MockItem.objects.filter(
-                description=ParadeDB(Phrase("running shoes", slop=2))
+                description=ParadeDB(Phrase(Slop("running shoes", 2)))
             )
             .annotate(search_score=Score())
             .annotate(

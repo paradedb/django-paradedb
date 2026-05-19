@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+### Changed
+
+- **BREAKING**: Search modifiers are now composable functions applied to search
+  values or query expressions: `Boost(...)`, `Const(...)`, `Fuzzy(...)`,
+  `Slop(...)`, and `Tokenized(...)`. Query expressions no longer accept
+  modifier kwargs like `boost=`, `const=`, `distance=`, `slop=`, or
+  `tokenizer=`.
+
 ## [0.7.0] - 2026-05-05
 
 - Add equality comparison for Tokenizer types so that repeated `makemigrations` calls do not repeatedly create the same migration.

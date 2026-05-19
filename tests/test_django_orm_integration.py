@@ -12,7 +12,17 @@ from django.db.models import F, Q, Window
 from django.db.models.functions import Lower, RowNumber
 
 from paradedb.functions import Score
-from paradedb.search import Match, ParadeDB, Phrase, Regex, Term
+from paradedb.search import (
+    Boost,
+    Const,
+    Fuzzy,
+    Match,
+    ParadeDB,
+    Phrase,
+    Regex,
+    Slop,
+    Term,
+)
 from tests.models import MockItem
 
 pytestmark = [
@@ -369,7 +379,7 @@ class TestPhraseSearchIntegration:
     def test_phrase_with_slop_and_filter(self) -> None:
         """Phrase with slop combined with standard filter."""
         queryset = MockItem.objects.filter(
-            description=ParadeDB(Phrase("running shoes", slop=2)),
+            description=ParadeDB(Phrase(Slop("running shoes", 2))),
             in_stock=True,
         )
         for item in queryset:
@@ -413,7 +423,7 @@ class TestBoostAndConstScoring:
         """Q|Q with boost on one side + Score ordering — docs/sorting/boost.mdx snippet 1."""
         rows = list(
             MockItem.objects.filter(
-                Q(description=ParadeDB(Match("shoes", operator="OR", boost=2)))
+                Q(description=ParadeDB(Match(Boost("shoes", 2), operator="OR")))
                 | Q(category=ParadeDB(Match("footwear", operator="OR")))
             )
             .annotate(score=Score())
@@ -427,7 +437,7 @@ class TestBoostAndConstScoring:
     def test_boost_regex_with_score_ordering(self) -> None:
         """Regex + boost + Score ordering — docs/sorting/boost.mdx snippet 2."""
         rows = list(
-            MockItem.objects.filter(description=ParadeDB(Regex("key.*", boost=2)))
+            MockItem.objects.filter(description=ParadeDB(Boost(Regex("key.*"), 2)))
             .annotate(score=Score())
             .values("id", "description", "category", "score")
             .order_by("-score")[:5]
@@ -438,7 +448,7 @@ class TestBoostAndConstScoring:
         """Term with fuzzy distance + boost + Score ordering — docs/sorting/boost.mdx snippet 3."""
         rows = list(
             MockItem.objects.filter(
-                description=ParadeDB(Term("shose", distance=2, boost=2))
+                description=ParadeDB(Boost(Fuzzy(Term("shose"), 2), 2))
             )
             .annotate(score=Score())
             .values("id", "description", "category", "score")
@@ -450,7 +460,7 @@ class TestBoostAndConstScoring:
         """Match + const=1 + Score ordering — docs/sorting/boost.mdx snippet 4."""
         rows = list(
             MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="OR", const=1))
+                description=ParadeDB(Match(Const("shoes", 1), operator="OR"))
             )
             .annotate(score=Score())
             .values("id", "score", "description", "category")

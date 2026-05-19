@@ -68,15 +68,54 @@ from paradedb.api import (
 )
 
 ParadeOperator = Literal["OR", "AND"]
+SearchValue: TypeAlias = "str | list[str] | tuple[str, ...] | Modifier"
+Modifiable: TypeAlias = "SearchValue | QueryExpression"
 
 
-def _is_fuzzy_enabled(
-    *,
-    distance: int | None,
-    prefix: bool,
-    transposition_cost_one: bool,
-) -> bool:
-    return distance is not None or prefix or transposition_cost_one
+@dataclass(frozen=True)
+class Modifier:
+    value: Modifiable
+
+
+@dataclass(frozen=True)
+class Boost(Modifier):
+    factor: float
+
+
+@dataclass(frozen=True)
+class Const(Modifier):
+    score: float
+
+
+@dataclass(frozen=True)
+class Fuzzy(Modifier):
+    distance: int
+    prefix: bool | None = None
+    transposition_cost_one: bool | None = None
+
+    def __post_init__(self) -> None:
+        _validate_fuzzy_distance(self.distance)
+        _validate_optional_bool("fuzzy prefix", self.prefix)
+        _validate_optional_bool(
+            "fuzzy transposition_cost_one", self.transposition_cost_one
+        )
+
+
+@dataclass(frozen=True)
+class Slop(Modifier):
+    distance: int
+
+    def __post_init__(self) -> None:
+        _validate_non_negative_int("slop distance", self.distance)
+
+
+@dataclass(frozen=True)
+class Tokenized(Modifier):
+    tokenizer: Tokenizer
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.tokenizer, Tokenizer):
+            raise TypeError("tokenizer must be a Tokenizer.")
 
 
 def _validate_fuzzy_distance(distance: int | None) -> None:
@@ -264,32 +303,13 @@ class Phrase:
     See: https://docs.paradedb.com/documentation/full-text/phrase
     """
 
-    terms: list[str]
-    slop: int | None = None
-    tokenizer: Tokenizer | None = None
-    boost: float | None = None
-    const: float | None = None
+    terms: tuple[SearchValue, ...]
 
     def __init__(
         self,
-        *terms: str,
-        slop: int | None = None,
-        tokenizer: Tokenizer | None = None,
-        boost: float | None = None,
-        const: float | None = None,
+        *terms: SearchValue,
     ) -> None:
-        if len(terms) == 0:
-            raise ValueError("Phrase requires at least one term")
-        for term in terms:
-            _validate_string("Phrase term", term)
-        if slop is not None:
-            _validate_non_negative_int("Phrase slop", slop)
-
         object.__setattr__(self, "terms", terms)
-        object.__setattr__(self, "slop", slop)
-        object.__setattr__(self, "tokenizer", tokenizer)
-        object.__setattr__(self, "boost", boost)
-        object.__setattr__(self, "const", const)
 
 
 @dataclass(frozen=True)
@@ -299,8 +319,6 @@ class Parse:
     query: str
     lenient: bool | None = None
     conjunction_mode: bool | None = None
-    boost: float | None = None
-    const: float | None = None
 
     def __post_init__(self) -> None:
         _validate_string("Parse query", self.query)
@@ -314,15 +332,11 @@ class PhrasePrefix:
 
     phrases: tuple[str, ...]
     max_expansion: int | None = None
-    boost: float | None = None
-    const: float | None = None
 
     def __init__(
         self,
         *phrases: str,
         max_expansion: int | None = None,
-        boost: float | None = None,
-        const: float | None = None,
     ) -> None:
         if not phrases:
             raise ValueError("PhrasePrefix requires at least one phrase term.")
@@ -332,8 +346,6 @@ class PhrasePrefix:
             _validate_non_negative_int("PhrasePrefix max_expansion", max_expansion)
         object.__setattr__(self, "phrases", tuple(phrases))
         object.__setattr__(self, "max_expansion", max_expansion)
-        object.__setattr__(self, "boost", boost)
-        object.__setattr__(self, "const", const)
 
 
 @dataclass(frozen=True)
@@ -343,16 +355,12 @@ class RegexPhrase:
     regexes: tuple[str, ...]
     slop: int | None = None
     max_expansions: int | None = None
-    boost: float | None = None
-    const: float | None = None
 
     def __init__(
         self,
         *regexes: str,
         slop: int | None = None,
         max_expansions: int | None = None,
-        boost: float | None = None,
-        const: float | None = None,
     ) -> None:
         if not regexes:
             raise ValueError("RegexPhrase requires at least one regex term.")
@@ -365,8 +373,6 @@ class RegexPhrase:
         object.__setattr__(self, "regexes", tuple(regexes))
         object.__setattr__(self, "slop", slop)
         object.__setattr__(self, "max_expansions", max_expansions)
-        object.__setattr__(self, "boost", boost)
-        object.__setattr__(self, "const", const)
 
 
 @dataclass(frozen=True)
@@ -439,29 +445,6 @@ class ProximityNode:
     ) -> ProximityNode:
         return ProximityNode(distance, ordered, self, term)
 
-    def boost(self, value: float) -> ProximityQuery:
-        return ProximityQuery(self, Boost(value))
-
-    def const(self, value: float) -> ProximityQuery:
-        return ProximityQuery(self, Const(value))
-
-
-@dataclass(frozen=True)
-class Boost:
-    value: float
-
-
-@dataclass(frozen=True)
-class Const:
-    value: float
-
-
-@dataclass(frozen=True)
-class ProximityQuery:
-    node: ProximityNode
-    # encoding boost & const like this makes it clear that at most one of them can be set at once
-    relevance_modifier: Boost | Const | None
-
 
 RangeRelation = Literal["Intersects", "Contains", "Within"]
 RangeType = Literal[
@@ -496,8 +479,6 @@ class RangeTerm:
     value: int | float | str | date | datetime
     relation: RangeRelation | None = None
     range_type: RangeType | None = None
-    boost: float | None = None
-    const: float | None = None
 
     def __post_init__(self) -> None:
         if self.relation is None and self.range_type is not None:
@@ -516,21 +497,7 @@ class RangeTerm:
 class Term:
     """Term query expression."""
 
-    text: str
-    distance: int | None = None
-    prefix: bool = False
-    transposition_cost_one: bool = False
-    boost: float | None = None
-    const: float | None = None
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.text, str):
-            raise TypeError("Term text must be a string.")
-        if not isinstance(self.prefix, bool):
-            raise TypeError("Term prefix must be a boolean.")
-        if not isinstance(self.transposition_cost_one, bool):
-            raise TypeError("Term transposition_cost_one must be a boolean.")
-        _validate_fuzzy_distance(self.distance)
+    value: SearchValue
 
 
 @dataclass(frozen=True)
@@ -538,8 +505,6 @@ class Regex:
     """Regex query expression."""
 
     pattern: str
-    boost: float | None = None
-    const: float | None = None
 
     def __post_init__(self) -> None:
         _validate_string("Regex pattern", self.pattern)
@@ -554,28 +519,15 @@ class All:
 class Exists:
     """Field existence check — matches documents where the LHS field has any indexed value."""
 
-    boost: float | None = None
-    const: float | None = None
-
 
 @dataclass(frozen=True)
 class FuzzyTerm:
     """Fuzzy term search against the LHS field."""
 
     value: str | None = None
-    distance: int | None = None
-    transposition_cost_one: bool | None = None
-    prefix: bool | None = None
-    boost: float | None = None
-    const: float | None = None
 
     def __post_init__(self) -> None:
         _validate_optional_string("FuzzyTerm value", self.value)
-        _validate_optional_bool(
-            "FuzzyTerm transposition_cost_one", self.transposition_cost_one
-        )
-        _validate_optional_bool("FuzzyTerm prefix", self.prefix)
-        _validate_fuzzy_distance(self.distance)
 
 
 @dataclass(frozen=True)
@@ -587,14 +539,10 @@ class TermSet:
     """
 
     terms: tuple[str | int | float | bool | date | datetime, ...]
-    boost: float | None = None
-    const: float | None = None
 
     def __init__(
         self,
         *terms: str | int | float | bool | date | datetime,
-        boost: float | None = None,
-        const: float | None = None,
     ) -> None:
         if not terms:
             raise ValueError("TermSet requires at least one term.")
@@ -607,8 +555,6 @@ class TermSet:
                     "(str, int, float, bool, date, or datetime)."
                 )
         object.__setattr__(self, "terms", tuple(terms))
-        object.__setattr__(self, "boost", boost)
-        object.__setattr__(self, "const", const)
 
     @staticmethod
     def _term_kind(value: str | int | float | bool | date | datetime) -> str:
@@ -633,86 +579,19 @@ class TermSet:
 class Match:
     """Explicit text-match query expression."""
 
-    terms: tuple[str, ...]
+    terms: tuple[SearchValue, ...]
     operator: ParadeOperator
-    tokenizer: Tokenizer | None = None
-    distance: int | None = None
-    prefix: bool = False
-    transposition_cost_one: bool = False
-    boost: float | None = None
-    const: float | None = None
 
     def __init__(
         self,
-        *terms: str,
+        *terms: SearchValue,
         operator: ParadeOperator,
-        tokenizer: Tokenizer | None = None,
-        distance: int | None = None,
-        prefix: bool = False,
-        transposition_cost_one: bool = False,
-        boost: float | None = None,
-        const: float | None = None,
     ) -> None:
-        if not terms:
-            raise ValueError("Match requires at least one search term.")
-        if operator not in ("AND", "OR"):
-            raise ValueError("Match operator must be 'AND' or 'OR'.")
-        if not all(isinstance(term, str) for term in terms):
-            raise TypeError("Match terms must be strings.")
-        if not isinstance(prefix, bool):
-            raise TypeError("Match prefix must be a boolean.")
-        if not isinstance(transposition_cost_one, bool):
-            raise TypeError("Match transposition_cost_one must be a boolean.")
-
-        _validate_fuzzy_distance(distance)
-        fuzzy_enabled = _is_fuzzy_enabled(
-            distance=distance,
-            prefix=prefix,
-            transposition_cost_one=transposition_cost_one,
-        )
-        if tokenizer is not None and fuzzy_enabled:
-            raise ValueError("Match tokenizer cannot be combined with fuzzy options.")
-        if (
-            len(terms) > 1
-            and fuzzy_enabled
-            and (boost is not None or const is not None)
-        ):
-            raise ValueError("Multi-term fuzzy Match does not support boost or const.")
-
         object.__setattr__(self, "terms", tuple(terms))
         object.__setattr__(self, "operator", operator)
-        object.__setattr__(self, "tokenizer", tokenizer)
-        object.__setattr__(self, "distance", distance)
-        object.__setattr__(self, "prefix", prefix)
-        object.__setattr__(self, "transposition_cost_one", transposition_cost_one)
-        object.__setattr__(self, "boost", boost)
-        object.__setattr__(self, "const", const)
 
 
 class MoreLikeThis(Expression):
-    """More Like This query filter.
-
-    Provide exactly one of id, ids, or document (dict/JSON string).
-    Fields are only valid with id/ids.
-
-    Args:
-        id: Single document ID for similarity search
-        ids: Multiple document IDs for similarity search (OR'd together)
-        document: Custom JSON document (dict or JSON string) for similarity search
-        fields: List of fields to consider (only valid with id/ids)
-        key_field: Field name to use for comparison (defaults to model's primary key)
-        min_term_freq: Minimum term frequency (must be >= 1)
-        max_query_terms: Maximum query terms (must be >= 1)
-        min_doc_freq: Minimum document frequency (must be >= 1)
-        max_term_freq: Maximum term frequency (must be >= 1)
-        max_doc_freq: Maximum document frequency (must be >= 1)
-        min_word_length: Minimum word length (must be >= 1)
-        max_word_length: Maximum word length (must be >= 1)
-        stopwords: List of stopwords to exclude
-
-    See: https://docs.paradedb.com/documentation/query-builder/specialized/more-like-this
-    """
-
     conditional = True
     output_field = BooleanField()
 
@@ -945,15 +824,13 @@ def _render_options(options: dict[str, object | None]) -> tuple[str, list[Any]]:
     return ", " + ", ".join(rendered), params
 
 
-TermType = (
+QueryExpression: TypeAlias = (
     Match
     | Exists
     | FuzzyTerm
-    | MoreLikeThis
     | TermSet
     | Phrase
     | ProximityNode
-    | ProximityQuery
     | Parse
     | PhrasePrefix
     | RegexPhrase
@@ -962,6 +839,7 @@ TermType = (
     | Regex
     | All
 )
+TermType: TypeAlias = QueryExpression | MoreLikeThis | Modifier
 
 
 class ParadeDB:
@@ -1016,17 +894,26 @@ class ParadeDB:
         rendered = self._render_term(self._term)
         return f"{lhs_sql} {self._lookup_operator()} {rendered}", []
 
+    # TODO We should create separate functions for match any and match all
+    # to remove the need for this
     def _lookup_operator(self) -> str:
-        if isinstance(self._term, Match):
-            if self._term.operator == "OR":
+        term = self._unwrap_term(self._term)
+        if isinstance(term, Match):
+            if term.operator == "OR":
                 return OP_OR
-            elif self._term.operator == "AND":
+            elif term.operator == "AND":
                 return OP_AND
             else:
                 raise ValueError("Match operator must be 'AND' or 'OR'.")
-        if isinstance(self._term, Phrase):
+        if isinstance(term, Phrase):
             return OP_PHRASE
         return OP_SEARCH
+
+    @staticmethod
+    def _unwrap_term(term: TermType) -> TermType:
+        while isinstance(term, Boost | Const | Fuzzy | Slop | Tokenized):
+            term = term.value  # type: ignore[assignment]
+        return term
 
     @staticmethod
     def _quote_range_literal(
@@ -1051,37 +938,59 @@ class ParadeDB:
         return str(value)
 
     @staticmethod
-    def _append_scoring(sql: str, *, boost: float | None, const: float | None) -> str:
-        boost_sql = ParadeDB._render_scoring_number(boost, name="boost")
-        if boost_sql is not None:
-            sql = f"{sql}::{PDB_TYPE_BOOST}({boost_sql})"
-        const_sql = ParadeDB._render_scoring_number(const, name="const")
-        if const_sql is not None:
-            sql = f"{sql}::{PDB_TYPE_CONST}({const_sql})"
-        return sql
+    def _render_search_value(value: object) -> str:
+        if isinstance(value, Boost):
+            rendered = ParadeDB._render_search_value(value.value)
+            factor = ParadeDB._render_scoring_number(value.factor, name="boost")
+            return f"{rendered}::{PDB_TYPE_BOOST}({factor})"
+        if isinstance(value, Const):
+            rendered = ParadeDB._render_search_value(value.value)
+            score = ParadeDB._render_scoring_number(value.score, name="const")
+            return f"{rendered}::{PDB_TYPE_CONST}({score})"
+        if isinstance(value, Fuzzy):
+            rendered = ParadeDB._render_search_value(value.value)
+            fuzzy_args = [str(value.distance)]
+            if value.prefix is not None:
+                fuzzy_args.append("t" if value.prefix else "f")
+            if value.transposition_cost_one is not None:
+                fuzzy_args.append("t" if value.transposition_cost_one else "f")
+            return f"{rendered}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
+        if isinstance(value, Slop):
+            rendered = ParadeDB._render_search_value(value.value)
+            return f"{rendered}::{PDB_TYPE_SLOP}({value.distance})"
+        if isinstance(value, Tokenized):
+            rendered = ParadeDB._render_search_value(value.value)
+            return f"{rendered}::{value.tokenizer.render()}"
+        if isinstance(value, QueryExpression):
+            return ParadeDB(value)._render_term(value)
+        if isinstance(value, str):
+            return _quote_term(value)
+        if isinstance(value, list | tuple):
+            quoted = [_quote_term(item) for item in value]
+            return f"ARRAY[{', '.join(quoted)}]"
+        raise TypeError(f"Unsupported search value type. {value}")
 
-    @staticmethod
-    def _append_fuzzy(
-        sql: str,
-        *,
-        distance: int | None,
-        prefix: bool,
-        transposition_cost_one: bool,
-    ) -> str:
-        if not _is_fuzzy_enabled(
-            distance=distance,
-            prefix=prefix,
-            transposition_cost_one=transposition_cost_one,
-        ):
-            return sql
-
-        fuzzy_distance = 1 if distance is None else distance
-        fuzzy_args: list[str] = [str(fuzzy_distance)]
-        if transposition_cost_one:
-            fuzzy_args.extend(["t" if prefix else "f", "t"])
-        elif prefix:
-            fuzzy_args.append("t")
-        return f"{sql}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
+    def _append_cast(self, value: object, rendered: str) -> str:
+        if isinstance(value, Boost):
+            factor = self._render_scoring_number(value.factor, name="boost")
+            return f"{rendered}::{PDB_TYPE_BOOST}({factor})"
+        if isinstance(value, Const):
+            if isinstance(value.value, Fuzzy | Slop):
+                rendered = f"{rendered}::{PDB_TYPE_QUERY}"
+            score = self._render_scoring_number(value.score, name="const")
+            return f"{rendered}::{PDB_TYPE_CONST}({score})"
+        if isinstance(value, Fuzzy):
+            fuzzy_args = [str(value.distance)]
+            if value.prefix is not None:
+                fuzzy_args.append("t" if value.prefix else "f")
+            if value.transposition_cost_one is not None:
+                fuzzy_args.append("t" if value.transposition_cost_one else "f")
+            return f"{rendered}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
+        if isinstance(value, Slop):
+            return f"{rendered}::{PDB_TYPE_SLOP}({value.distance})"
+        if isinstance(value, Tokenized):
+            return f"{rendered}::{value.tokenizer.render()}"
+        raise AssertionError(f"Unsupported cast value: {value!r}")
 
     def _render_proximity_node(self, node: ProximityNode) -> str:
         return f"({self._render_proximity(node)})"
@@ -1114,149 +1023,67 @@ class ParadeDB:
         raise AssertionError(f"Unhandled proximity term: {term!r}")
 
     def _render_term(self, term: TermType) -> str:
-        if isinstance(term, Phrase):
-            if len(term.terms) == 1:
-                rendered = _quote_term(term.terms[0])
+        if isinstance(term, Boost | Const | Fuzzy | Slop | Tokenized):
+            if isinstance(term.value, QueryExpression):
+                rendered = self._render_term(term.value)
             else:
-                quoted = [_quote_term(item) for item in term.terms]
-                rendered = f"ARRAY[{', '.join(quoted)}]"
-            if term.slop is not None:
-                rendered = f"{rendered}::{PDB_TYPE_SLOP}({term.slop})"
-                # pdb.slop has no direct cast to pdb.const; bridge via pdb.query.
-                # Once this is fixed in the DB we can remove this
-                if term.const is not None:
-                    rendered = f"{rendered}::{PDB_TYPE_QUERY}"
-            if term.tokenizer is not None:
-                rendered = f"{rendered}::{term.tokenizer.render()}"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+                rendered = self._render_search_value(term.value)
+            return self._append_cast(term, rendered)
+        if isinstance(term, Phrase):
+            return self._render_search_value(
+                term.terms[0] if len(term.terms) == 1 else term.terms
+            )
         if isinstance(term, ProximityNode):
             return self._render_proximity_node(term)
-        if isinstance(term, ProximityQuery):
-            rendered = self._render_proximity_node(term.node)
-            boost = (
-                term.relevance_modifier.value
-                if isinstance(term.relevance_modifier, Boost)
-                else None
-            )
-            const = (
-                term.relevance_modifier.value
-                if isinstance(term.relevance_modifier, Const)
-                else None
-            )
-            return self._append_scoring(rendered, boost=boost, const=const)
         if isinstance(term, Parse):
             rendered = (
                 f"{FN_PARSE}({_quote_term(term.query)}"
                 f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
             )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+            return rendered
         if isinstance(term, PhrasePrefix):
             phrases_sql = ", ".join(_quote_term(phrase) for phrase in term.phrases)
-            rendered = (
+            return (
                 f"{FN_PHRASE_PREFIX}(ARRAY[{phrases_sql}]"
                 f"{self._render_options({'max_expansion': term.max_expansion})})"
             )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, RegexPhrase):
             regex_sql = ", ".join(_quote_term(regex) for regex in term.regexes)
-            rendered = (
+            return (
                 f"{FN_REGEX_PHRASE}(ARRAY[{regex_sql}]"
                 f"{self._render_options({'slop': term.slop, 'max_expansions': term.max_expansions})})"
             )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, RangeTerm):
             if term.relation is None:
-                rendered = f"{FN_RANGE_TERM}({self._render_value(term.value)})"
+                return f"{FN_RANGE_TERM}({self._render_value(term.value)})"
             else:
                 assert term.range_type is not None
-                rendered = (
+                return (
                     f"{FN_RANGE_TERM}("
                     f"{self._quote_range_literal(term.value, term.range_type)}, "
                     f"{_quote_term(term.relation)}"
                     ")"
                 )
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
         if isinstance(term, Term):
-            rendered = f"{FN_TERM}({_quote_term(term.text)})"
-            rendered = self._append_fuzzy(
-                rendered,
-                distance=term.distance,
-                prefix=term.prefix,
-                transposition_cost_one=term.transposition_cost_one,
-            )
-            if (
-                _is_fuzzy_enabled(
-                    distance=term.distance,
-                    prefix=term.prefix,
-                    transposition_cost_one=term.transposition_cost_one,
-                )
-                and term.const is not None
-            ):
-                # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
-                rendered = f"{rendered}::{PDB_TYPE_QUERY}"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+            return f"{FN_TERM}({self._render_search_value(term.value)})"
         if isinstance(term, Regex):
-            rendered = f"{FN_REGEX}({_quote_term(term.pattern)})"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+            return f"{FN_REGEX}({_quote_term(term.pattern)})"
         if isinstance(term, Exists):
-            rendered = f"{FN_EXISTS}()"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+            return f"{FN_EXISTS}()"
         if isinstance(term, FuzzyTerm):
             if term.value is not None:
-                rendered = f"{FN_FUZZY_TERM}({_quote_term(term.value)})"
+                return f"{FN_FUZZY_TERM}({_quote_term(term.value)})"
             else:
-                rendered = f"{FN_FUZZY_TERM}()"
-            rendered = self._append_fuzzy(
-                rendered,
-                distance=term.distance,
-                prefix=term.prefix or False,
-                transposition_cost_one=term.transposition_cost_one or False,
-            )
-            if (
-                _is_fuzzy_enabled(
-                    distance=term.distance,
-                    prefix=term.prefix or False,
-                    transposition_cost_one=term.transposition_cost_one or False,
-                )
-                and term.const is not None
-            ):
-                rendered = f"{rendered}::{PDB_TYPE_QUERY}"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+                return f"{FN_FUZZY_TERM}()"
         if isinstance(term, TermSet):
             array_sql = self._render_term_set_array(term.terms)
-            rendered = f"{FN_TERM_SET}({array_sql})"
-            return self._append_scoring(rendered, boost=term.boost, const=term.const)
+            return f"{FN_TERM_SET}({array_sql})"
         if isinstance(term, All):
             return f"{FN_ALL}()"
         if isinstance(term, Match):
-            if len(term.terms) == 1:
-                rendered = _quote_term(term.terms[0])
-            else:
-                quoted = [_quote_term(item) for item in term.terms]
-                rendered = f"ARRAY[{', '.join(quoted)}]"
-            if term.tokenizer is not None:
-                rendered = f"{rendered}::{term.tokenizer.render()}"
-            rendered = self._append_fuzzy(
-                rendered,
-                distance=term.distance,
-                prefix=term.prefix,
-                transposition_cost_one=term.transposition_cost_one,
+            return self._render_search_value(
+                term.terms[0] if len(term.terms) == 1 else term.terms
             )
-            if (
-                _is_fuzzy_enabled(
-                    distance=term.distance,
-                    prefix=term.prefix,
-                    transposition_cost_one=term.transposition_cost_one,
-                )
-                and term.const is not None
-            ):
-                # pdb.fuzzy has no direct cast to pdb.const; bridge via pdb.query.
-                # Casting fuzzy to const should be supported in ParadeDB. Once it is we can remove this
-                rendered = f"{rendered}::pdb.query"
-            rendered = self._append_scoring(
-                rendered, boost=term.boost, const=term.const
-            )
-            return rendered
         raise TypeError(f"Unsupported ParadeDB term type. {term}")
 
     @staticmethod
@@ -1352,7 +1179,10 @@ UUIDField.register_lookup(ParadeDBExact)
 
 __all__ = [
     "All",
+    "Boost",
+    "Const",
     "Exists",
+    "Fuzzy",
     "FuzzyTerm",
     "Match",
     "MoreLikeThis",
@@ -1368,7 +1198,9 @@ __all__ = [
     "RangeType",
     "Regex",
     "RegexPhrase",
+    "Slop",
     "Term",
     "TermSet",
+    "Tokenized",
     "Tokenizer",
 ]

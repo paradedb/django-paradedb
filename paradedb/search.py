@@ -50,7 +50,6 @@ from paradedb.api import (
     PDB_TYPE_BOOST,
     PDB_TYPE_CONST,
     PDB_TYPE_FUZZY,
-    PDB_TYPE_QUERY,
     PDB_TYPE_SLOP,
     PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE,
     PDB_TYPE_TOKENIZER_EDGE_NGRAM,
@@ -975,8 +974,6 @@ class ParadeDB:
             factor = self._render_scoring_number(value.factor, name="boost")
             return f"{rendered}::{PDB_TYPE_BOOST}({factor})"
         if isinstance(value, Const):
-            if isinstance(value.value, Fuzzy | Slop):
-                rendered = f"{rendered}::{PDB_TYPE_QUERY}"
             score = self._render_scoring_number(value.score, name="const")
             return f"{rendered}::{PDB_TYPE_CONST}({score})"
         if isinstance(value, Fuzzy):

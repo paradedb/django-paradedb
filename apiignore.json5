@@ -256,6 +256,7 @@
     "pdb.range",
     "pdb.parse_with_field",
     "pdb.empty",
+    "pdb.query",
 
     "pdb.tokenize_alias",
     "pdb.tokenize_chinese_compatible",

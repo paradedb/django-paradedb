@@ -39,7 +39,6 @@
     "PDB_TYPE_CONST": "pdb.const",
     "PDB_TYPE_FUZZY": "pdb.fuzzy",
     "PDB_TYPE_SLOP":  "pdb.slop",
-    "PDB_TYPE_QUERY": "pdb.query",
     "PDB_TYPE_ALIAS":              "pdb.alias",
 
     "PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE": "pdb.chinese_compatible",

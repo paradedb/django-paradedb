@@ -23,14 +23,14 @@
     "FN_FUZZY_TERM":       "pdb.fuzzy_term",
     "FN_TERM_SET":         "pdb.term_set",
 
-    "FN_SCORE":            "pdb.score",
-    "FN_SNIPPET":          "pdb.snippet",
-    "FN_SNIPPETS":         "pdb.snippets",
-    "FN_SNIPPET_POSITIONS": "pdb.snippet_positions",
-    "FN_AGG":              "pdb.agg",
-    "FN_INDEXES":          "pdb.indexes",
-    "FN_INDEX_SEGMENTS":   "pdb.index_segments",
-    "FN_VERIFY_INDEX":     "pdb.verify_index",
+    "FN_SCORE":              "pdb.score",
+    "FN_SNIPPET":            "pdb.snippet",
+    "FN_SNIPPETS":           "pdb.snippets",
+    "FN_SNIPPET_POSITIONS":  "pdb.snippet_positions",
+    "FN_AGG":                "pdb.agg",
+    "FN_INDEXES":            "pdb.indexes",
+    "FN_INDEX_SEGMENTS":     "pdb.index_segments",
+    "FN_VERIFY_INDEX":       "pdb.verify_index",
     "FN_VERIFY_ALL_INDEXES": "pdb.verify_all_indexes"
   },
 
@@ -39,7 +39,7 @@
     "PDB_TYPE_CONST": "pdb.const",
     "PDB_TYPE_FUZZY": "pdb.fuzzy",
     "PDB_TYPE_SLOP":  "pdb.slop",
-    "PDB_TYPE_ALIAS":              "pdb.alias",
+    "PDB_TYPE_ALIAS": "pdb.alias",
 
     "PDB_TYPE_TOKENIZER_CHINESE_COMPATIBLE": "pdb.chinese_compatible",
     "PDB_TYPE_TOKENIZER_JIEBA":              "pdb.jieba",

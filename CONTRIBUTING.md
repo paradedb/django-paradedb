@@ -41,11 +41,8 @@ uv sync --extra dev
 # Install prek hooks
 uvx prek install
 
-# Run unit tests (no database required)
-bash scripts/run_unit_tests.sh
-
-# Run integration tests (requires Docker)
-bash scripts/run_integration_tests.sh
+# Run tests
+bash scripts/run_tests.sh
 
 # Run linting
 uv run ruff check .
@@ -58,12 +55,6 @@ uv run mypy paradedb
 uv run python scripts/check_api_coverage.py
 uv run python scripts/check_api_stub_sync.py
 bash scripts/smoke_wheel_install.sh
-```
-
-You can target a specific supported Django series when needed:
-
-```bash
-bash scripts/run_unit_tests.sh --django 5.2 tests/test_api_loading.py
 ```
 
 ### Pull Request Workflow

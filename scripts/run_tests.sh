@@ -11,7 +11,6 @@ USER="${PARADEDB_USER:-postgres}"
 PASSWORD="${PARADEDB_PASSWORD:-postgres}"
 DB="${PARADEDB_DB:-postgres}"
 
-export PARADEDB_INTEGRATION=1
 export PARADEDB_TEST_DSN="postgres://${USER}:${PASSWORD}@localhost:${PORT}/${DB}"
 export PGPASSWORD="${PASSWORD}"
 
@@ -23,8 +22,4 @@ fi
 
 PYTEST_CMD=(uv run --extra dev pytest)
 
-if [[ $# -gt 0 ]]; then
-  "${PYTEST_CMD[@]}" "$@"
-else
-  "${PYTEST_CMD[@]}" -m integration
-fi
+"${PYTEST_CMD[@]}" "$@"

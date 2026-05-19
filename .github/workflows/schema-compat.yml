@@ -73,7 +73,6 @@ jobs:
           --health-retries 12
 
     env:
-      PARADEDB_INTEGRATION: "1"
       PARADEDB_TEST_DSN: postgresql://postgres:postgres@localhost:5432/postgres
       PGPASSWORD: postgres
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres

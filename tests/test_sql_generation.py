@@ -19,7 +19,8 @@ from paradedb.search import (
     Boost,
     Const,
     Fuzzy,
-    Match,
+    MatchAll,
+    MatchAny,
     ParadeDB,
     Parse,
     Phrase,
@@ -116,9 +117,7 @@ class TestParadeDBLookup:
 
     def test_single_term_search(self) -> None:
         """Single term generates: WHERE description &&& 'shoes'."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
-        )
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("shoes")))
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
@@ -127,7 +126,7 @@ class TestParadeDBLookup:
     def test_and_search_multiple_terms(self) -> None:
         """Multiple terms generate: WHERE description &&& ARRAY[...]"""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("running", "shoes", operator="AND"))
+            description=ParadeDB(MatchAll("running", "shoes"))
         )
         assert (
             str(queryset.query)
@@ -137,9 +136,7 @@ class TestParadeDBLookup:
     def test_and_search_three_terms(self) -> None:
         """Edge case: three terms for AND search."""
         queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("running", "shoes", "lightweight", operator="AND")
-            )
+            description=ParadeDB(MatchAll("running", "shoes", "lightweight"))
         )
         assert (
             str(queryset.query)
@@ -152,7 +149,7 @@ class TestExactLiteralDisjunction:
 
     def test_single_string_or(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("running shoes", operator="OR"))
+            description=ParadeDB(MatchAny("running shoes"))
         )
         assert (
             str(queryset.query)
@@ -161,7 +158,7 @@ class TestExactLiteralDisjunction:
 
     def test_multiple_strings_or(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", "boots", operator="OR"))
+            description=ParadeDB(MatchAny("shoes", "boots"))
         )
         assert (
             str(queryset.query)
@@ -279,7 +276,7 @@ class TestProximitySearch:
 class TestDistanceOption:
     def test_match_distance_single(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match(Fuzzy("sheos", 1), operator="OR"))
+            description=ParadeDB(MatchAny(Fuzzy("sheos", 1)))
         )
         assert (
             str(queryset.query)
@@ -288,7 +285,7 @@ class TestDistanceOption:
 
     def test_match_distance_multiple_terms(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(Match(Fuzzy(("runnning", "shoez"), 1), operator="OR"))
+            description=ParadeDB(MatchAny(Fuzzy(("runnning", "shoez"), 1)))
         )
         # Fuzzy is applied to the whole array, not per-element
         assert (
@@ -301,9 +298,8 @@ class TestTokenizerOverride:
     def test_match_with_tokenizer(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match(
+                MatchAll(
                     Tokenized("running shoes", Tokenizer.whitespace()),
-                    operator="AND",
                 )
             )
         )
@@ -315,7 +311,7 @@ class TestTokenizerOverride:
     def test_match_or_with_tokenizer(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match(Tokenized("running shoes", Tokenizer.whitespace()), operator="OR")
+                MatchAny(Tokenized("running shoes", Tokenizer.whitespace()))
             )
         )
         assert (
@@ -348,12 +344,11 @@ class TestTokenizerOverride:
     def test_match_with_tokenizer_args(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match(
+                MatchAll(
                     Tokenized(
                         "running shoes",
                         Tokenizer.whitespace(options={"lowercase": False}),
                     ),
-                    operator="AND",
                 )
             )
         )
@@ -365,14 +360,13 @@ class TestTokenizerOverride:
     def test_match_with_tokenizer_multi_args(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match(
+                MatchAny(
                     Tokenized(
                         "wireless keyboard",
                         Tokenizer.simple(
                             options={"lowercase": False, "remove_long": 20}
                         ),
                     ),
-                    operator="OR",
                 )
             )
         )
@@ -384,7 +378,7 @@ class TestTokenizerOverride:
     def test_match_with_tokenizer_positional_args(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match(Tokenized("running shoes", Tokenizer.ngram(3, 3)), operator="AND")
+                MatchAll(Tokenized("running shoes", Tokenizer.ngram(3, 3)))
             )
         )
         assert (
@@ -408,9 +402,8 @@ class TestTokenizerOverride:
     def test_tokenizer_with_boost(self) -> None:
         queryset = Product.objects.filter(
             description=ParadeDB(
-                Match(
+                MatchAll(
                     Boost(Tokenized("shoes", Tokenizer.whitespace()), 2.0),
-                    operator="AND",
                 )
             )
         )
@@ -717,7 +710,7 @@ class TestScoreAnnotation:
     def test_score_annotation(self) -> None:
         """Score generates: SELECT ..., pdb.score(id) AS search_score."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("running", "shoes", operator="AND"))
+            description=ParadeDB(MatchAll("running", "shoes"))
         ).annotate(search_score=Score())
         assert (
             str(queryset.query)
@@ -727,7 +720,7 @@ class TestScoreAnnotation:
     def test_score_with_ordering(self) -> None:
         """Score with ORDER BY search_score DESC."""
         queryset = (
-            Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND")))
+            Product.objects.filter(description=ParadeDB(MatchAll("shoes")))
             .annotate(search_score=Score())
             .order_by("-search_score")
         )
@@ -739,7 +732,7 @@ class TestScoreAnnotation:
     def test_score_filter(self) -> None:
         """Filter by score: WHERE pdb.score(id) > 0."""
         queryset = (
-            Product.objects.filter(description=ParadeDB(Match("shoes", operator="AND")))
+            Product.objects.filter(description=ParadeDB(MatchAll("shoes")))
             .annotate(search_score=Score())
             .filter(search_score__gt=0)
         )
@@ -755,7 +748,7 @@ class TestSnippetAnnotation:
     def test_snippet_annotation(self) -> None:
         """Snippet generates: pdb.snippet(description) AS snippet."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("wireless", "bluetooth", operator="OR"))
+            description=ParadeDB(MatchAny("wireless", "bluetooth"))
         ).annotate(snippet=Snippet("description"))
         assert (
             str(queryset.query)
@@ -765,7 +758,7 @@ class TestSnippetAnnotation:
     def test_snippet_with_custom_formatting(self) -> None:
         """Custom snippet: pdb.snippet(description, '<mark>', '</mark>', 100)."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(
             snippet=Snippet(
                 "description",
@@ -786,7 +779,7 @@ class TestSnippetsAnnotation:
     def test_snippets_basic(self) -> None:
         """Snippets generates: pdb.snippets(description) AS snippets."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("artistic", "vase", operator="AND"))
+            description=ParadeDB(MatchAll("artistic", "vase"))
         ).annotate(snippets=Snippets("description"))
         assert (
             str(queryset.query)
@@ -796,7 +789,7 @@ class TestSnippetsAnnotation:
     def test_snippets_with_max_num_chars(self) -> None:
         """Snippets with max_num_chars only."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("artistic", "vase", operator="AND"))
+            description=ParadeDB(MatchAll("artistic", "vase"))
         ).annotate(snippets=Snippets("description", max_num_chars=15))
         assert (
             str(queryset.query)
@@ -806,7 +799,7 @@ class TestSnippetsAnnotation:
     def test_snippets_with_limit_and_offset(self) -> None:
         """Snippets with limit and offset uses double-quoted SQL reserved words."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("running", operator="AND"))
+            description=ParadeDB(MatchAll("running"))
         ).annotate(
             snippets=Snippets("description", max_num_chars=15, limit=1, offset=1)
         )
@@ -818,7 +811,7 @@ class TestSnippetsAnnotation:
     def test_snippets_with_sort_by(self) -> None:
         """Snippets with sort_by parameter."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("artistic", "vase", operator="AND"))
+            description=ParadeDB(MatchAll("artistic", "vase"))
         ).annotate(
             snippets=Snippets("description", max_num_chars=15, sort_by="position")
         )
@@ -830,7 +823,7 @@ class TestSnippetsAnnotation:
     def test_snippets_with_all_params(self) -> None:
         """Snippets with all named parameters."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(
             snippets=Snippets(
                 "description",
@@ -854,7 +847,7 @@ class TestSnippetPositionsAnnotation:
     def test_snippet_positions_basic(self) -> None:
         """SnippetPositions generates: pdb.snippet_positions(description)."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(positions=SnippetPositions("description"))
         assert (
             str(queryset.query)
@@ -864,7 +857,7 @@ class TestSnippetPositionsAnnotation:
     def test_snippet_positions_with_snippet(self) -> None:
         """SnippetPositions alongside Snippet."""
         queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).annotate(
             snippet=Snippet("description"),
             positions=SnippetPositions("description"),

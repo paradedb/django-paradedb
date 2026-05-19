@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Changed
 
+- **BREAKING**: `Match` has been split into two classes: `MatchAny` and `MatchAll`.
 - **BREAKING**: Search modifiers are now composable functions applied to search
   values or query expressions: `Boost(...)`, `Const(...)`, `Fuzzy(...)`,
   `Slop(...)`, and `Tokenized(...)`. Query expressions no longer accept

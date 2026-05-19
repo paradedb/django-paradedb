@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from paradedb.functions import Score, Snippet
-from paradedb.search import Match, ParadeDB
+from paradedb.search import MatchAll, ParadeDB
 from tests.models import MockItem
 
 pytestmark = [
@@ -22,15 +22,13 @@ def test_mock_items_seeded() -> None:
 
 def test_paradedb_lookup_returns_rows() -> None:
     """Basic ParadeDB search should return at least one result."""
-    assert MockItem.objects.filter(
-        description=ParadeDB(Match("shoes", operator="AND"))
-    ).exists()
+    assert MockItem.objects.filter(description=ParadeDB(MatchAll("shoes"))).exists()
 
 
 def test_paradedb_score_annotation() -> None:
     """Score annotation executes against ParadeDB."""
     queryset = (
-        MockItem.objects.filter(description=ParadeDB(Match("shoes", operator="AND")))
+        MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
         .annotate(search_score=Score())
         .order_by("-search_score")
     )
@@ -40,7 +38,7 @@ def test_paradedb_score_annotation() -> None:
 def test_paradedb_score_filter() -> None:
     """Score annotations can be filtered."""
     assert (
-        MockItem.objects.filter(description=ParadeDB(Match("shoes", operator="AND")))
+        MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
         .annotate(search_score=Score())
         .filter(search_score__gt=0)
         .exists()
@@ -50,9 +48,7 @@ def test_paradedb_score_filter() -> None:
 def test_snippet_custom_formatting() -> None:
     """Snippet custom formatting works against ParadeDB."""
     snippet = (
-        MockItem.objects.filter(
-            description=ParadeDB(Match("running shoes", operator="AND"))
-        )
+        MockItem.objects.filter(description=ParadeDB(MatchAll("running shoes")))
         .annotate(
             snippet=Snippet(
                 "description",

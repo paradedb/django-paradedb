@@ -10,7 +10,7 @@ import pytest
 from django.db import connection, transaction
 from django.db.utils import DatabaseError
 
-from paradedb.search import Match, MoreLikeThis, ParadeDB, Parse, Regex
+from paradedb.search import MatchAll, MoreLikeThis, ParadeDB, Parse, Regex
 from tests.models import MockItem
 
 pytestmark = [
@@ -60,9 +60,7 @@ class TestFieldErrors:
 
     def test_search_on_indexed_field_works(self) -> None:
         """Searching on an indexed field returns results."""
-        queryset = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
-        )
+        queryset = MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
         assert queryset.exists()
 
     def test_more_like_this_nonexistent_id_returns_empty(self) -> None:
@@ -118,9 +116,7 @@ class TestTransactionErrorRecovery:
                 MockItem.objects.filter(description=ParadeDB(Parse("AND AND invalid")))
             )
 
-        assert MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
-        ).exists()
+        assert MockItem.objects.filter(description=ParadeDB(MatchAll("shoes"))).exists()
 
     def test_savepoint_rollback_on_error(self) -> None:
         """Savepoints allow partial rollback after search errors."""

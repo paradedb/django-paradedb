@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from django.db import utils as db_utils
 
-from paradedb.search import Match, ParadeDB, Term
+from paradedb.search import MatchAll, MatchAny, ParadeDB, Term
 from tests.models import MockItem
 
 pytestmark = [
@@ -21,7 +21,7 @@ class TestFacetsIntegration:
     def test_facets_only(self) -> None:
         """Aggregate-only facets return a dict payload."""
         facets = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).facets(
             "rating",
             include_rows=False,
@@ -32,9 +32,7 @@ class TestFacetsIntegration:
     def test_facets_with_rows(self) -> None:
         """Windowed facets return both rows and facets."""
         rows, facets = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
             .order_by("rating")[:3]
             .facets("rating")
         )
@@ -48,7 +46,7 @@ class TestFacetsIntegration:
     def test_facets_exact_toggle(self, exact: bool | None) -> None:
         """Facets allow exact defaults, explicit true, and explicit false."""
         queryset = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).order_by("rating")[:3]
         if exact is None:
             rows, facets = queryset.facets("rating")
@@ -61,9 +59,7 @@ class TestFacetsIntegration:
     def test_facets_multiple_fields(self) -> None:
         """Multiple field facets return aggregations for each field."""
         rows, facets = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
             .order_by("rating")[:3]
             .facets("rating", "in_stock")
         )
@@ -77,9 +73,7 @@ class TestFacetsIntegration:
     def test_facets_json_fields(self) -> None:
         """JSON field facets use json_fields configuration."""
         rows, facets = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
             .order_by("rating")[:3]
             .facets("metadata.color", "metadata.location")
         )
@@ -100,7 +94,7 @@ class TestFacetsIntegration:
     def test_facets_rejects_json_operator_syntax(self, field: str) -> None:
         """JSON operator syntax (->, ->>) is not supported by ParadeDB facets."""
         queryset = MockItem.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND"))
+            description=ParadeDB(MatchAll("shoes"))
         ).order_by("rating")[:3]
         with pytest.raises(db_utils.InternalError, match="invalid field"):
             queryset.facets(field)
@@ -108,9 +102,7 @@ class TestFacetsIntegration:
     def test_facets_json_with_keyword_suffix(self) -> None:
         """JSON field + .keyword is accepted but yields empty buckets."""
         rows, facets = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("shoes", operator="AND"))
-            )
+            MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
             .order_by("rating")[:3]
             .facets("metadata.color.keyword")
         )
@@ -134,9 +126,7 @@ class TestFacetsIntegration:
     def test_facets_agg_with_match_search(self) -> None:
         """facets(agg=JSON_spec) with Match filter — docs/aggregates/facets.mdx snippet 2."""
         rows, facets = (
-            MockItem.objects.filter(
-                description=ParadeDB(Match("running shoes", operator="OR"))
-            )
+            MockItem.objects.filter(description=ParadeDB(MatchAny("running shoes")))
             .order_by("rating")[:5]
             .facets(agg='{"value_count": {"field": "id"}}')
         )

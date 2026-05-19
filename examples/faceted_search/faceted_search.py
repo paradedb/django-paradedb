@@ -11,15 +11,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import MockItem, setup_mock_items
 
-from paradedb.search import Match, ParadeDB
+from paradedb.search import MatchAll, ParadeDB
 
 
 def demo_facets_with_rows(query: str) -> None:
     """Fetch Top K rows with facet buckets using a window aggregation."""
     print("\n--- Facets + Rows (Top K) ---")
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match(query, operator="AND"))
-    ).order_by("-rating")[:5]
+    queryset = MockItem.objects.filter(description=ParadeDB(MatchAll(query))).order_by(
+        "-rating"
+    )[:5]
     rows, facets = queryset.facets(  # type: ignore[attr-defined]
         "category", "rating", "metadata.color", include_rows=True
     )

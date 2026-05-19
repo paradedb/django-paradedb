@@ -11,7 +11,7 @@ from django.db.models import Avg, Count, Max, Min, Q, Sum
 from django.db.models.functions import Coalesce, Lower
 
 from paradedb.functions import Score, Snippet
-from paradedb.search import Match, ParadeDB, Parse, Phrase, Regex, Term
+from paradedb.search import Fuzzy, Match, ParadeDB, Parse, Phrase, Regex, Term
 from tests.models import MockItem
 
 pytestmark = [
@@ -402,7 +402,7 @@ class TestMultipleSearchTypes:
         """Fuzzy search with Score annotation."""
         queryset = (
             MockItem.objects.filter(
-                description=ParadeDB(Match("shoez", operator="OR", distance=1))
+                description=ParadeDB(Match(Fuzzy("shoez", 1), operator="OR"))
             )
             .annotate(search_score=Score())
             .order_by("-search_score")

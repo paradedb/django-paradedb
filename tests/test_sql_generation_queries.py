@@ -10,7 +10,10 @@ from django.db.models.functions import Concat, RowNumber
 
 from paradedb.functions import Agg
 from paradedb.search import (
+    Boost,
+    Const,
     Exists,
+    Fuzzy,
     FuzzyTerm,
     Match,
     MoreLikeThis,
@@ -355,11 +358,11 @@ class TestExistsQuery:
         assert "@@@ pdb.exists()" in str(queryset.query)
 
     def test_exists_with_boost(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Exists(boost=3.0)))
+        queryset = Product.objects.filter(description=ParadeDB(Boost(Exists(), 3.0)))
         assert "@@@ pdb.exists()::pdb.boost(3.0)" in str(queryset.query)
 
     def test_exists_with_const(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Exists(const=1.0)))
+        queryset = Product.objects.filter(description=ParadeDB(Const(Exists(), 1.0)))
         assert "@@@ pdb.exists()::pdb.const(1.0)" in str(queryset.query)
 
 
@@ -378,23 +381,22 @@ class TestFuzzyTermQuery:
 
     def test_fuzzy_term_with_distance(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(FuzzyTerm(value="shoes", distance=2))
+            description=ParadeDB(Fuzzy(FuzzyTerm(value="shoes"), 2))
         )
         assert "@@@ pdb.fuzzy_term('shoes')::pdb.fuzzy(2)" in str(queryset.query)
 
     def test_fuzzy_term_with_boost(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(FuzzyTerm(value="shoes", boost=1.5))
+            description=ParadeDB(Boost(FuzzyTerm(value="shoes"), 1.5))
         )
         assert "@@@ pdb.fuzzy_term('shoes')::pdb.boost(1.5)" in str(queryset.query)
 
     def test_fuzzy_term_with_distance_and_const(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(FuzzyTerm(value="shoes", distance=1, const=2.0))
+            description=ParadeDB(Const(Fuzzy(FuzzyTerm(value="shoes"), 1), 2.0))
         )
-        assert (
-            "@@@ pdb.fuzzy_term('shoes')::pdb.fuzzy(1)::pdb.query::pdb.const(2.0)"
-            in str(queryset.query)
+        assert "@@@ pdb.fuzzy_term('shoes')::pdb.fuzzy(1)::pdb.const(2.0)" in str(
+            queryset.query
         )
 
 
@@ -423,7 +425,7 @@ class TestTermSetQuery:
 
     def test_term_set_with_boost(self) -> None:
         queryset = Product.objects.filter(
-            description=ParadeDB(TermSet("a", "b", boost=2.0))
+            description=ParadeDB(Boost(TermSet("a", "b"), 2.0))
         )
         assert "@@@ pdb.term_set(ARRAY['a', 'b']::text[])::pdb.boost(2.0)" in str(
             queryset.query

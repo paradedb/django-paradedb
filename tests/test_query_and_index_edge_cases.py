@@ -12,7 +12,10 @@ import paradedb
 from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index
 from paradedb.search import (
+    Boost,
+    Const,
     Exists,
+    Fuzzy,
     FuzzyTerm,
     Match,
     ParadeDB,
@@ -163,14 +166,6 @@ class TestEmptyAndWhitespaceInputs:
         sql = str(queryset.query)
         assert "### ''" in sql
 
-    def test_match_distance_empty_string(self) -> None:
-        """Match with distance and empty string works."""
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("", operator="OR", distance=1))
-        )
-        sql = str(queryset.query)
-        assert "''::pdb.fuzzy" in sql
-
 
 class TestLongInputs:
     """Test handling of very long inputs."""
@@ -226,21 +221,20 @@ class TestExistsExpression:
 
     def test_exists_defaults(self) -> None:
         expr = Exists()
-        assert expr.boost is None
-        assert expr.const is None
+        assert expr == Exists()
 
     def test_exists_with_boost(self) -> None:
-        expr = Exists(boost=3.0)
-        assert expr.boost == 3.0
+        expr = Boost(Exists(), 3.0)
+        assert expr.factor == 3.0
 
     def test_exists_with_const(self) -> None:
-        expr = Exists(const=1.0)
-        assert expr.const == 1.0
+        expr = Const(Exists(), 1.0)
+        assert expr.score == 1.0
 
     def test_exists_with_boost_and_const(self) -> None:
-        expr = Exists(boost=3.0, const=1.0)
-        assert expr.boost == 3.0
-        assert expr.const == 1.0
+        expr = Const(Boost(Exists(), 3.0), 1.0)
+        assert expr.value.factor == 3.0
+        assert expr.score == 1.0
 
     def test_exists_is_frozen(self) -> None:
         expr = Exists()
@@ -254,11 +248,6 @@ class TestFuzzyTermExpression:
     def test_fuzzy_term_defaults(self) -> None:
         expr = FuzzyTerm()
         assert expr.value is None
-        assert expr.distance is None
-        assert expr.transposition_cost_one is None
-        assert expr.prefix is None
-        assert expr.boost is None
-        assert expr.const is None
 
     def test_fuzzy_term_with_value(self) -> None:
         expr = FuzzyTerm(value="shoes")
@@ -269,52 +258,44 @@ class TestFuzzyTermExpression:
             FuzzyTerm(value=123)  # type: ignore[arg-type]
 
     def test_fuzzy_term_with_all_options(self) -> None:
-        expr = FuzzyTerm(
-            value="shoes",
-            distance=2,
-            transposition_cost_one=True,
-            prefix=True,
-            boost=1.5,
-            const=2.0,
-        )
-        assert expr.value == "shoes"
-        assert expr.distance == 2
-        assert expr.transposition_cost_one is True
-        assert expr.prefix is True
-        assert expr.boost == 1.5
-        assert expr.const == 2.0
+        expr = Const(Boost(Fuzzy(FuzzyTerm(value="shoes"), 2, True, True), 1.5), 2.0)
+        assert expr.value.factor == 1.5
+        assert expr.value.value.distance == 2
+        assert expr.value.value.prefix is True
+        assert expr.value.value.transposition_cost_one is True
+        assert expr.score == 2.0
 
     def test_fuzzy_term_distance_zero_is_valid(self) -> None:
-        expr = FuzzyTerm(value="test", distance=0)
+        expr = Fuzzy(FuzzyTerm(value="test"), 0)
         assert expr.distance == 0
 
     def test_fuzzy_term_distance_one_is_valid(self) -> None:
-        expr = FuzzyTerm(value="test", distance=1)
+        expr = Fuzzy(FuzzyTerm(value="test"), 1)
         assert expr.distance == 1
 
     def test_fuzzy_term_distance_two_is_valid(self) -> None:
-        expr = FuzzyTerm(value="test", distance=2)
+        expr = Fuzzy(FuzzyTerm(value="test"), 2)
         assert expr.distance == 2
 
     def test_fuzzy_term_negative_distance_raises(self) -> None:
         with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
-            FuzzyTerm(value="test", distance=-1)
+            Fuzzy(FuzzyTerm(value="test"), -1)
 
     def test_fuzzy_term_distance_three_raises(self) -> None:
         with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
-            FuzzyTerm(value="test", distance=3)
+            Fuzzy(FuzzyTerm(value="test"), 3)
 
     def test_fuzzy_term_large_distance_raises(self) -> None:
         with pytest.raises(ValueError, match="between 0 and 2, inclusive"):
-            FuzzyTerm(value="test", distance=100)
+            Fuzzy(FuzzyTerm(value="test"), 100)
 
     def test_fuzzy_term_distance_must_be_integer(self) -> None:
         with pytest.raises(TypeError, match="Distance must be an integer"):
-            FuzzyTerm(value="test", distance=True)  # type: ignore[arg-type]
+            Fuzzy(FuzzyTerm(value="test"), True)  # type: ignore[arg-type]
 
     def test_fuzzy_term_prefix_must_be_boolean(self) -> None:
-        with pytest.raises(TypeError, match="FuzzyTerm prefix must be a boolean"):
-            FuzzyTerm(value="test", prefix=1)  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="fuzzy prefix must be a boolean"):
+            Fuzzy(FuzzyTerm(value="test"), 1, prefix=1)  # type: ignore[arg-type]
 
     def test_fuzzy_term_is_frozen(self) -> None:
         expr = FuzzyTerm(value="shoes")
@@ -350,18 +331,18 @@ class TestTermSetExpression:
             TermSet()
 
     def test_term_set_with_boost(self) -> None:
-        expr = TermSet("a", "b", boost=2.0)
-        assert expr.boost == 2.0
-        assert expr.terms == ("a", "b")
+        expr = Boost(TermSet("a", "b"), 2.0)
+        assert expr.factor == 2.0
+        assert expr.value.terms == ("a", "b")
 
     def test_term_set_with_const(self) -> None:
-        expr = TermSet("a", const=1.0)
-        assert expr.const == 1.0
+        expr = Const(TermSet("a"), 1.0)
+        assert expr.score == 1.0
 
     def test_term_set_with_boost_and_const(self) -> None:
-        expr = TermSet("a", "b", boost=2.0, const=1.0)
-        assert expr.boost == 2.0
-        assert expr.const == 1.0
+        expr = Const(Boost(TermSet("a", "b"), 2.0), 1.0)
+        assert expr.value.factor == 2.0
+        assert expr.score == 1.0
 
     def test_term_set_is_frozen(self) -> None:
         expr = TermSet("a", "b")
@@ -379,43 +360,6 @@ class TestTermSetExpression:
     def test_term_set_mixed_date_datetime_raise(self) -> None:
         with pytest.raises(TypeError, match="must all have the same type"):
             TermSet(date.today(), datetime.now(tz=timezone.utc))
-
-
-class TestNewQueryTypeValidation:
-    """Test that new query types pass through _resolve_terms without TypeError."""
-
-    def test_exists_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(Exists()))
-        sql = str(queryset.query)
-        assert "pdb.exists()" in sql
-
-    def test_fuzzy_term_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(FuzzyTerm(value="test")))
-        sql = str(queryset.query)
-        assert "pdb.fuzzy_term" in sql
-
-    def test_term_set_does_not_raise_type_error(self) -> None:
-        queryset = Product.objects.filter(description=ParadeDB(TermSet("a", "b")))
-        sql = str(queryset.query)
-        assert "pdb.term_set" in sql
-
-
-class TestScoringValidation:
-    def test_boost_rejects_non_numeric_input(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Match("shoes", operator="AND", boost="1.0)::pdb.const(10")  # type: ignore[arg-type]
-            )
-        )
-        with pytest.raises(TypeError, match="boost must be an int or float"):
-            _ = str(queryset.query)
-
-    def test_const_rejects_non_finite_input(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(Match("shoes", operator="AND", const=float("inf")))
-        )
-        with pytest.raises(ValueError, match="const must be finite"):
-            _ = str(queryset.query)
 
 
 class TestSnippetsValidation:

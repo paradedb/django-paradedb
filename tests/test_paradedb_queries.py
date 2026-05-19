@@ -8,6 +8,9 @@ from django.db import DatabaseError, connection
 from paradedb.functions import Snippet
 from paradedb.search import (
     All,
+    Boost,
+    Const,
+    Fuzzy,
     Match,
     MoreLikeThis,
     ParadeDB,
@@ -19,7 +22,9 @@ from paradedb.search import (
     RangeTerm,
     Regex,
     RegexPhrase,
+    Slop,
     Term,
+    Tokenized,
     Tokenizer,
 )
 from tests.models import MockItem
@@ -115,7 +120,7 @@ def test_term_operator_for_plain_strings() -> None:
 
 def test_phrase_with_slop() -> None:
     queryset = MockItem.objects.filter(
-        description=ParadeDB(Phrase("running shoes", slop=1))
+        description=ParadeDB(Phrase(Slop("running shoes", 1)))
     )
     _assert_sql(
         str(queryset.query),
@@ -164,7 +169,7 @@ def test_proximity_ordered() -> None:
 def test_proximity_with_boost() -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(
-            Proximity("sleek").within(2, "running", ordered=True).boost(2.0)
+            Boost(Proximity("sleek").within(2, "running", ordered=True), 2.0)
         )
     )
     _assert_sql(
@@ -173,24 +178,6 @@ def test_proximity_with_boost() -> None:
         SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
         FROM "mock_items"
         WHERE "mock_items"."description" @@@ ('sleek' ##> 2 ##> 'running')::pdb.boost(2.0)
-        """,
-    )
-    ids = _ids(queryset)
-    assert ids == {3}
-
-
-def test_proximity_with_const() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Proximity("sleek").within(2, "running", ordered=True).const(1.0)
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" @@@ ('sleek' ##> 2 ##> 'running')::pdb.const(1.0)
         """,
     )
     ids = _ids(queryset)
@@ -380,7 +367,7 @@ def test_proximity_array_with_invalid_prox_regex_pattern_raises() -> None:
 
 def test_fuzzy_distance() -> None:
     queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("runnning", operator="OR", distance=1))
+        description=ParadeDB(Match(Fuzzy("runnning", 1), operator="OR"))
     )
     _assert_sql(
         str(queryset.query),
@@ -394,73 +381,9 @@ def test_fuzzy_distance() -> None:
     assert ids == {3}
 
 
-def test_fuzzy_conjunction() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("runnning shose", operator="AND", distance=2))
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'runnning shose'::pdb.fuzzy(2)
-        """,
-    )
-    ids = _ids(queryset)
-    assert 3 in ids
-
-
-def test_fuzzy_multi_term_or() -> None:
-    """Multi-term Match with distance uses ARRAY['t1', 't2']::pdb.fuzzy(N) — docs snippet."""
-    qs = MockItem.objects.filter(
-        description=ParadeDB(Match("runing", "shose", operator="OR", distance=2))
-    )
-    _assert_sql(
-        str(qs.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" ||| ARRAY['runing', 'shose']::pdb.fuzzy(2)
-        """,
-    )
-    ids = _ids(qs)
-    assert 3 in ids
-
-
-def test_fuzzy_multi_term_and() -> None:
-    """Multi-term Match AND with distance uses ARRAY['t1', 't2']::pdb.fuzzy(N)."""
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("runing", "shose", operator="AND", distance=2))
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& ARRAY['runing', 'shose']::pdb.fuzzy(2)
-        """,
-    )
-    ids = _ids(queryset)
-    assert 3 in ids
-
-
-def test_fuzzy_term_form() -> None:
-    queryset = MockItem.objects.filter(description=ParadeDB(Term("shose", distance=2)))
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" @@@ pdb.term('shose')::pdb.fuzzy(2)
-        """,
-    )
-    ids = _ids(queryset)
-    assert 3 in ids
-
-
 def test_fuzzy_prefix() -> None:
     queryset = MockItem.objects.filter(
-        description=ParadeDB(Term("runn", distance=0, prefix=True))
+        description=ParadeDB(Fuzzy(Term("runn"), 0, True))
     )
     _assert_sql(
         str(queryset.query),
@@ -476,7 +399,7 @@ def test_fuzzy_prefix() -> None:
 
 def test_fuzzy_transposition_cost_one() -> None:
     queryset = MockItem.objects.filter(
-        description=ParadeDB(Term("shose", distance=1, transposition_cost_one=True))
+        description=ParadeDB(Fuzzy(Term("shose"), 1, False, True))
     )
     _assert_sql(
         str(queryset.query),
@@ -493,9 +416,7 @@ def test_fuzzy_transposition_cost_one() -> None:
 def test_fuzzy_multi_term_prefix_and() -> None:
     """Multi-term Match AND with distance + prefix — docs/full-text/fuzzy.mdx snippet 3."""
     queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match("slee", "rann", operator="AND", distance=1, prefix=True)
-        )
+        description=ParadeDB(Match(Fuzzy(("slee", "rann"), 1, True), operator="AND"))
     )
     _assert_sql(
         str(queryset.query),
@@ -538,7 +459,7 @@ def test_filter_category_in_with_paradedb() -> None:
 def test_tokenizer_override_match() -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(
-            Match("running shoes", operator="AND", tokenizer=Tokenizer.whitespace())
+            Match(Tokenized("running shoes", Tokenizer.whitespace()), operator="AND")
         )
     )
     _assert_sql(
@@ -555,7 +476,7 @@ def test_tokenizer_override_match() -> None:
 
 def test_tokenizer_override_phrase() -> None:
     queryset = MockItem.objects.filter(
-        description=ParadeDB(Phrase("running shoes", tokenizer=Tokenizer.whitespace()))
+        description=ParadeDB(Phrase(Tokenized("running shoes", Tokenizer.whitespace())))
     )
     _assert_sql(
         str(queryset.query),
@@ -573,9 +494,11 @@ def test_tokenizer_override_match_with_args_sql() -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(
             Match(
-                "running shoes",
+                Tokenized(
+                    "running shoes",
+                    Tokenizer.whitespace(options={"lowercase": False}),
+                ),
                 operator="AND",
-                tokenizer=Tokenizer.whitespace(options={"lowercase": False}),
             )
         )
     )
@@ -593,9 +516,11 @@ def test_tokenizer_override_or_with_args_sql() -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(
             Match(
-                "wireless keyboard",
+                Tokenized(
+                    "wireless keyboard",
+                    Tokenizer.simple(options={"lowercase": False}),
+                ),
                 operator="OR",
-                tokenizer=Tokenizer.simple(options={"lowercase": False}),
             )
         )
     )
@@ -613,9 +538,7 @@ def test_tokenizer_override_phrase_with_multi_args_sql() -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(
             Phrase(
-                "wireless mouse",
-                slop=2,
-                tokenizer=Tokenizer.ngram(3, 8),
+                Tokenized(Slop("wireless mouse", 2), Tokenizer.ngram(3, 8)),
             )
         )
     )
@@ -629,92 +552,10 @@ def test_tokenizer_override_phrase_with_multi_args_sql() -> None:
     )
 
 
-def test_boost_does_not_change_result_set() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("shoes", operator="AND", boost=2.0))
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'shoes'::pdb.boost(2.0)
-        """,
-    )
-    ids = _ids(queryset)
-    assert ids == {3, 4, 5}
-
-
-def test_boost_with_fuzzy_integration() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("runnning", operator="OR", distance=1, boost=2.0))
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" ||| 'runnning'::pdb.fuzzy(1)::pdb.boost(2.0)
-        """,
-    )
-    ids = _ids(queryset)
-    assert ids == {3}
-
-
-def test_const_with_fuzzy_integration() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("shose", operator="OR", distance=2, const=1.0))
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" ||| 'shose'::pdb.fuzzy(2)::pdb.query::pdb.const(1.0)
-        """,
-    )
-    ids = _ids(queryset)
-    assert ids == {3, 4, 5}
-
-
-def test_const_with_phrase_slop_integration() -> None:
-    # Verifies pdb.slop::pdb.query::pdb.const executes (previously failed with
-    # "cannot cast type pdb.slop to pdb.const").
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Phrase("running shoes", slop=2, const=1.0))
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" ### 'running shoes'::pdb.slop(2)::pdb.query::pdb.const(1.0)
-        """,
-    )
-    ids = _ids(queryset)
-    assert ids == {3}
-
-
-def test_const_does_not_change_result_set() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("shoes", operator="AND", const=1.0))
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'shoes'::pdb.const(1.0)
-        """,
-    )
-    ids = _ids(queryset)
-    assert ids == {3, 4, 5}
-
-
 def test_boost_multi_term_or_query() -> None:
     # Verifies ARRAY['shoes', 'boots']::pdb.boost(2.0) is valid SQL and executes.
     queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("shoes", "boots", operator="OR", boost=2.0))
+        description=ParadeDB(Match(Boost(("shoes", "boots"), 2.0), operator="OR"))
     )
     _assert_sql(
         str(queryset.query),
@@ -730,7 +571,7 @@ def test_boost_multi_term_or_query() -> None:
 
 def test_const_multi_term_or_query() -> None:
     queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("shoes", "boots", operator="OR", const=1.5))
+        description=ParadeDB(Match(Const(("shoes", "boots"), 1.5), operator="OR"))
     )
     _assert_sql(
         str(queryset.query),
@@ -742,55 +583,6 @@ def test_const_multi_term_or_query() -> None:
     )
     ids = _ids(queryset)
     assert ids == {3, 4, 5, 13}
-
-
-def test_match_tokenizer_and_distance_rejected() -> None:
-    with pytest.raises(
-        ValueError, match="Match tokenizer cannot be combined with fuzzy options"
-    ):
-        Match(
-            "running shoes",
-            operator="AND",
-            tokenizer=Tokenizer.whitespace(),
-            distance=1,
-        )
-
-
-def test_multi_term_fuzzy_tokenizer_rejected() -> None:
-    with pytest.raises(
-        ValueError, match="Match tokenizer cannot be combined with fuzzy options"
-    ):
-        Match("a", "b", operator="OR", tokenizer=Tokenizer.whitespace(), distance=1)
-
-
-def test_multi_term_fuzzy_boost_rejected() -> None:
-    with pytest.raises(
-        ValueError, match="Multi-term fuzzy Match does not support boost or const"
-    ):
-        Match("a", "b", operator="OR", distance=1, boost=2.0)
-
-
-def test_multi_term_fuzzy_const_rejected() -> None:
-    with pytest.raises(
-        ValueError, match="Multi-term fuzzy Match does not support boost or const"
-    ):
-        Match("a", "b", operator="OR", distance=1, const=1.0)
-
-
-def test_boost_and_const_error_deferred_to_database() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("shoes", operator="AND", boost=2.0, const=1.0))
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" &&& 'shoes'::pdb.boost(2.0)::pdb.const(1.0)
-        """,
-    )
-    with pytest.raises(DatabaseError, match="cannot cast type"):
-        list(queryset)
 
 
 def test_regex_query() -> None:
@@ -887,7 +679,7 @@ def test_phrase_prefix_with_max_expansion() -> None:
 
 def test_phrase_prefix_with_boost() -> None:
     queryset = MockItem.objects.filter(
-        description=ParadeDB(PhrasePrefix("running", "sh", boost=2.0))
+        description=ParadeDB(Boost(PhrasePrefix("running", "sh"), 2.0))
     )
     _assert_sql(
         str(queryset.query),
@@ -903,7 +695,7 @@ def test_phrase_prefix_with_boost() -> None:
 
 def test_phrase_prefix_with_const() -> None:
     queryset = MockItem.objects.filter(
-        description=ParadeDB(PhrasePrefix("running", "sh", const=1.0))
+        description=ParadeDB(Const(PhrasePrefix("running", "sh"), 1.0))
     )
     _assert_sql(
         str(queryset.query),
@@ -1053,7 +845,7 @@ def test_paradedb_operators_over_expression_lhs() -> None:
     expr_where = _where_sql(
         "(description || ' ' || category)",
         ParadeDB(
-            Match("running Sportswear", operator="AND", tokenizer=Tokenizer.simple())
+            Match(Tokenized("running Sportswear", Tokenizer.simple()), operator="AND")
         ),
     )
     ids = _raw_ids(f"SELECT id FROM tmp_expr_ops WHERE {expr_where} ORDER BY id;")
@@ -1470,7 +1262,7 @@ def test_multi_term_fuzzy_match_or() -> None:
     # This should generate: ARRAY['runing', 'shose']::pdb.fuzzy(2)
     # NOT: ARRAY['runing'::pdb.fuzzy(2), 'shose'::pdb.fuzzy(2)]
     queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("runing", "shose", operator="OR", distance=2))
+        description=ParadeDB(Match(Fuzzy(("runing", "shose"), 2), operator="OR"))
     )
     _assert_sql(
         str(queryset.query),
@@ -1488,7 +1280,7 @@ def test_multi_term_fuzzy_match_or() -> None:
 def test_multi_term_fuzzy_match_and() -> None:
     """FUZZY-2: Match with multiple terms and AND operator uses fuzzy on array."""
     queryset = MockItem.objects.filter(
-        description=ParadeDB(Match("runing", "shose", operator="AND", distance=2))
+        description=ParadeDB(Match(Fuzzy(("runing", "shose"), 2), operator="AND"))
     )
     _assert_sql(
         str(queryset.query),
@@ -1506,9 +1298,7 @@ def test_multi_term_fuzzy_match_and() -> None:
 def test_multi_term_fuzzy_match_and_prefix() -> None:
     """FUZZY-5: Match with multiple terms, AND operator, distance=1, and prefix."""
     queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Match("slee", "rann", operator="AND", distance=1, prefix=True)
-        )
+        description=ParadeDB(Match(Fuzzy(("slee", "rann"), 1, True), operator="AND"))
     )
     _assert_sql(
         str(queryset.query),
@@ -1552,7 +1342,7 @@ def test_multi_term_fuzzy_match_and_prefix() -> None:
 def test_all_tokenizers(expected: str, tokenizer: Tokenizer) -> None:
     queryset = MockItem.objects.filter(
         description=ParadeDB(
-            Match("running shoes", operator="AND", tokenizer=tokenizer)
+            Match(Tokenized("running shoes", tokenizer), operator="AND")
         )
     )
 

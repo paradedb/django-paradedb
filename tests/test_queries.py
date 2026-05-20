@@ -2,7 +2,7 @@
 
 import pytest
 from django.db import connection
-from django.db.models import Q, Window
+from django.db.models import F, Q, Window
 from django.db.models.functions import Coalesce
 
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
@@ -93,13 +93,13 @@ class TestAggAnnotation:
     def test_agg_grouped_by_rating(self) -> None:
         queryset = (
             MockItem.objects.filter(category=ParadeDB(Term("electronics")))
-            .values("rating")
+            .values(rating_value=F("rating"))
             .annotate(agg=Agg('{"value_count": {"field": "id"}}'))
-            .order_by("rating")[:5]
+            .order_by("rating_value")[:5]
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."rating" AS "rating", pdb.agg(\'{"value_count": {"field": "id"}}\') AS "agg" FROM "mock_items" WHERE "mock_items"."category" @@@ pdb.term(\'electronics\') GROUP BY 1 ORDER BY 1 ASC LIMIT 5'
+            == 'SELECT "mock_items"."rating" AS "rating_value", pdb.agg(\'{"value_count": {"field": "id"}}\') AS "agg" FROM "mock_items" WHERE "mock_items"."category" @@@ pdb.term(\'electronics\') GROUP BY 1 ORDER BY 1 ASC LIMIT 5'
         )
         _run_query(queryset)
 

@@ -14,9 +14,12 @@ from paradedb.search import (
     All,
     Boost,
     Const,
+    Exists,
     Fuzzy,
+    FuzzyTerm,
     MatchAll,
     MatchAny,
+    MoreLikeThis,
     ParadeDB,
     Parse,
     Phrase,
@@ -28,6 +31,7 @@ from paradedb.search import (
     RegexPhrase,
     Slop,
     Term,
+    TermSet,
     Tokenized,
     Tokenizer,
 )
@@ -63,8 +67,9 @@ def _schema_editor():
 
 
 def _run_query(queryset) -> None:
+    sql, params = queryset.query.sql_with_params()
     with connection.cursor() as cursor:
-        cursor.execute(str(queryset.query))
+        cursor.execute(sql, params)
 
 
 def _agg_dict(value: str | dict) -> dict:  # type: ignore[type-arg]
@@ -144,6 +149,89 @@ class TestAggAnnotation:
         _run_query(queryset)
 
 
+class TestFacets:
+    """Test facets SQL generation helpers."""
+
+    def test_facets_window_annotation_exact_false(self) -> None:
+        json_spec = '{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}'
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("shoes")))[
+            :10
+        ].annotate(facets=Window(expression=Agg(json_spec, exact=False)))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.agg(\'{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}\', false) OVER () AS "facets" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\' LIMIT 10'
+        )
+        _run_query(queryset)
+
+    def test_facets_requires_paradedb_search_condition(self) -> None:
+        queryset = Product.objects.filter(rating=5).order_by("price")[:5]
+        with pytest.raises(ValueError, match="ParadeDB search condition"):
+            queryset.facets("category")
+
+    def test_facets_requires_order_by_and_limit(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("shoes")))
+        with pytest.raises(ValueError, match=r"order_by\(\) and a LIMIT"):
+            queryset.facets("category")
+
+    def test_facets_exact_false_requires_window(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(MatchAll("shoes")))
+        with pytest.raises(ValueError, match="exact=False"):
+            queryset.facets("category", include_rows=False, exact=False)
+
+    def test_facets_multiple_fields_specs(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).order_by("price")[:5]
+        specs = queryset._build_agg_specs(
+            fields=["category", "rating"],
+            size=10,
+            order="-count",
+            missing=None,
+            agg=None,
+        )
+        assert specs == {
+            "category_terms": '{"terms":{"field":"category","order":{"_count":"desc"},"size":10}}',
+            "rating_terms": '{"terms":{"field":"rating","order":{"_count":"desc"},"size":10}}',
+        }
+
+    def test_facets_single_field_spec_shape(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).order_by("price")[:5]
+        specs = queryset._build_agg_specs(
+            fields=["category"],
+            size=5,
+            order="-count",
+            missing=None,
+            agg=None,
+        )
+        assert specs == {
+            "_paradedb_facets": '{"terms":{"field":"category","order":{"_count":"desc"},"size":5}}'
+        }
+
+    def test_facets_missing_allows_non_string(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).order_by("price")[:5]
+        specs = queryset._build_agg_specs(
+            fields=["in_stock"],
+            size=None,
+            order=None,
+            missing=False,
+            agg=None,
+        )
+        assert specs == {
+            "_paradedb_facets": '{"terms":{"field":"in_stock","missing":false}}'
+        }
+
+    def test_facets_requires_unique_fields(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).order_by("price")[:5]
+        with pytest.raises(ValueError, match="unique"):
+            queryset.facets("category", "category")
+
+
 class TestParadeDBLookup:
     """Test ParadeDB lookup SQL generation."""
 
@@ -175,6 +263,47 @@ class TestParadeDBLookup:
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'running\', \'shoes\', \'lightweight\']'
+        )
+        _run_query(queryset)
+
+
+class TestMoreLikeThis:
+    """Test MoreLikeThis SQL generation."""
+
+    def test_mlt_by_id(self) -> None:
+        queryset = Product.objects.filter(id=ParadeDB(MoreLikeThis(id=5)))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(5)'
+        )
+        _run_query(queryset)
+
+    def test_mlt_multiple_ids(self) -> None:
+        queryset = Product.objects.filter(id=ParadeDB(MoreLikeThis(ids=[5, 12, 23])))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE ("tests_product"."id" @@@ pdb.more_like_this(5) OR "tests_product"."id" @@@ pdb.more_like_this(12) OR "tests_product"."id" @@@ pdb.more_like_this(23))'
+        )
+        _run_query(queryset)
+
+    def test_mlt_with_options(self) -> None:
+        queryset = Product.objects.filter(
+            id=ParadeDB(
+                MoreLikeThis(
+                    id=5,
+                    fields=["description"],
+                    min_term_freq=2,
+                    max_query_terms=10,
+                    min_doc_freq=1,
+                    min_word_length=3,
+                    max_word_length=20,
+                    stopwords=["the", "and", "or"],
+                )
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."id" @@@ pdb.more_like_this(5, ARRAY[description]::text[], min_term_frequency => 2, max_query_terms => 10, min_doc_frequency => 1, min_word_length => 3, max_word_length => 20, stopwords => ARRAY[the, and, or])'
         )
         _run_query(queryset)
 
@@ -753,6 +882,68 @@ class TestRegexQuery:
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.regex(\'run.*shoes\')'
+        )
+        _run_query(queryset)
+
+
+class TestExistsQuery:
+    def test_exists_basic(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(Exists()))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.exists()'
+        )
+        _run_query(queryset)
+
+
+class TestFuzzyTermQuery:
+    """Test FuzzyTerm query SQL generation."""
+
+    def test_fuzzy_term_with_value(self) -> None:
+        queryset = Product.objects.filter(description=ParadeDB(FuzzyTerm("shoes")))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.fuzzy_term(\'shoes\')'
+        )
+        _run_query(queryset)
+
+    def test_fuzzy_term_with_distance(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(Fuzzy(FuzzyTerm("shoes"), 2))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.fuzzy_term(\'shoes\')::pdb.fuzzy(2)'
+        )
+        _run_query(queryset)
+
+
+class TestTermSetQuery:
+    """Test TermSet query SQL generation."""
+
+    def test_term_set_strings(self) -> None:
+        queryset = Product.objects.filter(
+            description=ParadeDB(TermSet("shoes", "boots"))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.term_set(ARRAY[\'shoes\', \'boots\']::text[])'
+        )
+        _run_query(queryset)
+
+    def test_term_set_integers(self) -> None:
+        queryset = Product.objects.filter(rating=ParadeDB(TermSet(1, 2, 3)))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."rating" @@@ pdb.term_set(ARRAY[1, 2, 3]::bigint[])'
+        )
+        _run_query(queryset)
+
+    def test_term_set_booleans(self) -> None:
+        queryset = Product.objects.filter(in_stock=ParadeDB(TermSet(True, False)))
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."in_stock" @@@ pdb.term_set(ARRAY[true, false]::boolean[])'
         )
         _run_query(queryset)
 

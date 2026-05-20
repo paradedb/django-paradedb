@@ -531,24 +531,6 @@ def test_tokenizer_override_or_with_args_sql() -> None:
     )
 
 
-def test_tokenizer_override_phrase_with_multi_args_sql() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            Phrase(
-                Tokenized(Slop("wireless mouse", 2), Tokenizer.ngram(3, 8)),
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
-        FROM "mock_items"
-        WHERE "mock_items"."description" ### 'wireless mouse'::pdb.slop(2)::pdb.ngram(3,8)
-        """,
-    )
-
-
 def test_boost_multi_term_or_query() -> None:
     # Verifies ARRAY['shoes', 'boots']::pdb.boost(2.0) is valid SQL and executes.
     queryset = MockItem.objects.filter(

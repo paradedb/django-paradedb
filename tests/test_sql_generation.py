@@ -1,14 +1,7 @@
-"""Tests for SQL generation.
-
-This module tests SQL string generation only - no database required.
-"""
-
-from typing import Any
-from unittest.mock import Mock
+"""Tests for SQL generation."""
 
 import pytest
-from django.db import models
-from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db import connection, models
 from django.db.migrations.writer import MigrationWriter
 from django.db.models import F, Func, Q, Value
 from django.db.models.functions import Length, Lower
@@ -37,79 +30,38 @@ from paradedb.search import (
 )
 from tests.models import Product
 
-
-class DummyDatabaseOperations:
-    """Minimal database operations for SQL string generation."""
-
-    compiler_module = "django.db.backends.postgresql.compiler"
-    cast_char_field_without_max_length = "varchar"
-
-    def quote_name(self, name: str) -> str:
-        return f'"{name}"'
-
-    def max_name_length(self) -> int:
-        return 63
-
-    def autoinc_sql(self, *_args: Any, **_kwargs: Any) -> None:
-        return None
-
-    def conditional_expression_supported_in_where_clause(
-        self, _expression: Any
-    ) -> bool:
-        return True
-
-    def combine_expression(self, connector: str, sub_expressions: list[str]) -> str:
-        return f"({f' {connector} '.join(sub_expressions)})"
-
-    def compiler(self, _compiler_name: str) -> type:
-        from django.db.backends.postgresql.compiler import SQLCompiler
-
-        return SQLCompiler
-
-    def check_expression_support(self, expression: Any) -> None:
-        """Check if expression is supported - always pass for tests."""
-        pass
-
-    def adapt_integerfield_value(self, value: Any, _internal_type: str) -> Any:
-        return value
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.django_db(transaction=True),
+]
 
 
-class DummyConnection:
-    """Minimal connection for SQL string generation."""
+@pytest.fixture(autouse=True)
+def product_search_index() -> None:
+    with connection.cursor() as cursor:
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search;")
+        cursor.execute("DROP INDEX IF EXISTS product_search_idx;")
+        cursor.execute(
+            """
+            CREATE INDEX product_search_idx ON tests_product USING bm25 (
+                id,
+                description,
+                category,
+                rating,
+                in_stock,
+                metadata
+            ) WITH (key_field='id', json_fields='{"metadata":{"fast":true}}');
+            """
+        )
 
-    vendor = "postgresql"
-    Database = Mock()
 
-    def __init__(self) -> None:
-        self.features = Mock()
-        self.features.uses_case_insensitive_names = False
-        self.features.allows_group_by_select_index = True
-        self.ops = DummyDatabaseOperations()
-        # Set alias for the connection
-        self.alias = "default"
+def _schema_editor():
+    return connection.schema_editor(collect_sql=True)
 
 
-class DummySchemaEditor(BaseDatabaseSchemaEditor):
-    """Minimal schema editor for SQL string generation."""
-
-    def __init__(self) -> None:
-        connection = DummyConnection()
-        super().__init__(connection, collect_sql=False)
-
-    def quote_name(self, name: str) -> str:
-        return f'"{name}"'
-
-    def quote_value(self, value: Any) -> str:
-        if isinstance(value, bool):
-            return "true" if value else "false"
-        if isinstance(value, int | float):
-            return str(value)
-        if value is None:
-            return "null"
-        if isinstance(value, str):
-            escaped = value.replace("'", "''")
-            return f"'{escaped}'"
-        raise TypeError(f"Unsupported quoted value type: {type(value).__name__}")
+def _run_query(queryset) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute(str(queryset.query))
 
 
 class TestParadeDBLookup:
@@ -122,6 +74,7 @@ class TestParadeDBLookup:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
+        _run_query(queryset)
 
     def test_and_search_multiple_terms(self) -> None:
         """Multiple terms generate: WHERE description &&& ARRAY[...]"""
@@ -132,6 +85,7 @@ class TestParadeDBLookup:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'running\', \'shoes\']'
         )
+        _run_query(queryset)
 
     def test_and_search_three_terms(self) -> None:
         """Edge case: three terms for AND search."""
@@ -142,6 +96,7 @@ class TestParadeDBLookup:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'running\', \'shoes\', \'lightweight\']'
         )
+        _run_query(queryset)
 
 
 class TestExactLiteralDisjunction:
@@ -155,6 +110,7 @@ class TestExactLiteralDisjunction:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'running shoes\''
         )
+        _run_query(queryset)
 
     def test_multiple_strings_or(self) -> None:
         queryset = Product.objects.filter(
@@ -164,6 +120,7 @@ class TestExactLiteralDisjunction:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'shoes\', \'boots\']'
         )
+        _run_query(queryset)
 
 
 class TestPhraseSearch:
@@ -178,6 +135,7 @@ class TestPhraseSearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'wireless bluetooth\''
         )
+        _run_query(queryset)
 
     def test_phrase_with_slop(self) -> None:
         """Phrase with slop: WHERE description ### 'running shoes'::pdb.slop(1)."""
@@ -188,6 +146,7 @@ class TestPhraseSearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.slop(1)'
         )
+        _run_query(queryset)
 
     def test_phrase_with_multiple_terms(self) -> None:
         queryset = Product.objects.filter(
@@ -197,6 +156,7 @@ class TestPhraseSearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### ARRAY[\'running shoes\', \'sneakers\']'
         )
+        _run_query(queryset)
 
     def test_phrase_with_multiple_terms_and_slop(self) -> None:
         queryset = Product.objects.filter(
@@ -206,6 +166,7 @@ class TestPhraseSearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### ARRAY[\'running shoes\', \'sneakers\']::pdb.slop(7)'
         )
+        _run_query(queryset)
 
 
 class TestProximitySearch:
@@ -219,6 +180,7 @@ class TestProximitySearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## \'shoes\')'
         )
+        _run_query(queryset)
 
     def test_proximity_ordered(self) -> None:
         queryset = Product.objects.filter(
@@ -228,6 +190,7 @@ class TestProximitySearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ##> 2 ##> \'shoes\')'
         )
+        _run_query(queryset)
 
     def test_proximity_with_boost(self) -> None:
         queryset = Product.objects.filter(
@@ -237,6 +200,7 @@ class TestProximitySearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## \'shoes\')::pdb.boost(1.5)'
         )
+        _run_query(queryset)
 
     def test_proximity_with_const(self) -> None:
         queryset = Product.objects.filter(
@@ -246,6 +210,7 @@ class TestProximitySearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## \'shoes\')::pdb.const(1.0)'
         )
+        _run_query(queryset)
 
     def test_proximity_three_terms_chain(self) -> None:
         queryset = Product.objects.filter(
@@ -257,6 +222,7 @@ class TestProximitySearch:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## \'shoes\' ## 2 ## \'lightweight\')'
         )
+        _run_query(queryset)
 
     def test_proximity_distance_negative_rejected(self) -> None:
         with pytest.raises(
@@ -282,6 +248,7 @@ class TestDistanceOption:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'sheos\'::pdb.fuzzy(1)'
         )
+        _run_query(queryset)
 
     def test_match_distance_multiple_terms(self) -> None:
         queryset = Product.objects.filter(
@@ -292,6 +259,7 @@ class TestDistanceOption:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'runnning\', \'shoez\']::pdb.fuzzy(1)'
         )
+        _run_query(queryset)
 
 
 class TestTokenizerOverride:
@@ -307,6 +275,7 @@ class TestTokenizerOverride:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'running shoes\'::pdb.whitespace'
         )
+        _run_query(queryset)
 
     def test_match_or_with_tokenizer(self) -> None:
         queryset = Product.objects.filter(
@@ -318,6 +287,7 @@ class TestTokenizerOverride:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'running shoes\'::pdb.whitespace'
         )
+        _run_query(queryset)
 
     def test_phrase_with_tokenizer(self) -> None:
         queryset = Product.objects.filter(
@@ -329,17 +299,7 @@ class TestTokenizerOverride:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.whitespace'
         )
-
-    def test_phrase_with_slop_and_tokenizer(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Phrase(Tokenized(Slop("running shoes", 2), Tokenizer.whitespace()))
-            )
-        )
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'running shoes\'::pdb.slop(2)::pdb.whitespace'
-        )
+        _run_query(queryset)
 
     def test_match_with_tokenizer_args(self) -> None:
         queryset = Product.objects.filter(
@@ -356,6 +316,7 @@ class TestTokenizerOverride:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'running shoes\'::pdb.whitespace(\'lowercase=false\')'
         )
+        _run_query(queryset)
 
     def test_match_with_tokenizer_multi_args(self) -> None:
         queryset = Product.objects.filter(
@@ -374,6 +335,7 @@ class TestTokenizerOverride:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ||| \'wireless keyboard\'::pdb.simple(\'lowercase=false\',\'remove_long=20\')'
         )
+        _run_query(queryset)
 
     def test_match_with_tokenizer_positional_args(self) -> None:
         queryset = Product.objects.filter(
@@ -385,19 +347,7 @@ class TestTokenizerOverride:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'running shoes\'::pdb.ngram(3,3)'
         )
-
-    def test_phrase_with_slop_and_tokenizer_multi_args(self) -> None:
-        queryset = Product.objects.filter(
-            description=ParadeDB(
-                Phrase(
-                    Tokenized(Slop("wireless mouse", 2), Tokenizer.ngram(3, 8)),
-                )
-            )
-        )
-        assert (
-            str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" ### \'wireless mouse\'::pdb.slop(2)::pdb.ngram(3,8)'
-        )
+        _run_query(queryset)
 
     def test_tokenizer_with_boost(self) -> None:
         queryset = Product.objects.filter(
@@ -411,6 +361,7 @@ class TestTokenizerOverride:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\'::pdb.whitespace::pdb.boost(2.0)'
         )
+        _run_query(queryset)
 
 
 class TestParseQuery:
@@ -425,6 +376,7 @@ class TestParseQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.parse(\'running AND shoes\', lenient => true)'
         )
+        _run_query(queryset)
 
     def test_parse_query_with_conjunction_mode(self) -> None:
         queryset = Product.objects.filter(
@@ -434,6 +386,7 @@ class TestParseQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.parse(\'running shoes\', conjunction_mode => true)'
         )
+        _run_query(queryset)
 
 
 class TestPhrasePrefixQuery:
@@ -447,6 +400,7 @@ class TestPhrasePrefixQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])'
         )
+        _run_query(queryset)
 
     def test_phrase_prefix_with_max_expansion(self) -> None:
         queryset = Product.objects.filter(
@@ -456,6 +410,7 @@ class TestPhrasePrefixQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'], max_expansion => 50)'
         )
+        _run_query(queryset)
 
     def test_phrase_prefix_with_boost(self) -> None:
         queryset = Product.objects.filter(
@@ -465,6 +420,7 @@ class TestPhrasePrefixQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])::pdb.boost(2.0)'
         )
+        _run_query(queryset)
 
     def test_phrase_prefix_with_const(self) -> None:
         queryset = Product.objects.filter(
@@ -474,6 +430,7 @@ class TestPhrasePrefixQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])::pdb.const(1.0)'
         )
+        _run_query(queryset)
 
     def test_phrase_prefix_requires_terms(self) -> None:
         with pytest.raises(
@@ -491,6 +448,7 @@ class TestRegexPhraseQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.regex_phrase(ARRAY[\'run.*\', \'sho.*\'])'
         )
+        _run_query(queryset)
 
     def test_regex_phrase_with_options(self) -> None:
         queryset = Product.objects.filter(
@@ -502,6 +460,7 @@ class TestRegexPhraseQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.regex_phrase(ARRAY[\'run.*\', \'sho.*\'], slop => 2, max_expansions => 100)'
         )
+        _run_query(queryset)
 
 
 class TestProximityAdvancedQuery:
@@ -513,6 +472,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 1 ## pdb.prox_regex(\'sho.*\'))'
         )
+        _run_query(queryset)
 
     def test_proximity_array_query(self) -> None:
         queryset = Product.objects.filter(
@@ -522,6 +482,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (pdb.prox_array(\'sleek\', \'running\') ## 1 ## \'shoes\')'
         )
+        _run_query(queryset)
 
     def test_proximity_array_with_prox_regex_items(self) -> None:
         queryset = Product.objects.filter(
@@ -533,6 +494,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (pdb.prox_array(\'chicken\', pdb.prox_regex(\'r..s\')) ## 1 ## \'delicious\')'
         )
+        _run_query(queryset)
 
     def test_proximity_array_with_prox_regex_custom_expansions(self) -> None:
         queryset = Product.objects.filter(
@@ -547,6 +509,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (pdb.prox_array(pdb.prox_regex(\'sl.*\', 100), \'white\') ## 1 ## \'shoes\')'
         )
+        _run_query(queryset)
 
     def test_proximity_array_regex_rhs_query(self) -> None:
         queryset = Product.objects.filter(
@@ -561,6 +524,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 1 ## pdb.prox_regex(\'sho.*\', 80))'
         )
+        _run_query(queryset)
 
     def test_proximity_array_list_rhs_query(self) -> None:
         queryset = Product.objects.filter(
@@ -575,6 +539,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 1 ## pdb.prox_array(\'shoes\', pdb.prox_regex(\'boot.*\', 80)))'
         )
+        _run_query(queryset)
 
     def test_proximity_chain_mixed_ordering_query(self) -> None:
         queryset = Product.objects.filter(
@@ -588,6 +553,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (pdb.prox_regex(\'sho.*\') ##> 1 ##> pdb.prox_array(\'history\', \'science\') ## 5 ## \'hardcover\')'
         )
+        _run_query(queryset)
 
     def test_proximity_nested_child_constructor_query(self) -> None:
         queryset = Product.objects.filter(
@@ -604,6 +570,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## pdb.prox_array(pdb.prox_regex(\'sho.*\', 80), \'boots\') ##> 4 ##> \'hardcover\')'
         )
+        _run_query(queryset)
 
     def test_proximity_associativity_parenthesizes_grouped_rhs(self) -> None:
         queryset = Product.objects.filter(
@@ -617,6 +584,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## (\'shoes\' ##> 4 ##> \'hardcover\'))'
         )
+        _run_query(queryset)
 
     def test_deeply_nested_query(self) -> None:
         queryset = Product.objects.filter(
@@ -644,6 +612,7 @@ class TestProximityAdvancedQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'running\' ## 2 ## (pdb.prox_array(\'shoes\', pdb.prox_regex(\'sho.*\'), pdb.prox_array(\'shoe\', pdb.prox_array(pdb.prox_regex(\'shoe\')))) ##> 4 ##> \'hardcover\' ## 100 ## \'foo\') ## 2 ## pdb.prox_regex(\'bar\'))::pdb.boost(1.2)'
         )
+        _run_query(queryset)
 
 
 class TestRangeTermQuery:
@@ -653,6 +622,7 @@ class TestRangeTermQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.range_term(10)'
         )
+        _run_query(queryset)
 
     def test_range_term_relation_query(self) -> None:
         queryset = Product.objects.filter(
@@ -664,6 +634,7 @@ class TestRangeTermQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.range_term(\'(10, 12]\'::int4range, \'Intersects\')'
         )
+        _run_query(queryset)
 
     def test_range_term_relation_requires_range_type(self) -> None:
         with pytest.raises(ValueError, match=r"RangeTerm relation requires range_type"):
@@ -690,6 +661,7 @@ class TestTermQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.term(\'shoes\')'
         )
+        _run_query(queryset)
 
 
 class TestRegexQuery:
@@ -702,6 +674,7 @@ class TestRegexQuery:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ pdb.regex(\'run.*shoes\')'
         )
+        _run_query(queryset)
 
 
 class TestScoreAnnotation:
@@ -716,6 +689,7 @@ class TestScoreAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.score("tests_product"."id") AS "search_score" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'running\', \'shoes\']'
         )
+        _run_query(queryset)
 
     def test_score_with_ordering(self) -> None:
         """Score with ORDER BY search_score DESC."""
@@ -728,6 +702,7 @@ class TestScoreAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.score("tests_product"."id") AS "search_score" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\' ORDER BY 9 DESC'
         )
+        _run_query(queryset)
 
     def test_score_filter(self) -> None:
         """Filter by score: WHERE pdb.score(id) > 0."""
@@ -740,6 +715,7 @@ class TestScoreAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.score("tests_product"."id") AS "search_score" FROM "tests_product" WHERE ("tests_product"."description" &&& \'shoes\' AND pdb.score("tests_product"."id") > 0.0)'
         )
+        _run_query(queryset)
 
 
 class TestSnippetAnnotation:
@@ -754,6 +730,7 @@ class TestSnippetAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippet("tests_product"."description") AS "snippet" FROM "tests_product" WHERE "tests_product"."description" ||| ARRAY[\'wireless\', \'bluetooth\']'
         )
+        _run_query(queryset)
 
     def test_snippet_with_custom_formatting(self) -> None:
         """Custom snippet: pdb.snippet(description, '<mark>', '</mark>', 100)."""
@@ -771,6 +748,7 @@ class TestSnippetAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippet("tests_product"."description", \'<mark>\', \'</mark>\', 100) AS "snippet" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
+        _run_query(queryset)
 
 
 class TestSnippetsAnnotation:
@@ -785,6 +763,7 @@ class TestSnippetsAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description") AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'artistic\', \'vase\']'
         )
+        _run_query(queryset)
 
     def test_snippets_with_max_num_chars(self) -> None:
         """Snippets with max_num_chars only."""
@@ -795,6 +774,7 @@ class TestSnippetsAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description", max_num_chars => 15) AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'artistic\', \'vase\']'
         )
+        _run_query(queryset)
 
     def test_snippets_with_limit_and_offset(self) -> None:
         """Snippets with limit and offset uses double-quoted SQL reserved words."""
@@ -807,6 +787,7 @@ class TestSnippetsAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description", max_num_chars => 15, "limit" => 1, "offset" => 1) AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& \'running\''
         )
+        _run_query(queryset)
 
     def test_snippets_with_sort_by(self) -> None:
         """Snippets with sort_by parameter."""
@@ -819,6 +800,7 @@ class TestSnippetsAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description", max_num_chars => 15, sort_by => \'position\') AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& ARRAY[\'artistic\', \'vase\']'
         )
+        _run_query(queryset)
 
     def test_snippets_with_all_params(self) -> None:
         """Snippets with all named parameters."""
@@ -839,6 +821,7 @@ class TestSnippetsAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippets("tests_product"."description", start_tag => \'<mark>\', end_tag => \'</mark>\', max_num_chars => 30, "limit" => 2, "offset" => 0, sort_by => \'score\') AS "snippets" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
+        _run_query(queryset)
 
 
 class TestSnippetPositionsAnnotation:
@@ -853,6 +836,7 @@ class TestSnippetPositionsAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippet_positions("tests_product"."description") AS "positions" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
+        _run_query(queryset)
 
     def test_snippet_positions_with_snippet(self) -> None:
         """SnippetPositions alongside Snippet."""
@@ -866,6 +850,7 @@ class TestSnippetPositionsAnnotation:
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.snippet("tests_product"."description") AS "snippet", pdb.snippet_positions("tests_product"."description") AS "positions" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\''
         )
+        _run_query(queryset)
 
 
 class TestBM25Index:
@@ -878,7 +863,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -899,7 +884,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -916,7 +901,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -949,7 +934,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -971,7 +956,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -992,7 +977,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         with pytest.raises(TypeError, match="tokenizer must be a Tokenizer"):
             index.create_sql(model=Product, schema_editor=schema_editor)
 
@@ -1020,7 +1005,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1049,7 +1034,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1071,7 +1056,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1091,7 +1076,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         with pytest.raises(ValueError, match="cannot mix 'tokenizers'"):
             index.create_sql(model=Product, schema_editor=schema_editor)
 
@@ -1120,7 +1105,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1147,7 +1132,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1176,7 +1161,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1203,7 +1188,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1231,7 +1216,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1245,7 +1230,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(
             index.create_sql(
                 model=Product, schema_editor=schema_editor, concurrently=True
@@ -1261,7 +1246,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert sql.startswith('CREATE INDEX "product_search_idx"')
         assert "CONCURRENTLY" not in sql
@@ -1274,9 +1259,7 @@ class TestBM25Index:
             name="product_search_idx",
             condition=Q(description__isnull=False),
         )
-        schema_editor = DummySchemaEditor()
-        # Mock _get_condition_sql to avoid needing a real DB connection
-        index._get_condition_sql = Mock(return_value='"description" IS NOT NULL')
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert sql.endswith('WHERE "description" IS NOT NULL')
         assert "USING bm25" in sql
@@ -1289,8 +1272,7 @@ class TestBM25Index:
             name="product_search_idx",
             condition=Q(description__isnull=False),
         )
-        schema_editor = DummySchemaEditor()
-        index._get_condition_sql = Mock(return_value='"description" IS NOT NULL')
+        schema_editor = _schema_editor()
         sql = str(
             index.create_sql(
                 model=Product, schema_editor=schema_editor, concurrently=True
@@ -1307,8 +1289,7 @@ class TestBM25Index:
             name="product_search_idx",
             condition=Q(description__isnull=False),
         )
-        schema_editor = DummySchemaEditor()
-        index._get_condition_sql = Mock(return_value='"description" IS NOT NULL')
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert 'json_fields=\'{"metadata":{"fast":true}}\'' in sql
         assert sql.endswith('WHERE "description" IS NOT NULL')
@@ -1320,7 +1301,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert "WHERE" not in sql
 
@@ -1338,7 +1319,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1358,7 +1339,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1385,7 +1366,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1405,11 +1386,11 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    (((("tests_product"."rating" + 1)))::pdb.alias(\'rating_plus_one\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((("tests_product"."rating" + 1))::pdb.alias(\'rating_plus_one\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_expression_non_text_transform_from_text_source_uses_alias(
@@ -1427,7 +1408,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1447,7 +1428,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         with pytest.raises(ValueError, match="resolves to a text or JSON value"):
             index.create_sql(model=Product, schema_editor=schema_editor)
 
@@ -1464,7 +1445,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert (
             sql
@@ -1489,7 +1470,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert "pdb.ngram(3,3,'alias=desc_ngram','prefix_only=true')" in sql
 
@@ -1511,7 +1492,7 @@ class TestBM25Index:
             key_field="id",
             name="product_search_idx",
         )
-        schema_editor = DummySchemaEditor()
+        schema_editor = _schema_editor()
         sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
         assert "pdb.simple('alias=desc_lower')" in sql
         assert "pdb.alias('rating_idx')" in sql

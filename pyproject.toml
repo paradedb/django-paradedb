@@ -138,6 +138,7 @@ markers = [
 [tool.coverage.run]
 source = ["paradedb"]
 branch = true
+omit = ["api.py"]
 
 [tool.coverage.report]
 exclude_lines = [

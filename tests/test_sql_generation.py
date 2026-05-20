@@ -1,14 +1,17 @@
 """Tests for SQL generation."""
 
+import json
+
 import pytest
 from django.db import connection, models
 from django.db.migrations.writer import MigrationWriter
-from django.db.models import F, Func, Q, Value
+from django.db.models import F, Func, Q, Value, Window
 from django.db.models.functions import Length, Lower
 
-from paradedb.functions import Score, Snippet, SnippetPositions, Snippets
+from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index, IndexExpression
 from paradedb.search import (
+    All,
     Boost,
     Const,
     Fuzzy,
@@ -28,7 +31,7 @@ from paradedb.search import (
     Tokenized,
     Tokenizer,
 )
-from tests.models import Product
+from tests.models import MockItem, Product
 
 pytestmark = [
     pytest.mark.integration,
@@ -62,6 +65,83 @@ def _schema_editor():
 def _run_query(queryset) -> None:
     with connection.cursor() as cursor:
         cursor.execute(str(queryset.query))
+
+
+def _agg_dict(value: str | dict) -> dict:  # type: ignore[type-arg]
+    return value if isinstance(value, dict) else json.loads(value)  # type: ignore[return-value]
+
+
+class TestAggAnnotation:
+    """Test Agg annotation SQL generation."""
+
+    pytestmark = pytest.mark.usefixtures("mock_items")
+
+    def test_agg_annotation_with_raw_sql(self) -> None:
+        json_spec = '{"value_count": {"field": "id"}}'
+        queryset = Product.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).annotate(facets=Window(expression=Agg(json_spec)))[:10]
+        assert (
+            str(queryset.query)
+            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "facets" FROM "tests_product" WHERE "tests_product"."description" &&& \'shoes\' LIMIT 10'
+        )
+        _run_query(queryset)
+
+    def test_agg_single_value_count(self) -> None:
+        queryset = MockItem.objects.filter(
+            category=ParadeDB(Term("electronics"))
+        ).annotate(agg=Window(expression=Agg('{"value_count": {"field": "id"}}')))[:1]
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "agg" FROM "mock_items" WHERE "mock_items"."category" @@@ pdb.term(\'electronics\') LIMIT 1'
+        )
+        _run_query(queryset)
+
+    def test_agg_grouped_by_rating(self) -> None:
+        queryset = (
+            MockItem.objects.filter(category=ParadeDB(Term("electronics")))
+            .values("rating")
+            .annotate(agg=Agg('{"value_count": {"field": "id"}}'))
+            .order_by("rating")[:5]
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."rating" AS "rating", pdb.agg(\'{"value_count": {"field": "id"}}\') AS "agg" FROM "mock_items" WHERE "mock_items"."category" @@@ pdb.term(\'electronics\') GROUP BY 1 ORDER BY 1 ASC LIMIT 5'
+        )
+        _run_query(queryset)
+
+    def test_agg_multiple_aggregations(self) -> None:
+        queryset = MockItem.objects.filter(
+            category=ParadeDB(Term("electronics"))
+        ).annotate(
+            avg_rating=Window(expression=Agg('{"avg": {"field": "rating"}}')),
+            count=Window(expression=Agg('{"value_count": {"field": "id"}}')),
+        )[:1]
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"avg": {"field": "rating"}}\') OVER () AS "avg_rating", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "count" FROM "mock_items" WHERE "mock_items"."category" @@@ pdb.term(\'electronics\') LIMIT 1'
+        )
+        _run_query(queryset)
+
+    def test_agg_with_all_query(self) -> None:
+        queryset = MockItem.objects.filter(id=ParadeDB(All())).annotate(
+            agg=Window(expression=Agg('{"value_count": {"field": "id"}}'))
+        )[:1]
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "agg" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() LIMIT 1'
+        )
+        _run_query(queryset)
+
+    def test_agg_terms_on_json_subfield(self) -> None:
+        queryset = MockItem.objects.filter(id=ParadeDB(All())).annotate(
+            agg=Window(expression=Agg('{"terms": {"field": "metadata.color"}}'))
+        )[:1]
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"terms": {"field": "metadata.color"}}\') OVER () AS "agg" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() LIMIT 1'
+        )
+        _run_query(queryset)
 
 
 class TestParadeDBLookup:

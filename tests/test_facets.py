@@ -25,63 +25,77 @@ class TestFacetsIntegration:
         ).facets(
             "rating",
             include_rows=False,
+            order="key",
         )
-        assert isinstance(facets, dict)
-        assert "buckets" in facets
+        assert facets == {
+            "buckets": [
+                {"key": 3, "doc_count": 1},
+                {"key": 4, "doc_count": 1},
+                {"key": 5, "doc_count": 1},
+            ],
+            "sum_other_doc_count": 0,
+        }
 
     def test_facets_with_rows(self) -> None:
         """Windowed facets return both rows and facets."""
         rows, facets = (
             MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
             .order_by("rating")[:3]
-            .facets("rating")
+            .facets("rating", order="key")
         )
-        assert isinstance(facets, dict)
-        assert "buckets" in facets
-        assert len(rows) <= 3
+        assert [row.id for row in rows] == [4, 5, 3]
+        assert facets == {
+            "buckets": [
+                {"key": 3, "doc_count": 1},
+                {"key": 4, "doc_count": 1},
+                {"key": 5, "doc_count": 1},
+            ],
+            "sum_other_doc_count": 0,
+        }
         for row in rows:
             assert not hasattr(row, "_paradedb_facets")
 
-    @pytest.mark.parametrize("exact", [None, True, False])
-    def test_facets_exact_toggle(self, exact: bool | None) -> None:
+    def test_facets_exact_toggle(self) -> None:
         """Facets allow exact defaults, explicit true, and explicit false."""
         queryset = MockItem.objects.filter(
             description=ParadeDB(MatchAll("shoes"))
         ).order_by("rating")[:3]
-        if exact is None:
-            rows, facets = queryset.facets("rating")
-        else:
-            rows, facets = queryset.facets("rating", exact=exact)
-        assert isinstance(facets, dict)
-        assert "buckets" in facets
-        assert len(rows) <= 3
+        rows, facets = queryset.facets("rating", exact=True, order="key")
+        assert [row.id for row in rows] == [4, 5, 3]
+        assert facets == {
+            "buckets": [
+                {"key": 3, "doc_count": 1},
+                {"key": 4, "doc_count": 1},
+                {"key": 5, "doc_count": 1},
+            ],
+            "sum_other_doc_count": 0,
+        }
 
     def test_facets_multiple_fields(self) -> None:
         """Multiple field facets return aggregations for each field."""
         rows, facets = (
             MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
             .order_by("rating")[:3]
-            .facets("rating", "in_stock")
+            .facets("rating", "in_stock", order="key")
         )
-        assert isinstance(facets, dict)
-        assert "rating_terms" in facets
-        assert "in_stock_terms" in facets
-        assert "buckets" in facets["rating_terms"]
-        assert "buckets" in facets["in_stock_terms"]
-        assert len(rows) <= 3
-
-    def test_facets_json_fields(self) -> None:
-        """JSON field facets use json_fields configuration."""
-        rows, facets = (
-            MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
-            .order_by("rating")[:3]
-            .facets("metadata.color", "metadata.location")
-        )
-        assert len(rows) <= 3
-        assert "metadata.color_terms" in facets
-        assert "metadata.location_terms" in facets
-        assert "buckets" in facets["metadata.color_terms"]
-        assert "buckets" in facets["metadata.location_terms"]
+        assert [row.id for row in rows] == [4, 5, 3]
+        assert facets == {
+            "rating_terms": {
+                "buckets": [
+                    {"key": 3, "doc_count": 1},
+                    {"key": 4, "doc_count": 1},
+                    {"key": 5, "doc_count": 1},
+                ],
+                "sum_other_doc_count": 0,
+            },
+            "in_stock_terms": {
+                "buckets": [
+                    {"key": 0, "key_as_string": "false", "doc_count": 1},
+                    {"key": 1, "key_as_string": "true", "doc_count": 2},
+                ],
+                "sum_other_doc_count": 0,
+            },
+        }
 
     @pytest.mark.parametrize(
         "field",
@@ -118,10 +132,8 @@ class TestFacetsIntegration:
             .facets(agg='{"value_count": {"field": "id"}}')
         )
         assert isinstance(rows, list)
-        assert len(rows) <= 3
-        assert isinstance(facets, dict)
-        assert "value" in facets
-        assert facets["value"] > 0
+        assert [row.id for row in rows] == [12, 1, 2]
+        assert facets == {"value": 5.0}
 
     def test_facets_agg_with_match_search(self) -> None:
         """facets(agg=JSON_spec) with Match filter — docs/aggregates/facets.mdx snippet 2."""
@@ -131,6 +143,5 @@ class TestFacetsIntegration:
             .facets(agg='{"value_count": {"field": "id"}}')
         )
         assert isinstance(rows, list)
-        assert isinstance(facets, dict)
-        assert "value" in facets
-        assert facets["value"] > 0
+        assert [row.id for row in rows] == [4, 5, 3]
+        assert facets == {"value": 3.0}

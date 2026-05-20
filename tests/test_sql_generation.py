@@ -6,7 +6,7 @@ import pytest
 from django.db import connection, models
 from django.db.migrations.writer import MigrationWriter
 from django.db.models import F, Func, Q, Value, Window
-from django.db.models.functions import Length, Lower
+from django.db.models.functions import Coalesce, Length, Lower
 
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.indexes import BM25Index, IndexExpression
@@ -985,6 +985,109 @@ class TestScoreAnnotation:
         assert (
             str(queryset.query)
             == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata", pdb.score("tests_product"."id") AS "search_score" FROM "tests_product" WHERE ("tests_product"."description" &&& \'shoes\' AND pdb.score("tests_product"."id") > 0.0)'
+        )
+        _run_query(queryset)
+
+    @pytest.mark.usefixtures("mock_items")
+    def test_score_filter_range(self) -> None:
+        queryset = (
+            MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
+            .annotate(search_score=Score())
+            .filter(search_score__gte=0.1, search_score__lte=100)
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' AND pdb.score("mock_items"."id") >= 0.1 AND pdb.score("mock_items"."id") <= 100.0)'
+        )
+        _run_query(queryset)
+
+    @pytest.mark.usefixtures("mock_items")
+    def test_score_with_coalesce(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).annotate(
+            search_score=Score(),
+            safe_score=Coalesce(Score(), 0.0),
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.score("mock_items"."id") AS "search_score", COALESCE(pdb.score("mock_items"."id"), 0.0) AS "safe_score" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+        )
+        _run_query(queryset)
+
+
+class TestComplexQComposition:
+    """Test complex Q object boolean composition SQL generation."""
+
+    pytestmark = pytest.mark.usefixtures("mock_items")
+
+    def test_triple_or_paradedb(self) -> None:
+        queryset = MockItem.objects.filter(
+            Q(description=ParadeDB(MatchAll("shoes")))
+            | Q(description=ParadeDB(MatchAll("keyboard")))
+            | Q(description=ParadeDB(MatchAll("earbuds")))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' OR "mock_items"."description" &&& \'keyboard\' OR "mock_items"."description" &&& \'earbuds\')'
+        )
+        _run_query(queryset)
+
+    def test_deeply_nested_q(self) -> None:
+        queryset = MockItem.objects.filter(
+            (
+                (
+                    Q(description=ParadeDB(MatchAll("shoes")))
+                    | Q(description=ParadeDB(MatchAll("boots")))
+                )
+                & Q(rating__gte=3)
+            )
+            | Q(category="Electronics")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ((("mock_items"."description" &&& \'shoes\' OR "mock_items"."description" &&& \'boots\') AND "mock_items"."rating" >= 3) OR "mock_items"."category" = Electronics)'
+        )
+        _run_query(queryset)
+
+    def test_q_not_with_or(self) -> None:
+        queryset = MockItem.objects.filter(
+            (
+                Q(description=ParadeDB(MatchAll("shoes")))
+                | Q(description=ParadeDB(MatchAll("boots")))
+            )
+            & ~Q(description=ParadeDB(MatchAll("running")))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE (("mock_items"."description" &&& \'shoes\' OR "mock_items"."description" &&& \'boots\') AND NOT ("mock_items"."description" &&& \'running\'))'
+        )
+        _run_query(queryset)
+
+
+class TestMultipleSearchTypes:
+    """Test combining different ParadeDB search types SQL generation."""
+
+    pytestmark = pytest.mark.usefixtures("mock_items")
+
+    def test_phrase_with_term_in_q(self) -> None:
+        queryset = MockItem.objects.filter(
+            Q(description=ParadeDB(Phrase("running shoes")))
+            | Q(description=ParadeDB(Term("keyboard")))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ("mock_items"."description" ### \'running shoes\' OR "mock_items"."description" @@@ pdb.term(\'keyboard\'))'
+        )
+        _run_query(queryset)
+
+    def test_chained_filters_all_paradedb(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).filter(description=ParadeDB(MatchAll("running")))
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' AND "mock_items"."description" &&& \'running\')'
         )
         _run_query(queryset)
 

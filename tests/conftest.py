@@ -82,7 +82,8 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
             "category, "
             "rating, "
             "in_stock, "
-            "metadata"
+            "metadata, "
+            "(((description || ' ' || category)::pdb.simple('alias=combined')))"
             ") WITH (key_field='id', json_fields='{\"metadata\":{\"fast\":true}}');"
         )
         cursor.execute(

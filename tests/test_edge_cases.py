@@ -23,7 +23,7 @@ from paradedb.search import (
     Regex,
     RegexPhrase,
 )
-from tests.models import Product
+from tests.models import MockItem
 
 
 class TestSpecialCharacterEscaping:
@@ -31,19 +31,19 @@ class TestSpecialCharacterEscaping:
 
     def test_single_quote_in_search_term(self) -> None:
         """Single quotes are escaped to prevent SQL injection."""
-        queryset = Product.objects.filter(description=ParadeDB(MatchAll("it's")))
+        queryset = MockItem.objects.filter(description=ParadeDB(MatchAll("it's")))
         sql = str(queryset.query)
         assert "it''s" in sql
 
     def test_double_single_quotes(self) -> None:
         """Multiple single quotes are all escaped."""
-        queryset = Product.objects.filter(description=ParadeDB(MatchAll("don''t")))
+        queryset = MockItem.objects.filter(description=ParadeDB(MatchAll("don''t")))
         sql = str(queryset.query)
         assert "don''''t" in sql
 
     def test_backslash_in_search_term(self) -> None:
         """Backslashes are preserved in search terms."""
-        queryset = Product.objects.filter(
+        queryset = MockItem.objects.filter(
             description=ParadeDB(MatchAll("path\\to\\file"))
         )
         sql = str(queryset.query)
@@ -51,19 +51,19 @@ class TestSpecialCharacterEscaping:
 
     def test_unicode_characters(self) -> None:
         """Unicode characters work in search terms."""
-        queryset = Product.objects.filter(description=ParadeDB(MatchAll("日本語")))
+        queryset = MockItem.objects.filter(description=ParadeDB(MatchAll("日本語")))
         sql = str(queryset.query)
         assert "日本語" in sql
 
     def test_emoji_in_search(self) -> None:
         """Emoji characters work in search terms."""
-        queryset = Product.objects.filter(description=ParadeDB(MatchAll("👟 shoes")))
+        queryset = MockItem.objects.filter(description=ParadeDB(MatchAll("👟 shoes")))
         sql = str(queryset.query)
         assert "👟 shoes" in sql
 
     def test_special_sql_keywords(self) -> None:
         """SQL keywords in search terms are quoted safely."""
-        queryset = Product.objects.filter(
+        queryset = MockItem.objects.filter(
             description=ParadeDB(MatchAll("SELECT * FROM"))
         )
         sql = str(queryset.query)
@@ -71,7 +71,7 @@ class TestSpecialCharacterEscaping:
 
     def test_phrase_with_quotes(self) -> None:
         """Phrase containing quotes is escaped."""
-        queryset = Product.objects.filter(
+        queryset = MockItem.objects.filter(
             description=ParadeDB(Phrase('it\'s a "test"'))
         )
         sql = str(queryset.query)
@@ -79,7 +79,7 @@ class TestSpecialCharacterEscaping:
 
     def test_regex_special_chars_preserved(self) -> None:
         """Regex special characters are preserved."""
-        queryset = Product.objects.filter(
+        queryset = MockItem.objects.filter(
             description=ParadeDB(Regex("test.*[a-z]+\\d{2,3}"))
         )
         sql = str(queryset.query)
@@ -273,12 +273,12 @@ class TestExpressionValidation:
             ProximityNode("left")  # type: ignore[call-arg]
 
     def test_top_level_proximity_step_renders_directly(self) -> None:
-        queryset = Product.objects.filter(
+        queryset = MockItem.objects.filter(
             description=ParadeDB(ProximityNode(1, False, "right", "tail"))
         )
         assert (
             str(queryset.query)
-            == 'SELECT "tests_product"."id", "tests_product"."description", "tests_product"."category", "tests_product"."rating", "tests_product"."in_stock", "tests_product"."price", "tests_product"."created_at", "tests_product"."metadata" FROM "tests_product" WHERE "tests_product"."description" @@@ (\'right\' ## 1 ## \'tail\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'right\' ## 1 ## \'tail\')'
         )
 
 

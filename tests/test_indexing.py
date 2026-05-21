@@ -17,7 +17,7 @@ from django.db.models.functions import Length, Lower
 
 from paradedb.indexes import BM25Index, IndexExpression
 from paradedb.search import Tokenizer
-from tests.models import Product
+from tests.models import MockItem
 
 
 def _schema_editor():
@@ -46,10 +46,10 @@ def test_tokenizers_mixed_with_top_level_tokenizer_config_raises_value_error() -
             },
         },
         key_field="id",
-        name="product_search_idx",
+        name="mock_items_search_idx",
     )
     with pytest.raises(ValueError, match="cannot mix 'tokenizers'"):
-        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
+        index.create_sql(model=MockItem, schema_editor=DummySchemaEditor())
 
 
 def test_json_key_without_tokenizer_raises_type_error() -> None:
@@ -63,10 +63,10 @@ def test_json_key_without_tokenizer_raises_type_error() -> None:
             },
         },
         key_field="id",
-        name="product_search_idx",
+        name="mock_items_search_idx",
     )
     with pytest.raises(TypeError, match="tokenizer must be a Tokenizer"):
-        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
+        index.create_sql(model=MockItem, schema_editor=DummySchemaEditor())
 
 
 def test_native_json_fields_on_non_json_field_raises_value_error() -> None:
@@ -78,10 +78,10 @@ def test_native_json_fields_on_non_json_field_raises_value_error() -> None:
             },
         },
         key_field="id",
-        name="product_search_idx",
+        name="mock_items_search_idx",
     )
     with pytest.raises(ValueError, match="is not a JSONField"):
-        index.create_sql(model=Product, schema_editor=DummySchemaEditor())
+        index.create_sql(model=MockItem, schema_editor=DummySchemaEditor())
 
 
 def test_bm25_index_with_equivalent_tokenizers_compares_equal() -> None:
@@ -91,7 +91,7 @@ def test_bm25_index_with_equivalent_tokenizers_compares_equal() -> None:
             "description": {"tokenizer": Tokenizer.unicode_words()},
         },
         key_field="id",
-        name="product_search_idx",
+        name="mock_items_search_idx",
     )
     right = BM25Index(
         fields={
@@ -99,7 +99,7 @@ def test_bm25_index_with_equivalent_tokenizers_compares_equal() -> None:
             "description": {"tokenizer": Tokenizer.unicode_words()},
         },
         key_field="id",
-        name="product_search_idx",
+        name="mock_items_search_idx",
     )
 
     assert left == right
@@ -108,12 +108,12 @@ def test_bm25_index_with_equivalent_tokenizers_compares_equal() -> None:
 def test_repeated_makemigrations_does_not_recreate_tokenizer_indexes() -> None:
     # Use this function to create a fresh instance of the project state, importantly with
     # a fresh instance of Tokenizer.simple()
-    def product_state() -> ProjectState:
+    def mock_item_state() -> ProjectState:
         state = ProjectState()
         state.add_model(
             ModelState(
                 "tests",
-                "MigrationProduct",
+                "MigrationMockItem",
                 fields=[
                     ("id", models.AutoField(primary_key=True)),
                     ("description", models.TextField()),
@@ -126,7 +126,7 @@ def test_repeated_makemigrations_does_not_recreate_tokenizer_indexes() -> None:
                                 "description": {"tokenizer": Tokenizer.simple()},
                             },
                             key_field="id",
-                            name="migration_product_search_idx",
+                            name="migration_mock_items_search_idx",
                         )
                     ],
                 },
@@ -141,7 +141,7 @@ def test_repeated_makemigrations_does_not_recreate_tokenizer_indexes() -> None:
     graph = MigrationGraph()
     initial_changes = MigrationAutodetector(
         ProjectState(),
-        product_state(),
+        mock_item_state(),
         questioner,
     ).changes(graph=graph, trim_to_apps={"tests"})
     initial_migration = initial_changes["tests"][0]
@@ -154,7 +154,7 @@ def test_repeated_makemigrations_does_not_recreate_tokenizer_indexes() -> None:
     for _ in range(3):
         changes = MigrationAutodetector(
             migrated_state,
-            product_state(),
+            mock_item_state(),
             questioner,
         ).changes(graph=graph, trim_to_apps={"tests"})
 
@@ -170,13 +170,13 @@ class TestBM25Index:
         index = BM25Index(
             fields={"id": {}, "description": {}},
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "description"\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    "description"\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_with_tokenizer(self) -> None:
@@ -191,13 +191,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=true\',\'stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple(\'lowercase=true\',\'stemmer=english\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_with_tokenizer_only(self) -> None:
@@ -208,13 +208,13 @@ class TestBM25Index:
                 "description": {"tokenizer": Tokenizer.simple()},
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple)\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ("description"::pdb.simple)\n)\nWITH (key_field=\'id\')'
         )
 
     def test_json_field_index(self) -> None:
@@ -241,13 +241,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == "CREATE INDEX \"product_search_idx\" ON \"tests_product\"\nUSING bm25 (\n    \"id\",\n    ((\"metadata\"->>'title')::pdb.simple('alias=metadata_title','lowercase=true')),\n    ((\"metadata\"->>'brand')::pdb.simple('alias=metadata_brand'))\n)\nWITH (key_field='id')"
+            == "CREATE INDEX \"mock_items_search_idx\" ON \"mock_items\"\nUSING bm25 (\n    \"id\",\n    ((\"metadata\"->>'title')::pdb.simple('alias=metadata_title','lowercase=true')),\n    ((\"metadata\"->>'brand')::pdb.simple('alias=metadata_brand'))\n)\nWITH (key_field='id')"
         )
 
     def test_json_field_native_json_fields(self) -> None:
@@ -263,13 +263,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "metadata"\n)\nWITH (key_field=\'id\', json_fields=\'{"metadata":{"expand_dots":false,"fast":true}}\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    "metadata"\n)\nWITH (key_field=\'id\', json_fields=\'{"metadata":{"expand_dots":false,"fast":true}}\')'
         )
 
     def test_json_key_without_tokenizer_raises(self) -> None:
@@ -284,11 +284,11 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         with pytest.raises(TypeError, match="tokenizer must be a Tokenizer"):
-            index.create_sql(model=Product, schema_editor=schema_editor)
+            index.create_sql(model=MockItem, schema_editor=schema_editor)
 
     def test_json_field_literal_alias(self) -> None:
         """JSON subfields can be indexed with literal tokenizer aliases."""
@@ -312,13 +312,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "description",\n    (("metadata"->>\'color\')::pdb.literal(\'alias=metadata_color\')),\n    (("metadata"->>\'location\')::pdb.literal(\'alias=metadata_location\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    "description",\n    (("metadata"->>\'color\')::pdb.literal(\'alias=metadata_color\')),\n    (("metadata"->>\'location\')::pdb.literal(\'alias=metadata_location\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_field_with_multiple_tokenizers(self) -> None:
@@ -341,13 +341,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple(\'alias=description_simple\',\'lowercase=true\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple(\'alias=description_simple\',\'lowercase=true\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_multiple_tokenizers_allows_secondary_entries_without_alias(self) -> None:
@@ -363,13 +363,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple)\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple)\n)\nWITH (key_field=\'id\')'
         )
 
     def test_multiple_tokenizers_cannot_mix_with_single_tokenizer_keys(self) -> None:
@@ -383,11 +383,11 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         with pytest.raises(ValueError, match="cannot mix 'tokenizers'"):
-            index.create_sql(model=Product, schema_editor=schema_editor)
+            index.create_sql(model=MockItem, schema_editor=schema_editor)
 
     def test_structured_ngram_args_and_named_args_in_multi_tokenizer_dsl(self) -> None:
         """Supports positional ngram args plus named args in DSL."""
@@ -412,13 +412,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.ngram(3,3,\'alias=description_ngram\',\'prefix_only=true\',\'positions=true\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.ngram(3,3,\'alias=description_ngram\',\'prefix_only=true\',\'positions=true\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_structured_regex_pattern_and_alias_in_multi_tokenizer_dsl(self) -> None:
@@ -439,13 +439,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.regex_pattern(\'(?i)\\bh\\w*\',\'alias=description_regex\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.regex_pattern(\'(?i)\\bh\\w*\',\'alias=description_regex\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_structured_lindera_dictionary_argument_in_multi_tokenizer_dsl(
@@ -468,13 +468,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.lindera(\'japanese\',\'alias=description_jp\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.lindera(\'japanese\',\'alias=description_jp\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_value_based_token_filter_named_args(self) -> None:
@@ -495,13 +495,13 @@ class TestBM25Index:
                 },
             },
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == "CREATE INDEX \"product_search_idx\" ON \"tests_product\"\nUSING bm25 (\n    \"id\",\n    (\"description\"::pdb.simple('lowercase=false','stopwords_language=English,French','remove_long=20','remove_short=2','stemmer=english'))\n)\nWITH (key_field='id')"
+            == "CREATE INDEX \"mock_items_search_idx\" ON \"mock_items\"\nUSING bm25 (\n    \"id\",\n    (\"description\"::pdb.simple('lowercase=false','stopwords_language=English,French','remove_long=20','remove_short=2','stemmer=english'))\n)\nWITH (key_field='id')"
         )
 
     def test_indexed_expression_with_concat(self) -> None:
@@ -523,13 +523,13 @@ class TestBM25Index:
                 )
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((("tests_product"."description" || \' \' || "tests_product"."category"))::pdb.simple(\'alias=description_concat\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ((("mock_items"."description" || \' \' || "mock_items"."category"))::pdb.simple(\'alias=description_concat\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_create_sql_concurrently(self) -> None:
@@ -537,15 +537,15 @@ class TestBM25Index:
         index = BM25Index(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(
             index.create_sql(
-                model=Product, schema_editor=schema_editor, concurrently=True
+                model=MockItem, schema_editor=schema_editor, concurrently=True
             )
         )
-        assert sql.startswith('CREATE INDEX CONCURRENTLY "product_search_idx"')
+        assert sql.startswith('CREATE INDEX CONCURRENTLY "mock_items_search_idx"')
         assert "USING bm25" in sql
 
     def test_create_sql_without_concurrently(self) -> None:
@@ -553,11 +553,11 @@ class TestBM25Index:
         index = BM25Index(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
-        assert sql.startswith('CREATE INDEX "product_search_idx"')
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
+        assert sql.startswith('CREATE INDEX "mock_items_search_idx"')
         assert "CONCURRENTLY" not in sql
 
     def test_create_sql_with_condition(self) -> None:
@@ -565,11 +565,11 @@ class TestBM25Index:
         index = BM25Index(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
             condition=Q(description__isnull=False),
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert sql.endswith('WHERE "description" IS NOT NULL')
         assert "USING bm25" in sql
 
@@ -578,16 +578,16 @@ class TestBM25Index:
         index = BM25Index(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
             condition=Q(description__isnull=False),
         )
         schema_editor = _schema_editor()
         sql = str(
             index.create_sql(
-                model=Product, schema_editor=schema_editor, concurrently=True
+                model=MockItem, schema_editor=schema_editor, concurrently=True
             )
         )
-        assert sql.startswith('CREATE INDEX CONCURRENTLY "product_search_idx"')
+        assert sql.startswith('CREATE INDEX CONCURRENTLY "mock_items_search_idx"')
         assert sql.endswith('WHERE "description" IS NOT NULL')
 
     def test_create_sql_with_native_json_fields_and_condition(self) -> None:
@@ -595,11 +595,11 @@ class TestBM25Index:
         index = BM25Index(
             fields={"id": {}, "metadata": {"json_fields": {"fast": True}}},
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
             condition=Q(description__isnull=False),
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert 'json_fields=\'{"metadata":{"fast":true}}\'' in sql
         assert sql.endswith('WHERE "description" IS NOT NULL')
 
@@ -608,10 +608,10 @@ class TestBM25Index:
         index = BM25Index(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert "WHERE" not in sql
 
     def test_index_expression_with_lower_and_tokenizer(self) -> None:
@@ -626,13 +626,13 @@ class TestBM25Index:
                 ),
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "description",\n    ((LOWER("tests_product"."description"))::pdb.simple(\'alias=description_lower\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    "description",\n    ((LOWER("mock_items"."description"))::pdb.simple(\'alias=description_lower\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_expression_non_text_with_pdb_alias(self) -> None:
@@ -646,13 +646,13 @@ class TestBM25Index:
                 ),
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    "description",\n    (("tests_product"."rating")::pdb.alias(\'rating_indexed\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    "description",\n    (("mock_items"."rating")::pdb.alias(\'rating_indexed\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_expression_with_tokenizer_and_filters(self) -> None:
@@ -673,13 +673,13 @@ class TestBM25Index:
                 ),
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((LOWER("tests_product"."description"))::pdb.simple(\'alias=desc_processed\',\'lowercase=true\',\'stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ((LOWER("mock_items"."description"))::pdb.simple(\'alias=desc_processed\',\'lowercase=true\',\'stemmer=english\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_expression_with_arithmetic(self) -> None:
@@ -693,13 +693,13 @@ class TestBM25Index:
                 ),
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((("tests_product"."rating" + 1))::pdb.alias(\'rating_plus_one\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ((("mock_items"."rating" + 1))::pdb.alias(\'rating_plus_one\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_expression_non_text_transform_from_text_source_uses_alias(
@@ -715,13 +715,13 @@ class TestBM25Index:
                 ),
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    ((LENGTH("tests_product"."description"))::pdb.alias(\'description_length\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    ((LENGTH("mock_items"."description"))::pdb.alias(\'description_length\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_expression_with_json_path_reference(self) -> None:
@@ -735,11 +735,11 @@ class TestBM25Index:
                 ),
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         with pytest.raises(ValueError, match="resolves to a text or JSON value"):
-            index.create_sql(model=Product, schema_editor=schema_editor)
+            index.create_sql(model=MockItem, schema_editor=schema_editor)
 
     def test_index_expression_with_string_field_reference(self) -> None:
         """IndexExpression with string field reference (converted to F())."""
@@ -752,13 +752,13 @@ class TestBM25Index:
                 ),
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "product_search_idx" ON "tests_product"\nUSING bm25 (\n    "id",\n    (("tests_product"."rating")::pdb.alias(\'rating_alias\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING bm25 (\n    "id",\n    (("mock_items"."rating")::pdb.alias(\'rating_alias\'))\n)\nWITH (key_field=\'id\')'
         )
 
     def test_index_expression_with_ngram_tokenizer_and_args(self) -> None:
@@ -777,10 +777,10 @@ class TestBM25Index:
                 ),
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert "pdb.ngram(3,3,'alias=desc_ngram','prefix_only=true')" in sql
 
     def test_multiple_index_expressions(self) -> None:
@@ -799,10 +799,10 @@ class TestBM25Index:
                 ),
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        sql = str(index.create_sql(model=Product, schema_editor=schema_editor))
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert "pdb.simple('alias=desc_lower')" in sql
         assert "pdb.alias('rating_idx')" in sql
 
@@ -817,7 +817,7 @@ class TestBM25Index:
             fields={"id": {}},
             expressions=[expr],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         _path, _args, kwargs = index.deconstruct()
         assert "expressions" in kwargs
@@ -836,7 +836,7 @@ class TestBM25Index:
                 )
             ],
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         serialized, imports = MigrationWriter.serialize(index)
         assert "IndexExpression(" in serialized
@@ -849,7 +849,7 @@ class TestBM25Index:
         index = BM25Index(
             fields={"id": {}, "description": {}},
             key_field="id",
-            name="product_search_idx",
+            name="mock_items_search_idx",
         )
         _path, _args, kwargs = index.deconstruct()
         assert "expressions" not in kwargs

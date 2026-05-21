@@ -38,15 +38,6 @@ def _validate_non_negative_int(name: str, value: int | None) -> None:
         raise ValueError(f"{name} must be zero or positive.")
 
 
-def _validate_sample_rate(sample_rate: float | None) -> None:
-    if sample_rate is None:
-        return
-    if isinstance(sample_rate, bool) or not isinstance(sample_rate, int | float):
-        raise TypeError("sample_rate must be a float between 0.0 and 1.0.")
-    if sample_rate < 0 or sample_rate > 1:
-        raise ValueError("sample_rate must be between 0.0 and 1.0.")
-
-
 class Score(Func):
     """BM25 score annotation."""
 
@@ -100,18 +91,8 @@ class Snippet(Func):
 
 
 class Snippets(Func):
-    """Multiple-snippets annotation.
-
-    Wraps ``pdb.snippets(column, ...)`` which returns a text array of all
-    matching snippet fragments, with named SQL parameters.
-
-    See: https://docs.paradedb.com/documentation/full-text/highlight#multiple-snippets
-    """
-
     function = FN_SNIPPETS
     output_field = ArrayField(base_field=CharField())
-
-    _VALID_SORT_BY = ("score", "position")
 
     def __init__(
         self,
@@ -124,10 +105,6 @@ class Snippets(Func):
         offset: int | None = None,
         sort_by: Literal["score", "position"] | None = None,
     ) -> None:
-        if sort_by is not None and sort_by not in self._VALID_SORT_BY:
-            raise ValueError(
-                f"sort_by must be one of {self._VALID_SORT_BY!r}, got {sort_by!r}"
-            )
         _validate_non_negative_int("max_num_chars", max_num_chars)
         _validate_non_negative_int("limit", limit)
         _validate_non_negative_int("offset", offset)
@@ -320,7 +297,6 @@ def paradedb_verify_index(
     using: str = DEFAULT_DB_ALIAS,
 ) -> list[dict[str, Any]]:
     """Run ``pdb.verify_index()`` for one BM25 index."""
-    _validate_sample_rate(sample_rate)
     sql = [f"SELECT * FROM {FN_VERIFY_INDEX}(%s::regclass"]
     params: list[Any] = [index]
     if heapallindexed:
@@ -356,7 +332,6 @@ def paradedb_verify_all_indexes(
     using: str = DEFAULT_DB_ALIAS,
 ) -> list[dict[str, Any]]:
     """Run ``pdb.verify_all_indexes()`` across BM25 indexes."""
-    _validate_sample_rate(sample_rate)
     sql = [f"SELECT * FROM {FN_VERIFY_ALL_INDEXES}("]
     params: list[Any] = []
     named_params: list[tuple[str, str, Any]] = []

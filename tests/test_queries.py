@@ -126,6 +126,24 @@ class TestAggAnnotation:
         )
         _run_query(queryset)
 
+    def test_agg_with_filter_runs_query(self) -> None:
+        queryset = (
+            MockItem.objects.filter(id=ParadeDB(All()))
+            .values(rating_value=F("rating"))
+            .annotate(
+                agg=Agg(
+                    '{"value_count": {"field": "id"}}',
+                    filter=Q(in_stock=True),
+                )
+            )
+            .order_by("rating_value")[:5]
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."rating" AS "rating_value", pdb.agg(\'{"value_count": {"field": "id"}}\') FILTER (WHERE "mock_items"."in_stock") AS "agg" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() GROUP BY 1 ORDER BY 1 ASC LIMIT 5'
+        )
+        _run_query(queryset)
+
     def test_agg_terms_on_json_subfield(self) -> None:
         queryset = MockItem.objects.filter(id=ParadeDB(All())).annotate(
             agg=Window(expression=Agg('{"terms": {"field": "metadata.color"}}'))

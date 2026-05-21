@@ -1,4 +1,10 @@
-"""Tests for SQL generation."""
+"""Tests for ParadeDB queries using the Django query builder.
+
+By default, every test in this file should assert against the full
+generated SQL string and run the query against the DB to make sure
+the SQL is valid. We usually don't care about the results returned
+from the DB as long as the SQL itself is valid.
+"""
 
 import pytest
 from django.db import connection

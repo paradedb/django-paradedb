@@ -43,15 +43,6 @@ class ParadeDBQuerySet(models.QuerySet[Any]):
         include_rows: bool = True,
         exact: bool | None = None,
     ) -> dict[str, object] | tuple[list[Any], dict[str, object]]:
-        # Faceted queries require pdb.agg() OVER () with ORDER BY + LIMIT and a ParadeDB
-        # search condition in the WHERE clause to trigger the custom scan.
-        #
-        # Example:
-        # SELECT id, description, pdb.agg('{"value_count":{"field":"id"}}') OVER ()
-        # FROM mock_items
-        # WHERE description ||| 'running shoes'
-        # ORDER BY id
-        # LIMIT 5;
         if not fields and agg is None:
             raise ValueError("facets() requires fields or agg.")
 

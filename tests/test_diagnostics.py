@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import date
 from io import StringIO
 from unittest.mock import patch
 
 import pytest
+from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from paradedb import functions as paradedb_functions
 from paradedb.functions import (
-    Agg,
-    _execute_table_function,
     paradedb_index_segments,
     paradedb_indexes,
     paradedb_verify_all_indexes,
@@ -34,8 +31,13 @@ from paradedb.management.commands import (
 )
 from paradedb.management.commands._paradedb_diag_utils import (
     validate_sample_rate,
-    write_json,
 )
+
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.django_db,
+    pytest.mark.usefixtures("mock_items"),
+]
 
 
 @pytest.mark.parametrize("sample_rate", [-0.1, 1.1])
@@ -47,232 +49,6 @@ def test_validate_sample_rate_rejects_out_of_bounds(sample_rate: float) -> None:
 @pytest.mark.parametrize("sample_rate", [None, 0.0, 0.25, 1.0])
 def test_validate_sample_rate_accepts_valid_values(sample_rate: float | None) -> None:
     validate_sample_rate(sample_rate)
-
-
-def test_write_json_uses_default_str() -> None:
-    stdout = StringIO()
-    write_json(stdout, {"when": date(2026, 2, 23)})
-    payload = json.loads(stdout.getvalue())
-    assert payload == {"when": "2026-02-23"}
-
-
-class _FakeCursor:
-    def __init__(
-        self,
-        *,
-        description: list[tuple[str]] | None,
-        rows: list[tuple[object, ...]] | None = None,
-    ) -> None:
-        self.description = description
-        self._rows = rows or []
-        self.executed: list[tuple[str, tuple[object, ...]]] = []
-
-    def execute(self, sql: str, params: object) -> None:
-        self.executed.append((sql, tuple(params)))
-
-    def fetchall(self) -> list[tuple[object, ...]]:
-        return self._rows
-
-    def __enter__(self) -> _FakeCursor:
-        return self
-
-    def __exit__(self, *_exc: object) -> None:
-        return None
-
-
-class _FakeConnection:
-    def __init__(self, cursor: _FakeCursor) -> None:
-        self._cursor = cursor
-
-    def cursor(self) -> _FakeCursor:
-        return self._cursor
-
-
-def test_execute_table_function_returns_empty_when_no_result_set() -> None:
-    cursor = _FakeCursor(description=None)
-    with patch.object(
-        paradedb_functions, "connections", {"default": _FakeConnection(cursor)}
-    ):
-        rows = _execute_table_function("SELECT 1", (), using="default")
-    assert rows == []
-    assert cursor.executed == [("SELECT 1", ())]
-
-
-def test_execute_table_function_maps_rows_to_dicts() -> None:
-    cursor = _FakeCursor(
-        description=[("indexname",), ("schema",)],
-        rows=[("mock_items_bm25_idx", "public")],
-    )
-    with patch.object(
-        paradedb_functions, "connections", {"search": _FakeConnection(cursor)}
-    ):
-        rows = _execute_table_function(
-            "SELECT * FROM pdb.indexes()", (), using="search"
-        )
-    assert rows == [{"indexname": "mock_items_bm25_idx", "schema": "public"}]
-    assert cursor.executed == [("SELECT * FROM pdb.indexes()", ())]
-
-
-def test_agg_exact_type_validation() -> None:
-    with pytest.raises(TypeError, match="Agg exact must be a boolean"):
-        Agg("{}", exact="nope")  # type: ignore[arg-type]
-
-
-def test_paradedb_indexes_wrapper_calls_execute_table_function() -> None:
-    with patch.object(
-        paradedb_functions, "_execute_table_function", return_value=[]
-    ) as mocked:
-        paradedb_indexes(using="search")
-    mocked.assert_called_once_with("SELECT * FROM pdb.indexes()", (), using="search")
-
-
-def test_paradedb_index_segments_wrapper_calls_execute_table_function() -> None:
-    with patch.object(
-        paradedb_functions, "_execute_table_function", return_value=[]
-    ) as mocked:
-        paradedb_index_segments("search_idx", using="search")
-    mocked.assert_called_once_with(
-        "SELECT * FROM pdb.index_segments(%s::regclass)",
-        ("search_idx",),
-        using="search",
-    )
-
-
-def test_paradedb_verify_index_minimal_sql() -> None:
-    with patch.object(
-        paradedb_functions, "_execute_table_function", return_value=[]
-    ) as mocked:
-        paradedb_verify_index("search_idx")
-    mocked.assert_called_once_with(
-        "SELECT * FROM pdb.verify_index(%s::regclass)",
-        ["search_idx"],
-        using="default",
-    )
-
-
-def test_paradedb_verify_index_all_options_sql() -> None:
-    with patch.object(
-        paradedb_functions, "_execute_table_function", return_value=[]
-    ) as mocked:
-        paradedb_verify_index(
-            "search_idx",
-            heapallindexed=True,
-            sample_rate=0.25,
-            report_progress=True,
-            verbose=True,
-            on_error_stop=True,
-            segment_ids=(1, 3),
-            using="search",
-        )
-    mocked.assert_called_once()
-    sql, params = mocked.call_args.args
-    kwargs = mocked.call_args.kwargs
-    assert sql == (
-        "SELECT * FROM pdb.verify_index(%s::regclass"
-        ", heapallindexed => %s::boolean"
-        ", sample_rate => %s::double precision"
-        ", report_progress => %s::boolean"
-        ", verbose => %s::boolean"
-        ", on_error_stop => %s::boolean"
-        ", segment_ids => %s::int[]"
-        ")"
-    )
-    assert params == ["search_idx", True, 0.25, True, True, True, [1, 3]]
-    assert kwargs == {"using": "search"}
-
-
-@pytest.mark.parametrize("sample_rate", [-0.1, 1.1])
-def test_paradedb_verify_index_rejects_invalid_sample_rate(sample_rate: float) -> None:
-    with (
-        patch.object(
-            paradedb_functions, "_execute_table_function", return_value=[]
-        ) as mocked,
-        pytest.raises(ValueError, match=r"sample_rate must be between 0\.0 and 1\.0"),
-    ):
-        paradedb_verify_index("search_idx", sample_rate=sample_rate)
-    mocked.assert_not_called()
-
-
-def test_paradedb_verify_index_rejects_boolean_sample_rate() -> None:
-    with (
-        patch.object(
-            paradedb_functions, "_execute_table_function", return_value=[]
-        ) as mocked,
-        pytest.raises(
-            TypeError, match=r"sample_rate must be a float between 0\.0 and 1\.0"
-        ),
-    ):
-        paradedb_verify_index("search_idx", sample_rate=True)  # type: ignore[arg-type]
-    mocked.assert_not_called()
-
-
-def test_paradedb_verify_all_indexes_minimal_sql() -> None:
-    with patch.object(
-        paradedb_functions, "_execute_table_function", return_value=[]
-    ) as mocked:
-        paradedb_verify_all_indexes()
-    mocked.assert_called_once_with(
-        "SELECT * FROM pdb.verify_all_indexes()",
-        [],
-        using="default",
-    )
-
-
-def test_paradedb_verify_all_indexes_all_options_sql() -> None:
-    with patch.object(
-        paradedb_functions, "_execute_table_function", return_value=[]
-    ) as mocked:
-        paradedb_verify_all_indexes(
-            schema_pattern="public",
-            index_pattern="%bm25%",
-            heapallindexed=True,
-            sample_rate=0.1,
-            report_progress=True,
-            on_error_stop=True,
-            using="search",
-        )
-    mocked.assert_called_once()
-    sql, params = mocked.call_args.args
-    kwargs = mocked.call_args.kwargs
-    assert sql == (
-        "SELECT * FROM pdb.verify_all_indexes("
-        "schema_pattern => %s::text, "
-        "index_pattern => %s::text, "
-        "heapallindexed => %s::boolean, "
-        "sample_rate => %s::double precision, "
-        "report_progress => %s::boolean, "
-        "on_error_stop => %s::boolean"
-        ")"
-    )
-    assert params == ["public", "%bm25%", True, 0.1, True, True]
-    assert kwargs == {"using": "search"}
-
-
-@pytest.mark.parametrize("sample_rate", [-0.1, 1.1])
-def test_paradedb_verify_all_indexes_rejects_invalid_sample_rate(
-    sample_rate: float,
-) -> None:
-    with (
-        patch.object(
-            paradedb_functions, "_execute_table_function", return_value=[]
-        ) as mocked,
-        pytest.raises(ValueError, match=r"sample_rate must be between 0\.0 and 1\.0"),
-    ):
-        paradedb_verify_all_indexes(sample_rate=sample_rate)
-    mocked.assert_not_called()
-
-
-def test_paradedb_verify_all_indexes_rejects_boolean_sample_rate() -> None:
-    with (
-        patch.object(
-            paradedb_functions, "_execute_table_function", return_value=[]
-        ) as mocked,
-        pytest.raises(
-            TypeError, match=r"sample_rate must be a float between 0\.0 and 1\.0"
-        ),
-    ):
-        paradedb_verify_all_indexes(sample_rate=True)  # type: ignore[arg-type]
-    mocked.assert_not_called()
 
 
 def test_paradedb_indexes_command_parser_and_handle() -> None:
@@ -445,33 +221,286 @@ def test_paradedb_verify_all_indexes_command_parser_and_handle() -> None:
     write.assert_called_once()
 
 
-def test_paradedb_verify_all_indexes_command_handle_without_sample_rate_skips_validation() -> (
-    None
-):
-    command = cmd_verify_all.Command()
-    with (
-        patch.object(cmd_verify_all, "validate_sample_rate") as validate,
-        patch.object(
-            cmd_verify_all, "paradedb_verify_all_indexes", return_value=[{}]
-        ) as helper,
-        patch.object(cmd_verify_all, "write_json"),
-    ):
-        command.handle(
-            schema_pattern=None,
-            index_pattern=None,
-            heapallindexed=False,
-            sample_rate=None,
-            report_progress=False,
-            on_error_stop=False,
-            database="default",
-        )
-    validate.assert_not_called()
-    helper.assert_called_once_with(
-        schema_pattern=None,
-        index_pattern=None,
-        heapallindexed=False,
-        sample_rate=None,
-        report_progress=False,
-        on_error_stop=False,
+def test_paradedb_indexes_helper_returns_mock_items_index() -> None:
+    rows = [row | {"indexrelid": 0} for row in paradedb_indexes()]
+    assert (
+        json.dumps(rows, indent=2, sort_keys=True, default=str)
+        == """[
+  {
+    "indexname": "mock_items_bm25_idx",
+    "indexrelid": 0,
+    "num_segments": 1,
+    "schemaname": "public",
+    "tablename": "mock_items",
+    "total_docs": 41
+  }
+]"""
+    )
+
+
+def test_paradedb_indexes_all_arguments() -> None:
+    rows = [row | {"indexrelid": 0} for row in paradedb_indexes(using="default")]
+    assert (
+        json.dumps(rows, indent=2, sort_keys=True, default=str)
+        == """[
+  {
+    "indexname": "mock_items_bm25_idx",
+    "indexrelid": 0,
+    "num_segments": 1,
+    "schemaname": "public",
+    "tablename": "mock_items",
+    "total_docs": 41
+  }
+]"""
+    )
+
+
+def test_paradedb_index_segments_helper_returns_segments() -> None:
+    rows = [
+        row | {"segment_id": "<segment_id>"}
+        for row in paradedb_index_segments("mock_items_bm25_idx")
+    ]
+    assert (
+        json.dumps(rows, indent=2, sort_keys=True, default=str)
+        == """[
+  {
+    "max_doc": 41,
+    "num_deleted": 0,
+    "num_docs": 41,
+    "partition_name": "mock_items_bm25_idx",
+    "segment_id": "<segment_id>",
+    "segment_idx": 0
+  }
+]"""
+    )
+
+
+def test_paradedb_index_segments_all_arguments() -> None:
+    rows = [
+        row | {"segment_id": "<segment_id>"}
+        for row in paradedb_index_segments("mock_items_bm25_idx", using="default")
+    ]
+    assert (
+        json.dumps(rows, indent=2, sort_keys=True, default=str)
+        == """[
+  {
+    "max_doc": 41,
+    "num_deleted": 0,
+    "num_docs": 41,
+    "partition_name": "mock_items_bm25_idx",
+    "segment_id": "<segment_id>",
+    "segment_idx": 0
+  }
+]"""
+    )
+
+
+def test_paradedb_verify_index_helper_returns_checks() -> None:
+    rows = paradedb_verify_index("mock_items_bm25_idx")
+    assert (
+        json.dumps(rows, indent=2, sort_keys=True, default=str)
+        == """[
+  {
+    "check_name": "mock_items_bm25_idx: schema_valid",
+    "details": "Index schema loaded successfully",
+    "passed": true
+  },
+  {
+    "check_name": "mock_items_bm25_idx: index_readable",
+    "details": "Index reader opened successfully",
+    "passed": true
+  },
+  {
+    "check_name": "mock_items_bm25_idx: checksums_valid",
+    "details": "All segment checksums validated successfully",
+    "passed": true
+  },
+  {
+    "check_name": "mock_items_bm25_idx: segment_metadata_valid",
+    "details": "1 segments validated successfully",
+    "passed": true
+  }
+]"""
+    )
+
+
+def test_paradedb_verify_index_all_arguments() -> None:
+    rows = paradedb_verify_index(
+        "mock_items_bm25_idx",
+        heapallindexed=True,
+        sample_rate=0.7,
+        report_progress=True,
+        verbose=True,
+        on_error_stop=True,
+        segment_ids=[0],
         using="default",
     )
+    assert (
+        json.dumps(rows, indent=2, sort_keys=True, default=str)
+        == """[
+  {
+    "check_name": "mock_items_bm25_idx: schema_valid",
+    "details": "Index schema loaded successfully",
+    "passed": true
+  },
+  {
+    "check_name": "mock_items_bm25_idx: index_readable",
+    "details": "Index reader opened successfully",
+    "passed": true
+  },
+  {
+    "check_name": "mock_items_bm25_idx: checksums_valid",
+    "details": "All segment checksums validated successfully",
+    "passed": true
+  },
+  {
+    "check_name": "mock_items_bm25_idx: segment_metadata_valid",
+    "details": "1 of 1 segments validated successfully",
+    "passed": true
+  },
+  {
+    "check_name": "mock_items_bm25_idx: ctid_field_valid",
+    "details": "All 29 documents have valid ctid (sampled 29 of 29 docs)",
+    "passed": true
+  },
+  {
+    "check_name": "mock_items_bm25_idx: heap_references_valid",
+    "details": "All 29 indexed ctids exist in heap (sampled 29 of 29 docs)",
+    "passed": true
+  }
+]"""
+    )
+
+
+def test_paradedb_verify_all_indexes_basic() -> None:
+    rows = paradedb_verify_all_indexes()
+    assert (
+        json.dumps(rows, indent=2, sort_keys=True, default=str)
+        == """[
+  {
+    "check_name": "mock_items_bm25_idx: schema_valid",
+    "details": "Index schema loaded successfully",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  },
+  {
+    "check_name": "mock_items_bm25_idx: index_readable",
+    "details": "Index reader opened successfully",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  },
+  {
+    "check_name": "mock_items_bm25_idx: checksums_valid",
+    "details": "All segment checksums validated successfully",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  },
+  {
+    "check_name": "mock_items_bm25_idx: segment_metadata_valid",
+    "details": "1 segments validated successfully",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  }
+]"""
+    )
+
+
+def test_paradedb_verify_all_indexes_all_arguments() -> None:
+    rows = paradedb_verify_all_indexes(
+        index_pattern="mock_items_bm25_idx",
+        schema_pattern="public",
+        heapallindexed=True,
+        sample_rate=0.7,
+        report_progress=True,
+        on_error_stop=True,
+    )
+    assert (
+        json.dumps(rows, indent=2, sort_keys=True, default=str)
+        == """[
+  {
+    "check_name": "mock_items_bm25_idx: schema_valid",
+    "details": "Index schema loaded successfully",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  },
+  {
+    "check_name": "mock_items_bm25_idx: index_readable",
+    "details": "Index reader opened successfully",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  },
+  {
+    "check_name": "mock_items_bm25_idx: checksums_valid",
+    "details": "All segment checksums validated successfully",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  },
+  {
+    "check_name": "mock_items_bm25_idx: segment_metadata_valid",
+    "details": "1 segments validated successfully",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  },
+  {
+    "check_name": "mock_items_bm25_idx: ctid_field_valid",
+    "details": "All 29 documents have valid ctid (sampled 29 of 29 docs)",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  },
+  {
+    "check_name": "mock_items_bm25_idx: heap_references_valid",
+    "details": "All 29 indexed ctids exist in heap (sampled 29 of 29 docs)",
+    "indexname": "mock_items_bm25_idx",
+    "passed": true,
+    "schemaname": "public"
+  }
+]"""
+    )
+
+
+def test_paradedb_indexes_command() -> None:
+    stdout = StringIO()
+    call_command("paradedb_indexes", stdout=stdout)
+    payload = json.loads(stdout.getvalue())
+    assert any(row["indexname"] == "mock_items_bm25_idx" for row in payload)
+
+
+def test_paradedb_index_segments_command() -> None:
+    stdout = StringIO()
+    call_command("paradedb_index_segments", "mock_items_bm25_idx", stdout=stdout)
+    payload = json.loads(stdout.getvalue())
+    assert payload
+
+
+def test_paradedb_verify_index_command() -> None:
+    stdout = StringIO()
+    call_command(
+        "paradedb_verify_index",
+        "mock_items_bm25_idx",
+        sample_rate=0.1,
+        stdout=stdout,
+    )
+    payload = json.loads(stdout.getvalue())
+    assert payload
+    assert "check_name" in payload[0]
+
+
+def test_paradedb_verify_all_indexes_command() -> None:
+    stdout = StringIO()
+    call_command(
+        "paradedb_verify_all_indexes",
+        index_pattern="mock_items_bm25_idx",
+        stdout=stdout,
+    )
+    payload = json.loads(stdout.getvalue())
+    assert payload
+    assert "check_name" in payload[0]

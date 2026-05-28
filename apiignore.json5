@@ -274,6 +274,7 @@
   ],
 
   "types": [
-    "pdb.proximityclause"
+    "pdb.proximityclause",
+    "pdb.query",
   ]
 }

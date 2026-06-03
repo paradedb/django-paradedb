@@ -602,7 +602,6 @@ class MoreLikeThis(Expression):
         self,
         *,
         id: int | None = None,
-        ids: Iterable[int] | None = None,
         document: dict[str, Any] | str | None = None,
         fields: Iterable[str] | None = None,
         key_field: str | None = None,
@@ -617,7 +616,6 @@ class MoreLikeThis(Expression):
     ) -> None:
         super().__init__()
         self.id = id
-        self.ids = list(ids) if ids is not None else None
         self.document: str | None = None
         self._document_input = document
         self.fields = list(fields) if fields is not None else None
@@ -654,7 +652,6 @@ class MoreLikeThis(Expression):
         return sum(
             [
                 self.id is not None,
-                self.ids is not None,
                 self._document_input is not None,
             ]
         )
@@ -664,15 +661,6 @@ class MoreLikeThis(Expression):
             isinstance(self.id, bool) or not isinstance(self.id, int)
         ):
             raise TypeError("MoreLikeThis id must be an integer.")
-
-        if self.ids is not None and not self.ids:
-            raise ValueError("MoreLikeThis ids cannot be empty.")
-
-        if self.ids is not None and any(
-            isinstance(item_id, bool) or not isinstance(item_id, int)
-            for item_id in self.ids
-        ):
-            raise TypeError("MoreLikeThis ids must contain integers.")
 
     def _validate_key_field(self) -> None:
         if self.key_field is not None and not isinstance(self.key_field, str):
@@ -741,15 +729,6 @@ class MoreLikeThis(Expression):
 
 def render_more_like_this(term: MoreLikeThis, lhs_sql: str) -> tuple[str, list[Any]]:
     params: list[Any] = []
-
-    if term.ids is not None:
-        expressions = []
-        for value in term.ids:
-            mlt_sql, mlt_params = _render_more_like_this_call(term, value)
-            expressions.append(f"{lhs_sql} {OP_SEARCH} {mlt_sql}")
-            params.extend(mlt_params)
-        joined = " OR ".join(expressions)
-        return f"({joined})", params
 
     if term.id is not None:
         mlt_sql, mlt_params = _render_more_like_this_call(term, term.id)

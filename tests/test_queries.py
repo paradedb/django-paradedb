@@ -274,14 +274,6 @@ class TestMoreLikeThis:
         )
         _run_query(queryset)
 
-    def test_mlt_multiple_ids(self) -> None:
-        queryset = MockItem.objects.filter(id=ParadeDB(MoreLikeThis(ids=[5, 12, 23])))
-        assert (
-            str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ("mock_items"."id" @@@ pdb.more_like_this(5) OR "mock_items"."id" @@@ pdb.more_like_this(12) OR "mock_items"."id" @@@ pdb.more_like_this(23))'
-        )
-        _run_query(queryset)
-
     def test_mlt_with_options(self) -> None:
         queryset = MockItem.objects.filter(
             id=ParadeDB(

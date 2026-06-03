@@ -13,6 +13,8 @@ Use cases:
 import sys
 from pathlib import Path
 
+from django.db.models import Q
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import MockItem, setup_mock_items
@@ -74,7 +76,9 @@ def demo_similar_to_multiple_products() -> None:
     print("\nRecommended products (similar to any browsed item):")
     similar = (
         MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(ids=browsed_ids, fields=["description"]))
+            Q(id=ParadeDB(MoreLikeThis(id=3, fields=["description"])))
+            | Q(id=ParadeDB(MoreLikeThis(id=12, fields=["description"])))
+            | Q(id=ParadeDB(MoreLikeThis(id=29, fields=["description"])))
         )
         .exclude(id__in=browsed_ids)  # Exclude already-viewed items
         .annotate(score=Score())

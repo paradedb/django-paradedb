@@ -601,7 +601,7 @@ class MoreLikeThis(Expression):
     def __init__(
         self,
         *,
-        id: int | None = None,
+        id: object | None = None,
         document: dict[str, Any] | str | None = None,
         fields: Iterable[str] | None = None,
         key_field: str | None = None,
@@ -635,7 +635,6 @@ class MoreLikeThis(Expression):
         if self._count_inputs() != 1:
             raise ValueError("MoreLikeThis requires exactly one input source.")
 
-        self._validate_id_inputs()
         self._validate_key_field()
         self._validate_fields()
         self._validate_stopwords()
@@ -655,12 +654,6 @@ class MoreLikeThis(Expression):
                 self._document_input is not None,
             ]
         )
-
-    def _validate_id_inputs(self) -> None:
-        if self.id is not None and (
-            isinstance(self.id, bool) or not isinstance(self.id, int)
-        ):
-            raise TypeError("MoreLikeThis id must be an integer.")
 
     def _validate_key_field(self) -> None:
         if self.key_field is not None and not isinstance(self.key_field, str):
@@ -741,22 +734,15 @@ def render_more_like_this(term: MoreLikeThis, lhs_sql: str) -> tuple[str, list[A
 
 
 def _render_more_like_this_call(
-    term: MoreLikeThis, value: int | str | None
+    term: MoreLikeThis, value: object
 ) -> tuple[str, list[Any]]:
     args: list[str] = []
     params: list[Any] = []
 
-    if isinstance(value, str):
-        # This is a JSON document - use parameter
-        args.append("%s")
-        params.append(value)
-    else:
-        # This is an integer ID - use parameter for safety
-        args.append("%s")
-        params.append(value)
+    args.append("%s")
+    params.append(value)
 
-    if term.fields and not isinstance(value, str):
-        # Fields array only valid for ID-based queries
+    if term.fields:
         # Build parameterized array
         field_placeholders = ", ".join("%s" for _ in term.fields)
         args.append(f"ARRAY[{field_placeholders}]::text[]")

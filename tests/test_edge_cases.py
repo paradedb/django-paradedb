@@ -300,13 +300,6 @@ class TestMoreLikeThisValidation:
         mlt = MoreLikeThis(id=1)
         assert mlt.id == 1
 
-    def test_mlt_id_must_be_integer(self) -> None:
-        with pytest.raises(TypeError, match="id must be an integer"):
-            MoreLikeThis(id="1")  # type: ignore[arg-type]
-
-        with pytest.raises(TypeError, match="id must be an integer"):
-            MoreLikeThis(id=True)  # type: ignore[arg-type]
-
     def test_mlt_document_dict(self) -> None:
         """MLT with document dict works."""
         mlt = MoreLikeThis(document={"description": "running shoes"})

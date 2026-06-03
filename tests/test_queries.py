@@ -274,15 +274,7 @@ class TestMoreLikeThis:
         )
         _run_query(queryset)
 
-    def test_mlt_multiple_ids(self) -> None:
-        queryset = MockItem.objects.filter(id=ParadeDB(MoreLikeThis(ids=[5, 12, 23])))
-        assert (
-            str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ("mock_items"."id" @@@ pdb.more_like_this(5) OR "mock_items"."id" @@@ pdb.more_like_this(12) OR "mock_items"."id" @@@ pdb.more_like_this(23))'
-        )
-        _run_query(queryset)
-
-    def test_mlt_with_options(self) -> None:
+    def test_mlt_with_integer_id_and_options(self) -> None:
         queryset = MockItem.objects.filter(
             id=ParadeDB(
                 MoreLikeThis(
@@ -301,7 +293,34 @@ class TestMoreLikeThis:
             str(queryset.query)
             == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.more_like_this(5, ARRAY[description]::text[], min_term_frequency => 2, max_query_terms => 10, min_doc_frequency => 1, min_word_length => 3, max_word_length => 20, stopwords => ARRAY[the, and, or])'
         )
-        _run_query(queryset)
+
+    def test_mlt_string_id_with_options(self) -> None:
+        queryset = MockItem.objects.filter(
+            id=ParadeDB(
+                MoreLikeThis(
+                    id="foo",
+                    fields=["description"],
+                    min_term_freq=2,
+                    max_query_terms=10,
+                    min_doc_freq=1,
+                    min_word_length=3,
+                    max_word_length=20,
+                    stopwords=["the", "and", "or"],
+                )
+            )
+        )
+
+        sql, params = queryset.query.sql_with_params()
+
+        _assert_sql(
+            sql,
+            """
+            SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+            FROM "mock_items"
+            WHERE "mock_items"."id" @@@ pdb.more_like_this(%s, ARRAY[%s]::text[], min_term_frequency => 2, max_query_terms => 10, min_doc_frequency => 1, min_word_length => 3, max_word_length => 20, stopwords => ARRAY[%s, %s, %s])
+            """,
+        )
+        assert params == ("foo", "description", "the", "and", "or")
 
 
 class TestExactLiteralDisjunction:

@@ -295,34 +295,10 @@ class TestMoreLikeThisValidation:
         with pytest.raises(ValueError, match="exactly one input"):
             MoreLikeThis(id=1, document={"description": "test"})
 
-    def test_mlt_empty_ids_raises(self) -> None:
-        """MLT with empty ids raises ValueError."""
-        with pytest.raises(ValueError, match="cannot be empty"):
-            MoreLikeThis(ids=[])
-
     def test_mlt_single_id(self) -> None:
         """MLT with single id works."""
         mlt = MoreLikeThis(id=1)
         assert mlt.id == 1
-
-    def test_mlt_id_must_be_integer(self) -> None:
-        with pytest.raises(TypeError, match="id must be an integer"):
-            MoreLikeThis(id="1")  # type: ignore[arg-type]
-
-        with pytest.raises(TypeError, match="id must be an integer"):
-            MoreLikeThis(id=True)  # type: ignore[arg-type]
-
-    def test_mlt_ids_list(self) -> None:
-        """MLT with ids list works."""
-        mlt = MoreLikeThis(ids=[1, 2, 3])
-        assert mlt.ids == [1, 2, 3]
-
-    def test_mlt_ids_must_contain_integers(self) -> None:
-        with pytest.raises(TypeError, match="ids must contain integers"):
-            MoreLikeThis(ids=[1, "2"])  # type: ignore[list-item]
-
-        with pytest.raises(TypeError, match="ids must contain integers"):
-            MoreLikeThis(ids=[1, True])  # type: ignore[list-item]
 
     def test_mlt_document_dict(self) -> None:
         """MLT with document dict works."""

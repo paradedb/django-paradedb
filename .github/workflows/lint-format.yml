@@ -34,12 +34,7 @@ jobs:
 
       - name: Check for Trailing Whitespaces
         run: |
-          FILES=$(git grep -Ilr '[[:blank:]]$' -- \
-            ':(exclude)*.nix' \
-            ':(exclude)*.sql' \
-            ':(exclude)*.out' \
-            ':(exclude)*.rs' \
-            ':(exclude)docker/manifests/**' || true)
+          FILES=$(git grep -Ilr '[[:blank:]]$' || true)
           if [[ ! -z "$FILES" ]]; then
             echo "The following files have trailing whitespaces:"
             echo "$FILES"
@@ -48,30 +43,14 @@ jobs:
 
       - name: Check for Missing Final Newlines
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import subprocess
-          import sys
-
-          ignored_suffixes = {".nix", ".sql", ".out", ".rs"}
-          ignored_prefixes = ("docker/manifests/",)
-          missing_newline: list[str] = []
-
-          output = subprocess.check_output(["git", "ls-files", "-z"], text=False)
-          for raw_path in output.decode().split("\0"):
-              if not raw_path:
-                  continue
-              path = Path(raw_path)
-              if raw_path.startswith(ignored_prefixes) or path.suffix in ignored_suffixes:
-                  continue
-              data = path.read_bytes()
-              if b"\0" in data:
-                  continue
-              if data and not data.endswith(b"\n"):
-                  missing_newline.append(raw_path)
-
-          if missing_newline:
-              print("The following files are missing a trailing newline:")
-              print("\n".join(missing_newline))
-              sys.exit(1)
-          PY
+          MISSING=""
+          while IFS= read -r file; do
+            if [[ -s "$file" && -n "$(tail -c1 "$file")" ]]; then
+              MISSING="${MISSING}${file}"$'\n'
+            fi
+          done < <(git grep -Il '.')
+          if [[ -n "$MISSING" ]]; then
+            echo "The following files are missing a trailing newline:"
+            echo "$MISSING"
+            exit 1
+          fi

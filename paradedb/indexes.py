@@ -123,15 +123,16 @@ class IndexExpression:
     For text expressions, specify a tokenizer. For non-text expressions
     (integers, timestamps, etc.), omit the tokenizer to use ``pdb.alias``.
 
+    Tokenizer configuration (positional args, named args, token filters,
+    stemmer, etc.) is supplied directly on the ``tokenizer`` object via
+    :class:`~paradedb.search.Tokenizer` factory methods (e.g.
+    ``Tokenizer.simple(options={'stemmer': 'english'})``).
+
     Args:
         expression: A Django expression to index (e.g., ``Lower('title')``).
         alias: Required. The name used to reference this expression in queries.
         tokenizer: Tokenizer for text expressions (e.g., 'simple', 'unicode_words').
             Omit for non-text expressions to use ``pdb.alias``.
-        args: Positional arguments for the tokenizer.
-        named_args: Named arguments for the tokenizer configuration.
-        filters: Token filters (e.g., ['lowercase', 'stemmer']).
-        stemmer: Stemmer language (e.g., 'english').
 
     Example::
 
@@ -162,10 +163,6 @@ class IndexExpression:
     expression: Expression | str
     alias: str
     tokenizer: Tokenizer | None = None
-    args: list[Any] | None = None
-    named_args: dict[str, Any] | None = None
-    filters: list[str] | None = None
-    stemmer: str | None = None
 
 
 class BM25Index(models.Index):
@@ -275,8 +272,7 @@ class BM25Index(models.Index):
                 if tokenizer is not None or alias is not None:
                     raise ValueError(
                         f"Field {field_name!r} cannot mix 'tokenizers' with "
-                        f"'tokenizer', 'args', 'named_args', 'filters', "
-                        f"'stemmer', or 'alias'."
+                        f"'tokenizer' or 'alias'."
                     )
                 expressions.extend(
                     self._build_multi_tokenizer_expressions(
@@ -373,13 +369,13 @@ class BM25Index(models.Index):
         expressions: list[str] = []
         for key, config in json_keys.items():
             tokenizer = config.get("tokenizer")
-            if not isinstance(tokenizer, Tokenizer):
-                raise TypeError("tokenizer must be a Tokenizer")
             if tokenizer is None:
                 raise ValueError(
                     f"JSON key {key!r} in field {field_name!r} requires an explicit "
                     f"tokenizer (e.g. 'unicode_words', 'simple', 'literal')."
                 )
+            if not isinstance(tokenizer, Tokenizer):
+                raise TypeError("tokenizer must be a Tokenizer")
             key_literal = _quote_term(key)
             expressions.append(f"(({column}->>{key_literal})::{tokenizer.render()})")
         return expressions

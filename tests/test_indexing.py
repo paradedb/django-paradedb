@@ -52,13 +52,30 @@ def test_tokenizers_mixed_with_top_level_tokenizer_config_raises_value_error() -
         index.create_sql(model=MockItem, schema_editor=DummySchemaEditor())
 
 
-def test_json_key_without_tokenizer_raises_type_error() -> None:
+def test_json_key_without_tokenizer_raises_value_error() -> None:
     index = BM25Index(
         fields={
             "id": {},
             "metadata": {
                 "json_keys": {
                     "color": {},
+                }
+            },
+        },
+        key_field="id",
+        name="mock_items_search_idx",
+    )
+    with pytest.raises(ValueError, match="requires an explicit"):
+        index.create_sql(model=MockItem, schema_editor=DummySchemaEditor())
+
+
+def test_json_key_with_invalid_tokenizer_type_raises_type_error() -> None:
+    index = BM25Index(
+        fields={
+            "id": {},
+            "metadata": {
+                "json_keys": {
+                    "color": {"tokenizer": "simple"},
                 }
             },
         },
@@ -273,7 +290,7 @@ class TestBM25Index:
         )
 
     def test_json_key_without_tokenizer_raises(self) -> None:
-        """JSON keys without an explicit tokenizer raise TypeError."""
+        """JSON keys without an explicit tokenizer raise a descriptive ValueError."""
         index = BM25Index(
             fields={
                 "id": {},
@@ -287,7 +304,7 @@ class TestBM25Index:
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
-        with pytest.raises(TypeError, match="tokenizer must be a Tokenizer"):
+        with pytest.raises(ValueError, match="requires an explicit"):
             index.create_sql(model=MockItem, schema_editor=schema_editor)
 
     def test_json_field_literal_alias(self) -> None:

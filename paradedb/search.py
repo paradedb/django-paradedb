@@ -65,7 +65,7 @@ from paradedb.api import (
     PDB_TYPE_TOKENIZER_WHITESPACE,
 )
 
-SearchValue: TypeAlias = "str | list[str] | tuple[str, ...] | Modifier"
+SearchValue: TypeAlias = "str | list[str] | tuple[str, ...] | Modifier | Expression"
 Modifiable: TypeAlias = "SearchValue | QueryExpression"
 
 
@@ -720,19 +720,6 @@ class MoreLikeThis(Expression):
                 raise ValueError(f"MoreLikeThis {param_name} must be >= 1.")
 
 
-def render_more_like_this(term: MoreLikeThis, lhs_sql: str) -> tuple[str, list[Any]]:
-    params: list[Any] = []
-
-    if term.id is not None:
-        mlt_sql, mlt_params = _render_more_like_this_call(term, term.id)
-        params.extend(mlt_params)
-        return f"{lhs_sql} {OP_SEARCH} {mlt_sql}", params
-
-    mlt_sql, mlt_params = _render_more_like_this_call(term, term.document)
-    params.extend(mlt_params)
-    return f"{lhs_sql} {OP_SEARCH} {mlt_sql}", params
-
-
 def _render_more_like_this_call(
     term: MoreLikeThis, value: object
 ) -> tuple[str, list[Any]]:
@@ -854,14 +841,12 @@ class ParadeDB:
 
     def as_sql(
         self,
-        _compiler: SQLCompiler,
+        compiler: SQLCompiler,
         _connection: BaseDatabaseWrapper,
         lhs_sql: str,
     ) -> tuple[str, list[object]]:
-        if isinstance(self._term, MoreLikeThis):
-            return render_more_like_this(self._term, lhs_sql)
-        rendered = self._render_term(self._term)
-        return f"{lhs_sql} {rendered}", []
+        rendered, params = self._render_term(self._term, compiler)
+        return f"{lhs_sql} {rendered}", params
 
     @staticmethod
     def _unwrap_term(term: TermType) -> TermType:
@@ -881,34 +866,40 @@ class ParadeDB:
         return f"{_quote_term(literal)}::{safe_range_type}"
 
     @staticmethod
-    def _render_search_value(value: object) -> str:
+    def _render_search_value(
+        value: object, compiler: SQLCompiler
+    ) -> tuple[str, list[Any]]:
         if isinstance(value, Boost):
-            rendered = ParadeDB._render_search_value(value.value)
-            return f"{rendered}::{PDB_TYPE_BOOST}({value.factor})"
+            rendered, params = ParadeDB._render_search_value(value.value, compiler)
+            return f"{rendered}::{PDB_TYPE_BOOST}({value.factor})", params
         if isinstance(value, Const):
-            rendered = ParadeDB._render_search_value(value.value)
-            return f"{rendered}::{PDB_TYPE_CONST}({value.score})"
+            rendered, params = ParadeDB._render_search_value(value.value, compiler)
+            return f"{rendered}::{PDB_TYPE_CONST}({value.score})", params
         if isinstance(value, Fuzzy):
-            rendered = ParadeDB._render_search_value(value.value)
+            rendered, params = ParadeDB._render_search_value(value.value, compiler)
             fuzzy_args = [str(value.distance)]
             if value.prefix is not None:
                 fuzzy_args.append("t" if value.prefix else "f")
             if value.transposition_cost_one is not None:
                 fuzzy_args.append("t" if value.transposition_cost_one else "f")
-            return f"{rendered}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})"
+            return f"{rendered}::{PDB_TYPE_FUZZY}({', '.join(fuzzy_args)})", params
         if isinstance(value, Slop):
-            rendered = ParadeDB._render_search_value(value.value)
-            return f"{rendered}::{PDB_TYPE_SLOP}({value.distance})"
+            rendered, params = ParadeDB._render_search_value(value.value, compiler)
+            return f"{rendered}::{PDB_TYPE_SLOP}({value.distance})", params
         if isinstance(value, Tokenized):
-            rendered = ParadeDB._render_search_value(value.value)
-            return f"{rendered}::{value.tokenizer.render()}"
+            rendered, params = ParadeDB._render_search_value(value.value, compiler)
+            return f"{rendered}::{value.tokenizer.render()}", params
         if isinstance(value, QueryExpression):
-            return ParadeDB(value)._render_term(value)
+            return ParadeDB(value)._render_term(value, compiler)
+        if isinstance(value, Expression):
+            expression = value.resolve_expression(compiler.query)
+            sql, expression_params = compiler.compile(expression)
+            return sql, list(expression_params)
         if isinstance(value, str):
-            return _quote_term(value)
+            return _quote_term(value), []
         if isinstance(value, list | tuple):
             quoted = [_quote_term(item) for item in value]
-            return f"ARRAY[{', '.join(quoted)}]"
+            return f"ARRAY[{', '.join(quoted)}]", []
         raise TypeError(f"Unsupported search value type. {value}")
 
     def _render_proximity_node(self, node: ProximityNode) -> str:
@@ -941,37 +932,42 @@ class ParadeDB:
             return f"{FN_PROX_ARRAY}({', '.join(parts)})"
         raise AssertionError(f"Unhandled proximity term: {term!r}")
 
-    def _render_term(self, term: TermType) -> str:
+    def _render_term(
+        self, term: TermType, compiler: SQLCompiler
+    ) -> tuple[str, list[Any]]:
         if isinstance(term, Boost | Const | Fuzzy | Slop | Tokenized):
-            return self._render_search_value(term)
+            return self._render_search_value(term, compiler)
         if isinstance(term, Phrase):
-            rendered = self._render_search_value(
-                term.terms[0] if len(term.terms) == 1 else term.terms
+            rendered, params = self._render_search_value(
+                term.terms[0] if len(term.terms) == 1 else term.terms, compiler
             )
-            return f"{OP_PHRASE} {rendered}"
+            return f"{OP_PHRASE} {rendered}", params
         if isinstance(term, ProximityNode):
-            return self._render_proximity_node(term)
+            return self._render_proximity_node(term), []
         if isinstance(term, Parse):
             rendered = (
                 f"{OP_SEARCH} {FN_PARSE}({_quote_term(term.query)}"
                 f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
             )
-            return rendered
+            return rendered, []
         if isinstance(term, PhrasePrefix):
             phrases_sql = ", ".join(_quote_term(phrase) for phrase in term.phrases)
             return (
                 f"{OP_SEARCH} {FN_PHRASE_PREFIX}(ARRAY[{phrases_sql}]"
                 f"{self._render_options({'max_expansion': term.max_expansion})})"
-            )
+            ), []
         if isinstance(term, RegexPhrase):
             regex_sql = ", ".join(_quote_term(regex) for regex in term.regexes)
             return (
                 f"{OP_SEARCH} {FN_REGEX_PHRASE}(ARRAY[{regex_sql}]"
                 f"{self._render_options({'slop': term.slop, 'max_expansions': term.max_expansions})})"
-            )
+            ), []
         if isinstance(term, RangeTerm):
             if term.relation is None:
-                return f"{OP_SEARCH} {FN_RANGE_TERM}({self._render_value(term.value)})"
+                return (
+                    f"{OP_SEARCH} {FN_RANGE_TERM}({self._render_value(term.value)})",
+                    [],
+                )
             else:
                 assert term.range_type is not None
                 return (
@@ -979,33 +975,42 @@ class ParadeDB:
                     f"{self._quote_range_literal(term.value, term.range_type)}, "
                     f"{_quote_term(term.relation)}"
                     ")"
-                )
+                ), []
         if isinstance(term, Term):
-            return f"{OP_SEARCH} {FN_TERM}({self._render_search_value(term.value)})"
+            rendered, params = self._render_search_value(term.value, compiler)
+            return f"{OP_SEARCH} {FN_TERM}({rendered})", params
         if isinstance(term, Regex):
-            return f"{OP_SEARCH} {FN_REGEX}({_quote_term(term.pattern)})"
+            return f"{OP_SEARCH} {FN_REGEX}({_quote_term(term.pattern)})", []
         if isinstance(term, Exists):
-            return f"{OP_SEARCH} {FN_EXISTS}()"
+            return f"{OP_SEARCH} {FN_EXISTS}()", []
         if isinstance(term, FuzzyTerm):
             if term.value is not None:
-                return f"{OP_SEARCH} {FN_FUZZY_TERM}({_quote_term(term.value)})"
+                return f"{OP_SEARCH} {FN_FUZZY_TERM}({_quote_term(term.value)})", []
             else:
-                return f"{OP_SEARCH} {FN_FUZZY_TERM}()"
+                return f"{OP_SEARCH} {FN_FUZZY_TERM}()", []
         if isinstance(term, TermSet):
             array_sql = self._render_term_set_array(term.terms)
-            return f"{OP_SEARCH} {FN_TERM_SET}({array_sql})"
+            return f"{OP_SEARCH} {FN_TERM_SET}({array_sql})", []
         if isinstance(term, All):
-            return f"{OP_SEARCH} {FN_ALL}()"
+            return f"{OP_SEARCH} {FN_ALL}()", []
         if isinstance(term, MatchAll):
-            rendered = self._render_search_value(
-                term.terms[0] if len(term.terms) == 1 else term.terms
+            rendered, params = self._render_search_value(
+                term.terms[0] if len(term.terms) == 1 else term.terms, compiler
             )
-            return f"{OP_AND} {rendered}"
+            return f"{OP_AND} {rendered}", params
         if isinstance(term, MatchAny):
-            rendered = self._render_search_value(
-                term.terms[0] if len(term.terms) == 1 else term.terms
+            rendered, params = self._render_search_value(
+                term.terms[0] if len(term.terms) == 1 else term.terms, compiler
             )
-            return f"{OP_OR} {rendered}"
+            return f"{OP_OR} {rendered}", params
+        if isinstance(term, MoreLikeThis):
+            if term.id is not None:
+                mlt_sql, mlt_params = _render_more_like_this_call(term, term.id)
+                return f"{OP_SEARCH} {mlt_sql}", mlt_params
+            else:
+                mlt_sql, mlt_params = _render_more_like_this_call(term, term.document)
+                return f"{OP_SEARCH} {mlt_sql}", mlt_params
+
         raise TypeError(f"Unsupported ParadeDB term type. {term}")
 
     @staticmethod

@@ -720,19 +720,6 @@ class MoreLikeThis(Expression):
                 raise ValueError(f"MoreLikeThis {param_name} must be >= 1.")
 
 
-def render_more_like_this(term: MoreLikeThis, lhs_sql: str) -> tuple[str, list[Any]]:
-    params: list[Any] = []
-
-    if term.id is not None:
-        mlt_sql, mlt_params = _render_more_like_this_call(term, term.id)
-        params.extend(mlt_params)
-        return f"{lhs_sql} {OP_SEARCH} {mlt_sql}", params
-
-    mlt_sql, mlt_params = _render_more_like_this_call(term, term.document)
-    params.extend(mlt_params)
-    return f"{lhs_sql} {OP_SEARCH} {mlt_sql}", params
-
-
 def _render_more_like_this_call(
     term: MoreLikeThis, value: object
 ) -> tuple[str, list[Any]]:
@@ -858,8 +845,6 @@ class ParadeDB:
         _connection: BaseDatabaseWrapper,
         lhs_sql: str,
     ) -> tuple[str, list[object]]:
-        if isinstance(self._term, MoreLikeThis):
-            return render_more_like_this(self._term, lhs_sql)
         rendered, params = self._render_term(self._term, compiler)
         return f"{lhs_sql} {rendered}", params
 
@@ -1018,6 +1003,14 @@ class ParadeDB:
                 term.terms[0] if len(term.terms) == 1 else term.terms, compiler
             )
             return f"{OP_OR} {rendered}", params
+        if isinstance(term, MoreLikeThis):
+            if term.id is not None:
+                mlt_sql, mlt_params = _render_more_like_this_call(term, term.id)
+                return f"{OP_SEARCH} {mlt_sql}", mlt_params
+            else:
+                mlt_sql, mlt_params = _render_more_like_this_call(term, term.document)
+                return f"{OP_SEARCH} {mlt_sql}", mlt_params
+
         raise TypeError(f"Unsupported ParadeDB term type. {term}")
 
     @staticmethod

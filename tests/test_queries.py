@@ -7,9 +7,10 @@ from the DB as long as the SQL itself is valid.
 """
 
 import pytest
+from django.contrib.postgres.fields import ArrayField
 from django.db import connection
-from django.db.models import F, Q, Window
-from django.db.models.functions import Coalesce
+from django.db.models import F, Func, Q, TextField, Value, Window
+from django.db.models.functions import Cast, Coalesce, Trim
 
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.search import (
@@ -260,6 +261,65 @@ class TestParadeDBLookup:
             str(queryset.query)
             == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'running\', \'shoes\', \'lightweight\']'
         )
+        _run_query(queryset)
+
+    def test_match_all_accepts_database_function_value(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll(Trim(Value("shoes "))))
+        )
+        sql, params = queryset.query.sql_with_params()
+        assert (
+            sql
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& TRIM(%s)'
+        )
+        assert params == ("shoes ",)
+        _run_query(queryset)
+
+    def test_match_all_accepts_cast_database_function_value(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(
+                MatchAll(
+                    Cast(
+                        Func(
+                            Value("running,shoes"),
+                            Value(","),
+                            function="string_to_array",
+                        ),
+                        ArrayField(TextField()),
+                    )
+                )
+            )
+        )
+        sql, params = queryset.query.sql_with_params()
+        assert (
+            sql
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& (string_to_array(%s, %s))::text[]'
+        )
+        assert params == ("running,shoes", ",")
+        _run_query(queryset)
+
+    def test_match_any_accepts_database_function_value(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAny(Trim(Value("shoes "))))
+        )
+        sql, params = queryset.query.sql_with_params()
+        assert (
+            sql
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ||| TRIM(%s)'
+        )
+        assert params == ("shoes ",)
+        _run_query(queryset)
+
+    def test_term_accepts_database_function_value(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(Term(Trim(Value("shoes "))))
+        )
+        sql, params = queryset.query.sql_with_params()
+        assert (
+            sql
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.term(TRIM(%s))'
+        )
+        assert params == ("shoes ",)
         _run_query(queryset)
 
 

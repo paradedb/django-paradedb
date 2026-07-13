@@ -1,11 +1,18 @@
-<!-- ParadeDB: Postgres for Search and Analytics -->
+<!-- ParadeDB: Search without a second system -->
 <h1 align="center">
-  <a href="https://paradedb.com"><img src="https://github.com/paradedb/paradedb/raw/main/docs/logo/readme.svg" alt="ParadeDB"></a>
-<br>
+  <a href="https://paradedb.com">
+    <picture align=center>
+      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/paradedb/paradedb/raw/main/docs/logo/paradedb-logo-dark-large.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://github.com/paradedb/paradedb/raw/main/docs/logo/paradedb-logo-light-large.svg">
+      <img alt="The ParadeDB logo." src="https://github.com/paradedb/paradedb/raw/main/docs/logo/paradedb-logo-light-large.svg">
+    </picture>
+  </a>
+  <br>
 </h1>
 
 <p align="center">
-  <b>Simple, Elastic-quality search for Postgres</b><br/>
+  <b>Search without a second system.</b><br/>
+  One Postgres for your application data, full-text search, vector retrieval, and aggregations.
 </p>
 
 <h3 align="center">
@@ -30,7 +37,7 @@
 
 ## ParadeDB for Django
 
-The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com), including first-class support for managing BM25 indexes and running queries using the full ParadeDB API. Follow the [getting started guide](https://docs.paradedb.com/documentation/getting-started/environment#django) to begin.
+The official [Django](https://www.djangoproject.com/) integration for [ParadeDB / pg_search](https://paradedb.com), including first-class support for managing BM25 indexes and running queries using the full ParadeDB API. Follow the [getting started guide](https://docs.paradedb.com/documentation/getting-started/environment#django) to begin.
 
 ## Requirements & Compatibility
 

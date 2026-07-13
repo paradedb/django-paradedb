@@ -1,6 +1,6 @@
 # ParadeDB for Django: Examples & Cookbook
 
-Welcome to the **ParadeDB for Django** examples! This directory contains a collection of self-contained scripts designed to teach you how to integrate powerful search and analytics features into your Django application using ParadeDB.
+Welcome to the **ParadeDB for Django** examples! This directory contains a collection of self-contained scripts designed to teach you how to integrate full-text search, vector retrieval, and aggregations into your Django application using ParadeDB.
 
 Think of this as a **cookbook**: whether you need simple keyword search, an e-commerce filtering system, or a cutting-edge RAG (Retrieval-Augmented Generation) pipeline, you'll find a recipe here.
 

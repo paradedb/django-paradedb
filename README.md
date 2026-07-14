@@ -1,4 +1,3 @@
-<!-- ParadeDB: Search without a second system -->
 <h1 align="center">
   <a href="https://paradedb.com">
     <picture align=center>

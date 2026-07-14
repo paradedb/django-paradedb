@@ -608,7 +608,6 @@ class MoreLikeThis(Expression):
         min_term_freq: int | None = None,
         max_query_terms: int | None = None,
         min_doc_freq: int | None = None,
-        max_term_freq: int | None = None,
         max_doc_freq: int | None = None,
         min_word_length: int | None = None,
         max_word_length: int | None = None,
@@ -623,7 +622,6 @@ class MoreLikeThis(Expression):
         self.min_term_freq = min_term_freq
         self.max_query_terms = max_query_terms
         self.min_doc_freq = min_doc_freq
-        self.max_term_freq = max_term_freq
         self.max_doc_freq = max_doc_freq
         self.min_word_length = min_word_length
         self.max_word_length = max_word_length
@@ -706,7 +704,6 @@ class MoreLikeThis(Expression):
             "min_term_freq": self.min_term_freq,
             "max_query_terms": self.max_query_terms,
             "min_doc_freq": self.min_doc_freq,
-            "max_term_freq": self.max_term_freq,
             "max_doc_freq": self.max_doc_freq,
             "min_word_length": self.min_word_length,
             "max_word_length": self.max_word_length,
@@ -740,7 +737,6 @@ def _render_more_like_this_call(
             "min_term_frequency": term.min_term_freq,
             "max_query_terms": term.max_query_terms,
             "min_doc_frequency": term.min_doc_freq,
-            "max_term_frequency": term.max_term_freq,
             "max_doc_frequency": term.max_doc_freq,
             "min_word_length": term.min_word_length,
             "max_word_length": term.max_word_length,

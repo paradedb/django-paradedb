@@ -337,7 +337,6 @@ class TestMoreLikeThisValidation:
             min_term_freq=2,
             max_query_terms=10,
             min_doc_freq=1,
-            max_term_freq=100,
             max_doc_freq=1000,
             min_word_length=3,
             max_word_length=15,

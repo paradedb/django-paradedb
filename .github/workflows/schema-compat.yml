@@ -25,6 +25,10 @@ concurrency:
 env:
   PARADEDB_VERSION: ${{ inputs.version || github.event.client_payload.version }}
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   schema-compat:
     name: Check Schema Compatibility

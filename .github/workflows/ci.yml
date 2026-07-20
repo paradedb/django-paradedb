@@ -23,6 +23,9 @@ env:
   POSTGRES_PASSWORD: postgres
   POSTGRES_DB: postgres
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint

@@ -3,6 +3,7 @@
 from django.db import models
 
 from paradedb.queryset import ParadeDBManager
+from paradedb.vector import VectorField
 
 
 class MockItem(models.Model):
@@ -25,3 +26,21 @@ class MockItem(models.Model):
 
     def __str__(self) -> str:
         return f"MockItem(id={self.id})"
+
+
+class VectorItem(models.Model):
+    """Table with a pgvector embedding column for vector search tests."""
+
+    id = models.IntegerField(primary_key=True)
+    description = models.TextField()
+    embedding = VectorField(dimensions=3, null=True)
+
+    objects = ParadeDBManager()
+
+    class Meta:
+        app_label = "tests"
+        managed = False
+        db_table = "vector_items"
+
+    def __str__(self) -> str:
+        return f"VectorItem(id={self.id})"

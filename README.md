@@ -38,6 +38,48 @@
 
 The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com) (powered by the [`pg_search`](https://github.com/paradedb/paradedb) Postgres extension), including first-class support for managing ParadeDB indexes and running queries using the full ParadeDB API. Follow the [getting started guide](https://docs.paradedb.com/documentation/getting-started/environment#django) to begin.
 
+## Vector Search
+
+ParadeDB indexes pgvector `vector` columns inside its BM25 index and serves Top-K nearest-neighbor queries. django-paradedb ships native support — no pgvector Python package needed.
+
+Declare a vector column with `VectorField` and add it to your `ParadeDBIndex` with a distance metric (`l2` is the default opclass; `cosine` and `ip` are also supported):
+
+```python
+from django.db import models
+from paradedb import ParadeDBIndex, VectorField
+
+class Item(models.Model):
+    description = models.TextField()
+    embedding = VectorField(dimensions=384, null=True)
+
+    class Meta:
+        indexes = [
+            ParadeDBIndex(
+                fields={
+                    "id": {},
+                    "description": {},
+                    "embedding": {"metric": "l2"},
+                },
+                key_field="id",
+                name="item_search_idx",
+            )
+        ]
+```
+
+Query with a distance expression in `order_by()` or `annotate()`. Two things are mandatory for index-accelerated Top-K: a `@@@` predicate alongside the vector `ORDER BY` — use `ParadeDB(All())` for a pure vector query — and a `LIMIT` (slice the queryset):
+
+```python
+from paradedb import All, L2Distance, ParadeDB
+
+results = (
+    Item.objects.filter(id=ParadeDB(All()))
+    .annotate(distance=L2Distance("embedding", [0.1, 0.2, ...]))
+    .order_by("distance")[:10]
+)
+```
+
+The distance expression must match the metric of the index opclass — `L2Distance` (`<->`) for `"l2"`, `CosineDistance` (`<=>`) for `"cosine"`, and `InnerProduct` (`<#>`) for `"ip"`. A mismatched operator still returns correct results but silently falls back to a plain sort instead of Top-K index pushdown.
+
 ## Requirements & Compatibility
 
 | Component  | Supported                                                          |
@@ -54,6 +96,7 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 - [Faceted Search](examples/faceted_search/faceted_search.py)
 - [Autocomplete](examples/autocomplete/autocomplete.py)
 - [More Like This](examples/more_like_this/more_like_this.py)
+- [Vector Search](examples/vector_search/vector_search.py)
 - [Hybrid Search (RRF)](examples/hybrid_rrf/hybrid_rrf.py)
 - [RAG](examples/rag/rag.py)
 

@@ -13,6 +13,7 @@ from django.conf import settings
 from paradedb.indexes import ParadeDBIndex
 from paradedb.queryset import ParadeDBManager
 from paradedb.search import Tokenizer
+from paradedb.vector import VectorField
 
 
 def configure_django() -> None:
@@ -142,32 +143,25 @@ class MockItem(models.Model):
         return self.description
 
 
-# Optional: MockItem with vector embedding field for hybrid search examples
-try:
-    from pgvector.django import VectorField
+class MockItemWithEmbedding(models.Model):
+    """MockItem with vector embedding for vector and hybrid search examples."""
 
-    class MockItemWithEmbedding(models.Model):
-        """MockItem with vector embedding for hybrid search examples."""
+    id = models.IntegerField(primary_key=True)
+    description = models.TextField()
+    category = models.CharField(max_length=100)
+    rating = models.IntegerField()
+    in_stock = models.BooleanField()
+    created_at = models.DateTimeField()
+    metadata = models.JSONField(null=True)
+    embedding = VectorField(dimensions=8, null=True)
 
-        id = models.IntegerField(primary_key=True)
-        description = models.TextField()
-        category = models.CharField(max_length=100)
-        rating = models.IntegerField()
-        in_stock = models.BooleanField()
-        created_at = models.DateTimeField()
-        metadata = models.JSONField(null=True)
-        embedding = VectorField(dimensions=8, null=True)
+    objects = ParadeDBManager()
 
-        objects = ParadeDBManager()
+    class Meta:
+        app_label = "examples"
+        managed = False
+        db_table = "mock_items"
+        indexes = _mock_items_indexes()
 
-        class Meta:
-            app_label = "examples"
-            managed = False
-            db_table = "mock_items"
-            indexes = _mock_items_indexes()
-
-        def __str__(self) -> str:
-            return self.description
-
-except ImportError:
-    MockItemWithEmbedding = None  # type: ignore[misc, assignment]
+    def __str__(self) -> str:
+        return self.description

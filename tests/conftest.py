@@ -84,6 +84,7 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
             "rating, "
             "in_stock, "
             "metadata, "
+            "embedding vector_cosine_ops, "
             "(((description || ' ' || category)::pdb.simple('alias=combined')))"
             ") WITH (key_field='id', json_fields='{\"metadata\":{\"fast\":true}}');"
         )
@@ -103,6 +104,7 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
                 "in_stock",
                 "created_at",
                 "metadata",
+                "embedding",
             ]
         )
         assert row_count > 0, "mock_items should be seeded with rows"

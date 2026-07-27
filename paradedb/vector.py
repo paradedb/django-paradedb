@@ -1,4 +1,4 @@
-"""Native pgvector `vector` support for ParadeDB bm25 indexes."""
+"""Native pgvector `vector` support for ParadeDB indexes."""
 
 from __future__ import annotations
 
@@ -102,7 +102,7 @@ class VectorField(BaseField):
 class VectorDistance(Func):
     """Base for pgvector distance operators usable in order_by()/annotate().
 
-    The operator must match the metric of the bm25 index opclass on the
+    The operator must match the metric of the ParadeDB index opclass on the
     column (``l2`` ↔ ``<->``, ``cosine`` ↔ ``<=>``, ``ip`` ↔ ``<#>``),
     otherwise ParadeDB falls back to a plain sort instead of Top-K index
     pushdown.

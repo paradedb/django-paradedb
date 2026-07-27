@@ -16,6 +16,7 @@ class MockItem(models.Model):
     in_stock = models.BooleanField()
     created_at = models.DateTimeField()
     metadata = models.JSONField(null=True)
+    embedding = VectorField(dimensions=8, null=True)
 
     objects = ParadeDBManager()
 
@@ -26,21 +27,3 @@ class MockItem(models.Model):
 
     def __str__(self) -> str:
         return f"MockItem(id={self.id})"
-
-
-class VectorItem(models.Model):
-    """Table with a pgvector embedding column for vector search tests."""
-
-    id = models.IntegerField(primary_key=True)
-    description = models.TextField()
-    embedding = VectorField(dimensions=3, null=True)
-
-    objects = ParadeDBManager()
-
-    class Meta:
-        app_label = "tests"
-        managed = False
-        db_table = "vector_items"
-
-    def __str__(self) -> str:
-        return f"VectorItem(id={self.id})"

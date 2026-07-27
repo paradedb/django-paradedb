@@ -121,11 +121,11 @@ uv run python examples/more_like_this/more_like_this.py
 
 _Semantic Top-K Retrieval, One Index._
 
-ParadeDB indexes pgvector `vector` columns inside its BM25 index, so one index serves both keyword and vector queries. This example declares a `VectorField`, builds a BM25 index with a `cosine` metric opclass, and runs Top-K nearest-neighbor queries — with the mandatory `@@@` predicate (`ParadeDB(All())`) and `LIMIT`.
+ParadeDB indexes pgvector `vector` columns inside its search index, so one index serves both keyword and vector queries. This example declares a `VectorField`, includes it in the shared `ParadeDBIndex` with a `cosine` metric opclass, and runs Top-K nearest-neighbor queries — with the mandatory `@@@` predicate (`ParadeDB(All())`) and `LIMIT`.
 
 **Prerequisites:**
 
-- A pg_search build with vector support in bm25 indexes (the example detects support and skips gracefully otherwise).
+- The `pgvector` Postgres extension must be installed (included in the ParadeDB Docker image).
 
 **Run it:**
 

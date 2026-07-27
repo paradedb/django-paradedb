@@ -4,8 +4,6 @@
 Uses a single SQL query with CTEs to combine BM25 full-text search and vector
 similarity search, fused via Reciprocal Rank Fusion (RRF).
 
-No raw SQL - built entirely with Django ORM + django-cte + django-paradedb.
-
 Reference: https://www.paradedb.com/blog/hybrid-search-in-postgresql-the-missing-manual
 """
 
@@ -13,8 +11,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import QUERY_EMBEDDINGS, setup_mock_items
-from common import MockItemWithEmbedding as MockItem
+from common import QUERY_EMBEDDINGS, MockItem, setup_mock_items
 from django.db.models import F, FloatField, Sum, Window
 from django.db.models.expressions import ExpressionWrapper, Value
 from django.db.models.functions import Cast, RowNumber

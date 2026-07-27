@@ -272,14 +272,14 @@ def _execute_table_function(
 
 
 def paradedb_indexes(*, using: str = DEFAULT_DB_ALIAS) -> list[dict[str, Any]]:
-    """Return metadata for all BM25 indexes from ``pdb.indexes()``."""
+    """Return metadata for all ParadeDB indexes from ``pdb.indexes()``."""
     return _execute_table_function(f"SELECT * FROM {FN_INDEXES}()", (), using=using)
 
 
 def paradedb_index_segments(
     index: str, *, using: str = DEFAULT_DB_ALIAS
 ) -> list[dict[str, Any]]:
-    """Return segment metadata for a BM25 index from ``pdb.index_segments()``."""
+    """Return segment metadata for a ParadeDB index from ``pdb.index_segments()``."""
     return _execute_table_function(
         f"SELECT * FROM {FN_INDEX_SEGMENTS}(%s::regclass)", (index,), using=using
     )
@@ -296,7 +296,7 @@ def paradedb_verify_index(
     segment_ids: Sequence[int] | None = None,
     using: str = DEFAULT_DB_ALIAS,
 ) -> list[dict[str, Any]]:
-    """Run ``pdb.verify_index()`` for one BM25 index."""
+    """Run ``pdb.verify_index()`` for one ParadeDB index."""
     sql = [f"SELECT * FROM {FN_VERIFY_INDEX}(%s::regclass"]
     params: list[Any] = [index]
     if heapallindexed:
@@ -331,7 +331,7 @@ def paradedb_verify_all_indexes(
     on_error_stop: bool = False,
     using: str = DEFAULT_DB_ALIAS,
 ) -> list[dict[str, Any]]:
-    """Run ``pdb.verify_all_indexes()`` across BM25 indexes."""
+    """Run ``pdb.verify_all_indexes()`` across ParadeDB indexes."""
     sql = [f"SELECT * FROM {FN_VERIFY_ALL_INDEXES}("]
     params: list[Any] = []
     named_params: list[tuple[str, str, Any]] = []

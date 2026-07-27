@@ -10,7 +10,7 @@ checked in both directions:
             (surfaces new paradedb APIs that haven't been wrapped yet).
 
 Example:
-    uv run --no-sync python scripts/check_schema_compat.py 0.22.0
+    uv run --no-sync python scripts/check_schema_compat.py 0.25.0
 
 The ignore list is read automatically from apiignore.json5 (repo root) if it exists.
 """
@@ -121,7 +121,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "against this repo's api.json5."
         )
     )
-    parser.add_argument("version", help="ParadeDB version to check, for example 0.22.0")
+    parser.add_argument("version", help="ParadeDB version to check, for example 0.25.0")
     return parser.parse_args(argv)
 
 

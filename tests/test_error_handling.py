@@ -98,8 +98,8 @@ class TestNoticeHandling:
         """NOTICE messages (like 'index exists') don't interrupt execution."""
         with connection.cursor() as cursor:
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS mock_items_bm25_idx ON mock_items "
-                "USING bm25 (id, description) WITH (key_field='id');"
+                "CREATE INDEX IF NOT EXISTS mock_items_search_idx ON mock_items "
+                "USING paradedb (id, description) WITH (key_field='id');"
             )
             cursor.execute("SELECT COUNT(*) FROM mock_items;")
             (count,) = cursor.fetchone()

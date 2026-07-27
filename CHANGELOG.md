@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+### Changed
+
+- **Breaking**: `BM25Index` is renamed to `ParadeDBIndex`, and indexes are always created with `USING paradedb`. This release requires pg_search 0.25.0+. Update model definitions and existing migrations to the new class name.
+
 ## [0.10.0] - 2026-07-14
 
 ### Removed

@@ -1,4 +1,4 @@
-"""Inspect BM25 index segments via ``pdb.index_segments()``."""
+"""Inspect ParadeDB index segments via ``pdb.index_segments()``."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from paradedb.management.commands._paradedb_diag_utils import write_json
 
 
 class Command(BaseCommand):
-    help = "List segments for a ParadeDB BM25 index (pdb.index_segments)."
+    help = "List segments for a ParadeDB index (pdb.index_segments)."
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("index", help="Index name (optionally schema-qualified).")

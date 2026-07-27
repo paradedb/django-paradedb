@@ -1,4 +1,4 @@
-"""BM25 index support for Django models."""
+"""ParadeDB index support for Django models."""
 
 from __future__ import annotations
 
@@ -115,10 +115,10 @@ def _validate_native_json_field_config(
 @deconstructible(path="paradedb.indexes.IndexExpression")
 @dataclass
 class IndexExpression:
-    """Computed expression for BM25 indexing.
+    """Computed expression for ParadeDB indexing.
 
     Use this class to index Django expressions (like ``Lower('title')``,
-    ``F('rating') + 1``, or ``Concat('first', 'last')``) in a BM25 index.
+    ``F('rating') + 1``, or ``Concat('first', 'last')``) in a ParadeDB index.
 
     For text expressions, specify a tokenizer. For non-text expressions
     (integers, timestamps, etc.), omit the tokenizer to use ``pdb.alias``.
@@ -138,9 +138,9 @@ class IndexExpression:
 
         from django.db.models import F
         from django.db.models.functions import Lower
-        from paradedb.indexes import BM25Index, IndexExpression
+        from paradedb.indexes import ParadeDBIndex, IndexExpression
 
-        BM25Index(
+        ParadeDBIndex(
             fields={"id": {}, "description": {}},
             expressions=[
                 # Text expression with tokenizer
@@ -165,10 +165,14 @@ class IndexExpression:
     tokenizer: Tokenizer | None = None
 
 
-class BM25Index(models.Index):
-    """BM25 index for ParadeDB."""
+class ParadeDBIndex(models.Index):
+    """ParadeDB index.
 
-    suffix = "bm25"
+    The index is created with ``USING paradedb``, the index access method
+    name in pg_search 0.25.0+.
+    """
+
+    suffix = "search"
 
     def __init__(
         self,
@@ -218,7 +222,7 @@ class BM25Index(models.Index):
             create_stmt += " CONCURRENTLY"
         template = (
             f"{create_stmt} %(name)s ON %(table)s\n"
-            "USING bm25 (\n"
+            "USING paradedb (\n"
             "    %(expressions)s\n"
             ")\n"
             f"WITH ({', '.join(storage_params)})"
@@ -381,4 +385,4 @@ class BM25Index(models.Index):
         return expressions
 
 
-__all__ = ["BM25Index", "IndexExpression"]
+__all__ = ["IndexExpression", "ParadeDBIndex"]

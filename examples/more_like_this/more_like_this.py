@@ -18,7 +18,6 @@ from django.db.models import Q
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from common import MockItem, setup_mock_items
-from django.db.utils import DatabaseError
 
 from paradedb.functions import Score
 from paradedb.search import MoreLikeThis, ParadeDB
@@ -218,18 +217,13 @@ def demo_multifield_similarity() -> None:
         print(f"  {item.id}: {item.description[:40]}... [{item.category}]")
 
     # By both description and category
-    # Note: This requires both fields to be stored in the BM25 index
-    print("\nSimilar by DESCRIPTION + CATEGORY (if both indexed):")
-    try:
-        by_both = MockItem.objects.filter(
-            id=ParadeDB(MoreLikeThis(id=source_id, fields=["description", "category"]))
-        ).exclude(id=source_id)[:3]
-        for item in by_both:
-            print(f"  {item.id}: {item.description[:40]}... [{item.category}]")
-    except DatabaseError as exc:
-        print("  (Skipped: category field is not available in your BM25 index config)")
-        print(f"  Database error: {exc}")
-        print("  Note: examples/common.py indexes both 'description' and 'category'.")
+    # Note: This requires both fields to be stored in the ParadeDB index
+    print("\nSimilar by DESCRIPTION + CATEGORY:")
+    by_both = MockItem.objects.filter(
+        id=ParadeDB(MoreLikeThis(id=source_id, fields=["description", "category"]))
+    ).exclude(id=source_id)[:3]
+    for item in by_both:
+        print(f"  {item.id}: {item.description[:40]}... [{item.category}]")
 
 
 if __name__ == "__main__":

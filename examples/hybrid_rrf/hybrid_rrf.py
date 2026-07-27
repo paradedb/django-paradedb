@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common import QUERY_EMBEDDINGS, setup_mock_items
 from common import MockItemWithEmbedding as MockItem
 from django.db.models import F, FloatField, Sum, Window
 from django.db.models.expressions import ExpressionWrapper, Value
@@ -28,14 +29,6 @@ if MockItem is None:
         "pgvector is required for this example. Install the example extras with "
         "'uv sync --extra examples'."
     )
-
-
-def get_query_embedding(text: str) -> list[float]:
-    """Get pre-computed embedding for query text."""
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from setup import QUERY_EMBEDDINGS
-
-    return QUERY_EMBEDDINGS[text]
 
 
 def _rrf_score(k: float) -> ExpressionWrapper:
@@ -82,8 +75,7 @@ def hybrid_search(
 
     # CTE 2: Vector similarity search with ROW_NUMBER rank
     semantic_qs = (
-        MockItem.objects.filter(embedding__isnull=False)
-        .annotate(distance=CosineDistance("embedding", query_embedding))
+        MockItem.objects.annotate(distance=CosineDistance("embedding", query_embedding))
         .annotate(rank=Window(expression=RowNumber(), order_by=F("distance").asc()))
         .order_by("distance")
         .values("id", "rank")[:top_k]
@@ -134,8 +126,7 @@ def display_results(query: str, results: list) -> None:
 
 def demo(query: str) -> None:
     """Run hybrid search demo for a query."""
-    query_embedding = get_query_embedding(query)
-    results = hybrid_search(query, query_embedding)
+    results = hybrid_search(query, QUERY_EMBEDDINGS[query])
     display_results(query, results)
 
 
@@ -146,10 +137,8 @@ if __name__ == "__main__":
     print("\nSingle-query CTE: BM25 (keyword) + Vector (semantic)")
     print("RRF formula: score = sum(1 / (k + rank)) across all rankings")
 
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from setup import setup
-
-    setup()
+    count = setup_mock_items()
+    print(f"Loaded {count} products")
 
     demo("running shoes")
     demo("footwear for exercise")

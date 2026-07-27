@@ -178,7 +178,7 @@ def test_paradedb_verify_all_indexes_command_parser_and_handle() -> None:
             "--schema-pattern",
             "public",
             "--index-pattern",
-            "%bm25%",
+            "%search%",
             "--heapallindexed",
             "--sample-rate",
             "0.1",
@@ -189,7 +189,7 @@ def test_paradedb_verify_all_indexes_command_parser_and_handle() -> None:
         ]
     )
     assert parsed.schema_pattern == "public"
-    assert parsed.index_pattern == "%bm25%"
+    assert parsed.index_pattern == "%search%"
     assert parsed.database == "search"
 
     with (
@@ -201,7 +201,7 @@ def test_paradedb_verify_all_indexes_command_parser_and_handle() -> None:
     ):
         command.handle(
             schema_pattern="public",
-            index_pattern="%bm25%",
+            index_pattern="%search%",
             heapallindexed=True,
             sample_rate=0.1,
             report_progress=True,
@@ -211,7 +211,7 @@ def test_paradedb_verify_all_indexes_command_parser_and_handle() -> None:
     validate.assert_called_once_with(0.1)
     helper.assert_called_once_with(
         schema_pattern="public",
-        index_pattern="%bm25%",
+        index_pattern="%search%",
         heapallindexed=True,
         sample_rate=0.1,
         report_progress=True,
@@ -227,7 +227,7 @@ def test_paradedb_indexes_helper_returns_mock_items_index() -> None:
         json.dumps(rows, indent=2, sort_keys=True, default=str)
         == """[
   {
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "indexrelid": 0,
     "num_segments": 1,
     "schemaname": "public",
@@ -244,7 +244,7 @@ def test_paradedb_indexes_all_arguments() -> None:
         json.dumps(rows, indent=2, sort_keys=True, default=str)
         == """[
   {
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "indexrelid": 0,
     "num_segments": 1,
     "schemaname": "public",
@@ -258,7 +258,7 @@ def test_paradedb_indexes_all_arguments() -> None:
 def test_paradedb_index_segments_helper_returns_segments() -> None:
     rows = [
         row | {"segment_id": "<segment_id>"}
-        for row in paradedb_index_segments("mock_items_bm25_idx")
+        for row in paradedb_index_segments("mock_items_search_idx")
     ]
     assert (
         json.dumps(rows, indent=2, sort_keys=True, default=str)
@@ -267,7 +267,7 @@ def test_paradedb_index_segments_helper_returns_segments() -> None:
     "max_doc": 41,
     "num_deleted": 0,
     "num_docs": 41,
-    "partition_name": "mock_items_bm25_idx",
+    "partition_name": "mock_items_search_idx",
     "segment_id": "<segment_id>",
     "segment_idx": 0
   }
@@ -278,7 +278,7 @@ def test_paradedb_index_segments_helper_returns_segments() -> None:
 def test_paradedb_index_segments_all_arguments() -> None:
     rows = [
         row | {"segment_id": "<segment_id>"}
-        for row in paradedb_index_segments("mock_items_bm25_idx", using="default")
+        for row in paradedb_index_segments("mock_items_search_idx", using="default")
     ]
     assert (
         json.dumps(rows, indent=2, sort_keys=True, default=str)
@@ -287,7 +287,7 @@ def test_paradedb_index_segments_all_arguments() -> None:
     "max_doc": 41,
     "num_deleted": 0,
     "num_docs": 41,
-    "partition_name": "mock_items_bm25_idx",
+    "partition_name": "mock_items_search_idx",
     "segment_id": "<segment_id>",
     "segment_idx": 0
   }
@@ -296,27 +296,27 @@ def test_paradedb_index_segments_all_arguments() -> None:
 
 
 def test_paradedb_verify_index_helper_returns_checks() -> None:
-    rows = paradedb_verify_index("mock_items_bm25_idx")
+    rows = paradedb_verify_index("mock_items_search_idx")
     assert (
         json.dumps(rows, indent=2, sort_keys=True, default=str)
         == """[
   {
-    "check_name": "mock_items_bm25_idx: schema_valid",
+    "check_name": "mock_items_search_idx: schema_valid",
     "details": "Index schema loaded successfully",
     "passed": true
   },
   {
-    "check_name": "mock_items_bm25_idx: index_readable",
+    "check_name": "mock_items_search_idx: index_readable",
     "details": "Index reader opened successfully",
     "passed": true
   },
   {
-    "check_name": "mock_items_bm25_idx: checksums_valid",
+    "check_name": "mock_items_search_idx: checksums_valid",
     "details": "All segment checksums validated successfully",
     "passed": true
   },
   {
-    "check_name": "mock_items_bm25_idx: segment_metadata_valid",
+    "check_name": "mock_items_search_idx: segment_metadata_valid",
     "details": "1 segments validated successfully",
     "passed": true
   }
@@ -326,7 +326,7 @@ def test_paradedb_verify_index_helper_returns_checks() -> None:
 
 def test_paradedb_verify_index_all_arguments() -> None:
     rows = paradedb_verify_index(
-        "mock_items_bm25_idx",
+        "mock_items_search_idx",
         heapallindexed=True,
         sample_rate=0.7,
         report_progress=True,
@@ -339,32 +339,32 @@ def test_paradedb_verify_index_all_arguments() -> None:
         json.dumps(rows, indent=2, sort_keys=True, default=str)
         == """[
   {
-    "check_name": "mock_items_bm25_idx: schema_valid",
+    "check_name": "mock_items_search_idx: schema_valid",
     "details": "Index schema loaded successfully",
     "passed": true
   },
   {
-    "check_name": "mock_items_bm25_idx: index_readable",
+    "check_name": "mock_items_search_idx: index_readable",
     "details": "Index reader opened successfully",
     "passed": true
   },
   {
-    "check_name": "mock_items_bm25_idx: checksums_valid",
+    "check_name": "mock_items_search_idx: checksums_valid",
     "details": "All segment checksums validated successfully",
     "passed": true
   },
   {
-    "check_name": "mock_items_bm25_idx: segment_metadata_valid",
+    "check_name": "mock_items_search_idx: segment_metadata_valid",
     "details": "1 of 1 segments validated successfully",
     "passed": true
   },
   {
-    "check_name": "mock_items_bm25_idx: ctid_field_valid",
+    "check_name": "mock_items_search_idx: ctid_field_valid",
     "details": "All 29 documents have valid ctid (sampled 29 of 29 docs)",
     "passed": true
   },
   {
-    "check_name": "mock_items_bm25_idx: heap_references_valid",
+    "check_name": "mock_items_search_idx: heap_references_valid",
     "details": "All 29 indexed ctids exist in heap (sampled 29 of 29 docs)",
     "passed": true
   }
@@ -378,30 +378,30 @@ def test_paradedb_verify_all_indexes_basic() -> None:
         json.dumps(rows, indent=2, sort_keys=True, default=str)
         == """[
   {
-    "check_name": "mock_items_bm25_idx: schema_valid",
+    "check_name": "mock_items_search_idx: schema_valid",
     "details": "Index schema loaded successfully",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   },
   {
-    "check_name": "mock_items_bm25_idx: index_readable",
+    "check_name": "mock_items_search_idx: index_readable",
     "details": "Index reader opened successfully",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   },
   {
-    "check_name": "mock_items_bm25_idx: checksums_valid",
+    "check_name": "mock_items_search_idx: checksums_valid",
     "details": "All segment checksums validated successfully",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   },
   {
-    "check_name": "mock_items_bm25_idx: segment_metadata_valid",
+    "check_name": "mock_items_search_idx: segment_metadata_valid",
     "details": "1 segments validated successfully",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   }
@@ -411,7 +411,7 @@ def test_paradedb_verify_all_indexes_basic() -> None:
 
 def test_paradedb_verify_all_indexes_all_arguments() -> None:
     rows = paradedb_verify_all_indexes(
-        index_pattern="mock_items_bm25_idx",
+        index_pattern="mock_items_search_idx",
         schema_pattern="public",
         heapallindexed=True,
         sample_rate=0.7,
@@ -422,44 +422,44 @@ def test_paradedb_verify_all_indexes_all_arguments() -> None:
         json.dumps(rows, indent=2, sort_keys=True, default=str)
         == """[
   {
-    "check_name": "mock_items_bm25_idx: schema_valid",
+    "check_name": "mock_items_search_idx: schema_valid",
     "details": "Index schema loaded successfully",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   },
   {
-    "check_name": "mock_items_bm25_idx: index_readable",
+    "check_name": "mock_items_search_idx: index_readable",
     "details": "Index reader opened successfully",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   },
   {
-    "check_name": "mock_items_bm25_idx: checksums_valid",
+    "check_name": "mock_items_search_idx: checksums_valid",
     "details": "All segment checksums validated successfully",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   },
   {
-    "check_name": "mock_items_bm25_idx: segment_metadata_valid",
+    "check_name": "mock_items_search_idx: segment_metadata_valid",
     "details": "1 segments validated successfully",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   },
   {
-    "check_name": "mock_items_bm25_idx: ctid_field_valid",
+    "check_name": "mock_items_search_idx: ctid_field_valid",
     "details": "All 29 documents have valid ctid (sampled 29 of 29 docs)",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   },
   {
-    "check_name": "mock_items_bm25_idx: heap_references_valid",
+    "check_name": "mock_items_search_idx: heap_references_valid",
     "details": "All 29 indexed ctids exist in heap (sampled 29 of 29 docs)",
-    "indexname": "mock_items_bm25_idx",
+    "indexname": "mock_items_search_idx",
     "passed": true,
     "schemaname": "public"
   }
@@ -471,12 +471,12 @@ def test_paradedb_indexes_command() -> None:
     stdout = StringIO()
     call_command("paradedb_indexes", stdout=stdout)
     payload = json.loads(stdout.getvalue())
-    assert any(row["indexname"] == "mock_items_bm25_idx" for row in payload)
+    assert any(row["indexname"] == "mock_items_search_idx" for row in payload)
 
 
 def test_paradedb_index_segments_command() -> None:
     stdout = StringIO()
-    call_command("paradedb_index_segments", "mock_items_bm25_idx", stdout=stdout)
+    call_command("paradedb_index_segments", "mock_items_search_idx", stdout=stdout)
     payload = json.loads(stdout.getvalue())
     assert payload
 
@@ -485,7 +485,7 @@ def test_paradedb_verify_index_command() -> None:
     stdout = StringIO()
     call_command(
         "paradedb_verify_index",
-        "mock_items_bm25_idx",
+        "mock_items_search_idx",
         sample_rate=0.1,
         stdout=stdout,
     )
@@ -498,7 +498,7 @@ def test_paradedb_verify_all_indexes_command() -> None:
     stdout = StringIO()
     call_command(
         "paradedb_verify_all_indexes",
-        index_pattern="mock_items_bm25_idx",
+        index_pattern="mock_items_search_idx",
         stdout=stdout,
     )
     payload = json.loads(stdout.getvalue())

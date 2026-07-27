@@ -66,7 +66,8 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
 
     with django_db_blocker.unblock(), connection.cursor() as cursor:
         try:
-            cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search;")
+            cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search CASCADE;")
         except Exception as exc:  # pragma: no cover - defensive skip
             pytest.fail(
                 f"ParadeDB pg_search extension unavailable in target database: {exc}"
@@ -74,9 +75,9 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
         cursor.execute(
             "CALL paradedb.create_bm25_test_table(schema_name => 'public', table_name => 'mock_items');"
         )
-        cursor.execute("DROP INDEX IF EXISTS mock_items_bm25_idx;")
+        cursor.execute("DROP INDEX IF EXISTS mock_items_search_idx;")
         cursor.execute(
-            "CREATE INDEX mock_items_bm25_idx ON mock_items USING bm25 ("
+            "CREATE INDEX mock_items_search_idx ON mock_items USING paradedb ("
             "id, "
             "description, "
             "category, "
@@ -87,7 +88,7 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
             ") WITH (key_field='id', json_fields='{\"metadata\":{\"fast\":true}}');"
         )
         cursor.execute(
-            "SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'mock_items_bm25_idx';"
+            "SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'mock_items_search_idx';"
         )
         index_present = cursor.fetchone() is not None
         cursor.execute("SELECT COUNT(*) FROM mock_items;")
@@ -105,7 +106,7 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
             ]
         )
         assert row_count > 0, "mock_items should be seeded with rows"
-        assert index_present, "mock_items_bm25_idx should exist"
+        assert index_present, "mock_items_search_idx should exist"
 
         connection.commit()
 

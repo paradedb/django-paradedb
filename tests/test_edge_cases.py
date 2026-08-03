@@ -7,6 +7,7 @@ These are unit tests that don't require a database.
 from __future__ import annotations
 
 import pytest
+from django.db import connection
 
 from paradedb.search import (
     Boost,
@@ -23,6 +24,7 @@ from paradedb.search import (
     Regex,
     RegexPhrase,
 )
+from paradedb.vector import VectorField, parse_vector, serialize_vector
 from tests.models import MockItem
 
 
@@ -278,7 +280,7 @@ class TestExpressionValidation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'right\' ## 1 ## \'tail\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'right\' ## 1 ## \'tail\')'
         )
 
 
@@ -422,3 +424,41 @@ class TestMoreLikeThisValidation:
 
         with pytest.raises(ValueError, match="key_field cannot be empty"):
             MoreLikeThis(id=1, key_field="")
+
+
+class TestVectorFieldValidation:
+    """Validation and serialization coverage for VectorField."""
+
+    def test_db_type_with_dimensions(self) -> None:
+        assert VectorField(dimensions=384).db_type(connection) == "vector(384)"
+
+    def test_db_type_without_dimensions(self) -> None:
+        assert VectorField().db_type(connection) == "vector"
+
+    @pytest.mark.parametrize("dimensions", [0, -1, True, 1.5, "3"])
+    def test_invalid_dimensions_raise(self, dimensions: object) -> None:
+        with pytest.raises(ValueError, match="positive integer"):
+            VectorField(dimensions=dimensions)  # type: ignore[arg-type]
+
+    def test_get_prep_value_serializes_sequence(self) -> None:
+        assert VectorField().get_prep_value([1, 2.5, -3]) == "[1.0,2.5,-3.0]"
+
+    def test_get_prep_value_passes_through_none_and_str(self) -> None:
+        field = VectorField()
+        assert field.get_prep_value(None) is None
+        assert field.get_prep_value("[1,2,3]") == "[1,2,3]"
+
+    def test_from_db_value_parses_text(self) -> None:
+        field = VectorField()
+        assert field.from_db_value("[1,2.5,-3]", None, connection) == [1.0, 2.5, -3.0]  # type: ignore[arg-type]
+        assert field.from_db_value(None, None, connection) is None  # type: ignore[arg-type]
+
+    def test_to_python(self) -> None:
+        field = VectorField()
+        assert field.to_python("[1,2]") == [1.0, 2.0]
+        assert field.to_python([1.0, 2.0]) == [1.0, 2.0]
+        assert field.to_python(None) is None
+
+    def test_serialize_parse_roundtrip(self) -> None:
+        assert parse_vector(serialize_vector([0.25, -1.5, 3])) == [0.25, -1.5, 3.0]
+        assert parse_vector("[]") == []

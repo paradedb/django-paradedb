@@ -6,6 +6,8 @@ the SQL is valid. We usually don't care about the results returned
 from the DB as long as the SQL itself is valid.
 """
 
+from typing import ClassVar
+
 import pytest
 from django.contrib.postgres.fields import ArrayField
 from django.db import connection
@@ -38,6 +40,7 @@ from paradedb.search import (
     Tokenized,
     Tokenizer,
 )
+from paradedb.vector import CosineDistance, InnerProduct, L2Distance, parse_vector
 from tests.models import MockItem
 
 pytestmark = [
@@ -65,7 +68,7 @@ class TestAggAnnotation:
         ).annotate(facets=Window(expression=Agg(json_spec)))[:10]
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "facets" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\' LIMIT 10'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "facets" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\' LIMIT 10'
         )
         _run_query(queryset)
 
@@ -75,7 +78,7 @@ class TestAggAnnotation:
         ).annotate(agg=Window(expression=Agg('{"value_count": {"field": "id"}}')))[:1]
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "agg" FROM "mock_items" WHERE "mock_items"."category" @@@ pdb.term(\'electronics\') LIMIT 1'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "agg" FROM "mock_items" WHERE "mock_items"."category" @@@ pdb.term(\'electronics\') LIMIT 1'
         )
         _run_query(queryset)
 
@@ -101,7 +104,7 @@ class TestAggAnnotation:
         )[:1]
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"avg": {"field": "rating"}}\') OVER () AS "avg_rating", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "count" FROM "mock_items" WHERE "mock_items"."category" @@@ pdb.term(\'electronics\') LIMIT 1'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.agg(\'{"avg": {"field": "rating"}}\') OVER () AS "avg_rating", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "count" FROM "mock_items" WHERE "mock_items"."category" @@@ pdb.term(\'electronics\') LIMIT 1'
         )
         _run_query(queryset)
 
@@ -111,7 +114,7 @@ class TestAggAnnotation:
         )[:1]
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "agg" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() LIMIT 1'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.agg(\'{"value_count": {"field": "id"}}\') OVER () AS "agg" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() LIMIT 1'
         )
         _run_query(queryset)
 
@@ -139,7 +142,7 @@ class TestAggAnnotation:
         )[:1]
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"terms": {"field": "metadata.color"}}\') OVER () AS "agg" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() LIMIT 1'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.agg(\'{"terms": {"field": "metadata.color"}}\') OVER () AS "agg" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() LIMIT 1'
         )
         _run_query(queryset)
 
@@ -156,7 +159,7 @@ class TestFacets:
         ].annotate(facets=Window(expression=Agg(json_spec, exact=False)))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.agg(\'{"terms":{"field":"metadata.color","order":{"_count":"desc"},"size":10}}\', false) OVER () AS "facets" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\' LIMIT 10'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.agg(\'{"terms":{"field":"metadata.color","order":{"_count":"desc"},"size":10}}\', false) OVER () AS "facets" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\' LIMIT 10'
         )
         _run_query(queryset)
 
@@ -237,7 +240,7 @@ class TestParadeDBLookup:
         queryset = MockItem.objects.filter(description=ParadeDB(MatchAll("shoes")))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
         )
         _run_query(queryset)
 
@@ -248,7 +251,7 @@ class TestParadeDBLookup:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'running\', \'shoes\']'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'running\', \'shoes\']'
         )
         _run_query(queryset)
 
@@ -259,7 +262,7 @@ class TestParadeDBLookup:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'running\', \'shoes\', \'lightweight\']'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'running\', \'shoes\', \'lightweight\']'
         )
         _run_query(queryset)
 
@@ -270,7 +273,7 @@ class TestParadeDBLookup:
         sql, params = queryset.query.sql_with_params()
         assert (
             sql
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& TRIM(%s)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" &&& TRIM(%s)'
         )
         assert params == ("shoes ",)
         _run_query(queryset)
@@ -293,7 +296,7 @@ class TestParadeDBLookup:
         sql, params = queryset.query.sql_with_params()
         assert (
             sql
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& (string_to_array(%s, %s))::text[]'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" &&& (string_to_array(%s, %s))::text[]'
         )
         assert params == ("running,shoes", ",")
         _run_query(queryset)
@@ -305,7 +308,7 @@ class TestParadeDBLookup:
         sql, params = queryset.query.sql_with_params()
         assert (
             sql
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ||| TRIM(%s)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ||| TRIM(%s)'
         )
         assert params == ("shoes ",)
         _run_query(queryset)
@@ -317,7 +320,7 @@ class TestParadeDBLookup:
         sql, params = queryset.query.sql_with_params()
         assert (
             sql
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.term(TRIM(%s))'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.term(TRIM(%s))'
         )
         assert params == ("shoes ",)
         _run_query(queryset)
@@ -330,7 +333,7 @@ class TestMoreLikeThis:
         queryset = MockItem.objects.filter(id=ParadeDB(MoreLikeThis(id=5)))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.more_like_this(5)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.more_like_this(5)'
         )
         _run_query(queryset)
 
@@ -351,7 +354,7 @@ class TestMoreLikeThis:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.more_like_this(5, ARRAY[description]::text[], min_term_frequency => 2, max_query_terms => 10, min_doc_frequency => 1, min_word_length => 3, max_word_length => 20, stopwords => ARRAY[the, and, or])'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.more_like_this(5, ARRAY[description]::text[], min_term_frequency => 2, max_query_terms => 10, min_doc_frequency => 1, min_word_length => 3, max_word_length => 20, stopwords => ARRAY[the, and, or])'
         )
 
     def test_mlt_string_id_with_options(self) -> None:
@@ -375,7 +378,7 @@ class TestMoreLikeThis:
         _assert_sql(
             sql,
             """
-            SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+            SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
             FROM "mock_items"
             WHERE "mock_items"."id" @@@ pdb.more_like_this(%s, ARRAY[%s]::text[], min_term_frequency => 2, max_query_terms => 10, min_doc_frequency => 1, min_word_length => 3, max_word_length => 20, stopwords => ARRAY[%s, %s, %s])
             """,
@@ -392,7 +395,7 @@ class TestExactLiteralDisjunction:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ||| \'running shoes\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ||| \'running shoes\''
         )
         _run_query(queryset)
 
@@ -402,7 +405,7 @@ class TestExactLiteralDisjunction:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ||| ARRAY[\'shoes\', \'boots\']'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ||| ARRAY[\'shoes\', \'boots\']'
         )
         _run_query(queryset)
 
@@ -417,7 +420,7 @@ class TestPhraseSearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ### \'wireless bluetooth\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ### \'wireless bluetooth\''
         )
         _run_query(queryset)
 
@@ -428,7 +431,7 @@ class TestPhraseSearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ### \'running shoes\'::pdb.slop(1)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ### \'running shoes\'::pdb.slop(1)'
         )
         _run_query(queryset)
 
@@ -438,7 +441,7 @@ class TestPhraseSearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ### ARRAY[\'running shoes\', \'sneakers\']'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ### ARRAY[\'running shoes\', \'sneakers\']'
         )
         _run_query(queryset)
 
@@ -448,7 +451,7 @@ class TestPhraseSearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ### ARRAY[\'running shoes\', \'sneakers\']::pdb.slop(7)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ### ARRAY[\'running shoes\', \'sneakers\']::pdb.slop(7)'
         )
         _run_query(queryset)
 
@@ -462,7 +465,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## \'shoes\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## \'shoes\')'
         )
         _run_query(queryset)
 
@@ -472,7 +475,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ##> 2 ##> \'shoes\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ##> 2 ##> \'shoes\')'
         )
         _run_query(queryset)
 
@@ -482,7 +485,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## \'shoes\')::pdb.boost(1.5)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## \'shoes\')::pdb.boost(1.5)'
         )
         _run_query(queryset)
 
@@ -492,7 +495,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## \'shoes\')::pdb.const(1.0)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## \'shoes\')::pdb.const(1.0)'
         )
         _run_query(queryset)
 
@@ -504,7 +507,7 @@ class TestProximitySearch:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## \'shoes\' ## 2 ## \'lightweight\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## \'shoes\' ## 2 ## \'lightweight\')'
         )
         _run_query(queryset)
 
@@ -530,7 +533,7 @@ class TestDistanceOption:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ||| \'sheos\'::pdb.fuzzy(1)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ||| \'sheos\'::pdb.fuzzy(1)'
         )
         _run_query(queryset)
 
@@ -541,7 +544,7 @@ class TestDistanceOption:
         # Fuzzy is applied to the whole array, not per-element
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ||| ARRAY[\'runnning\', \'shoez\']::pdb.fuzzy(1)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ||| ARRAY[\'runnning\', \'shoez\']::pdb.fuzzy(1)'
         )
         _run_query(queryset)
 
@@ -557,7 +560,7 @@ class TestTokenizerOverride:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& \'running shoes\'::pdb.whitespace'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" &&& \'running shoes\'::pdb.whitespace'
         )
         _run_query(queryset)
 
@@ -569,7 +572,7 @@ class TestTokenizerOverride:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ||| \'running shoes\'::pdb.whitespace'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ||| \'running shoes\'::pdb.whitespace'
         )
         _run_query(queryset)
 
@@ -581,7 +584,7 @@ class TestTokenizerOverride:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ### \'running shoes\'::pdb.whitespace'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ### \'running shoes\'::pdb.whitespace'
         )
         _run_query(queryset)
 
@@ -598,7 +601,7 @@ class TestTokenizerOverride:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& \'running shoes\'::pdb.whitespace(\'lowercase=false\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" &&& \'running shoes\'::pdb.whitespace(\'lowercase=false\')'
         )
         _run_query(queryset)
 
@@ -617,7 +620,7 @@ class TestTokenizerOverride:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" ||| \'wireless keyboard\'::pdb.simple(\'lowercase=false\',\'remove_long=20\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" ||| \'wireless keyboard\'::pdb.simple(\'lowercase=false\',\'remove_long=20\')'
         )
         _run_query(queryset)
 
@@ -629,7 +632,7 @@ class TestTokenizerOverride:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& \'running shoes\'::pdb.ngram(3,3)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" &&& \'running shoes\'::pdb.ngram(3,3)'
         )
         _run_query(queryset)
 
@@ -643,7 +646,7 @@ class TestTokenizerOverride:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\'::pdb.whitespace::pdb.boost(2.0)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\'::pdb.whitespace::pdb.boost(2.0)'
         )
         _run_query(queryset)
 
@@ -658,7 +661,7 @@ class TestParseQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.parse(\'running AND shoes\', lenient => true)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.parse(\'running AND shoes\', lenient => true)'
         )
         _run_query(queryset)
 
@@ -668,7 +671,7 @@ class TestParseQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.parse(\'running shoes\', conjunction_mode => true)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.parse(\'running shoes\', conjunction_mode => true)'
         )
         _run_query(queryset)
 
@@ -682,7 +685,7 @@ class TestPhrasePrefixQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])'
         )
         _run_query(queryset)
 
@@ -692,7 +695,7 @@ class TestPhrasePrefixQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'], max_expansion => 50)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'], max_expansion => 50)'
         )
         _run_query(queryset)
 
@@ -702,7 +705,7 @@ class TestPhrasePrefixQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])::pdb.boost(2.0)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])::pdb.boost(2.0)'
         )
         _run_query(queryset)
 
@@ -712,7 +715,7 @@ class TestPhrasePrefixQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])::pdb.const(1.0)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.phrase_prefix(ARRAY[\'running\', \'sh\'])::pdb.const(1.0)'
         )
         _run_query(queryset)
 
@@ -730,7 +733,7 @@ class TestRegexPhraseQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.regex_phrase(ARRAY[\'run.*\', \'sho.*\'])'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.regex_phrase(ARRAY[\'run.*\', \'sho.*\'])'
         )
         _run_query(queryset)
 
@@ -742,7 +745,7 @@ class TestRegexPhraseQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.regex_phrase(ARRAY[\'run.*\', \'sho.*\'], slop => 2, max_expansions => 100)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.regex_phrase(ARRAY[\'run.*\', \'sho.*\'], slop => 2, max_expansions => 100)'
         )
         _run_query(queryset)
 
@@ -754,7 +757,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 1 ## pdb.prox_regex(\'sho.*\'))'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 1 ## pdb.prox_regex(\'sho.*\'))'
         )
         _run_query(queryset)
 
@@ -764,7 +767,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (pdb.prox_array(\'sleek\', \'running\') ## 1 ## \'shoes\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (pdb.prox_array(\'sleek\', \'running\') ## 1 ## \'shoes\')'
         )
         _run_query(queryset)
 
@@ -776,7 +779,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (pdb.prox_array(\'chicken\', pdb.prox_regex(\'r..s\')) ## 1 ## \'delicious\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (pdb.prox_array(\'chicken\', pdb.prox_regex(\'r..s\')) ## 1 ## \'delicious\')'
         )
         _run_query(queryset)
 
@@ -791,7 +794,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (pdb.prox_array(pdb.prox_regex(\'sl.*\', 100), \'white\') ## 1 ## \'shoes\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (pdb.prox_array(pdb.prox_regex(\'sl.*\', 100), \'white\') ## 1 ## \'shoes\')'
         )
         _run_query(queryset)
 
@@ -806,7 +809,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 1 ## pdb.prox_regex(\'sho.*\', 80))'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 1 ## pdb.prox_regex(\'sho.*\', 80))'
         )
         _run_query(queryset)
 
@@ -821,7 +824,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 1 ## pdb.prox_array(\'shoes\', pdb.prox_regex(\'boot.*\', 80)))'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 1 ## pdb.prox_array(\'shoes\', pdb.prox_regex(\'boot.*\', 80)))'
         )
         _run_query(queryset)
 
@@ -835,7 +838,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (pdb.prox_regex(\'sho.*\') ##> 1 ##> pdb.prox_array(\'history\', \'science\') ## 5 ## \'hardcover\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (pdb.prox_regex(\'sho.*\') ##> 1 ##> pdb.prox_array(\'history\', \'science\') ## 5 ## \'hardcover\')'
         )
         _run_query(queryset)
 
@@ -852,7 +855,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## pdb.prox_array(pdb.prox_regex(\'sho.*\', 80), \'boots\') ##> 4 ##> \'hardcover\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## pdb.prox_array(pdb.prox_regex(\'sho.*\', 80), \'boots\') ##> 4 ##> \'hardcover\')'
         )
         _run_query(queryset)
 
@@ -866,7 +869,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## (\'shoes\' ##> 4 ##> \'hardcover\'))'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## (\'shoes\' ##> 4 ##> \'hardcover\'))'
         )
         _run_query(queryset)
 
@@ -894,7 +897,7 @@ class TestProximityAdvancedQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## (pdb.prox_array(\'shoes\', pdb.prox_regex(\'sho.*\'), pdb.prox_array(\'shoe\', pdb.prox_array(pdb.prox_regex(\'shoe\')))) ##> 4 ##> \'hardcover\' ## 100 ## \'foo\') ## 2 ## pdb.prox_regex(\'bar\'))::pdb.boost(1.2)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ (\'running\' ## 2 ## (pdb.prox_array(\'shoes\', pdb.prox_regex(\'sho.*\'), pdb.prox_array(\'shoe\', pdb.prox_array(pdb.prox_regex(\'shoe\')))) ##> 4 ##> \'hardcover\' ## 100 ## \'foo\') ## 2 ## pdb.prox_regex(\'bar\'))::pdb.boost(1.2)'
         )
         _run_query(queryset)
 
@@ -904,7 +907,7 @@ class TestRangeTermQuery:
         queryset = MockItem.objects.filter(description=ParadeDB(RangeTerm(10)))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.range_term(10)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.range_term(10)'
         )
         _run_query(queryset)
 
@@ -916,7 +919,7 @@ class TestRangeTermQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.range_term(\'(10, 12]\'::int4range, \'Intersects\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.range_term(\'(10, 12]\'::int4range, \'Intersects\')'
         )
         _run_query(queryset)
 
@@ -943,7 +946,7 @@ class TestTermQuery:
         queryset = MockItem.objects.filter(description=ParadeDB(Term("shoes")))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.term(\'shoes\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.term(\'shoes\')'
         )
         _run_query(queryset)
 
@@ -956,7 +959,7 @@ class TestRegexQuery:
         queryset = MockItem.objects.filter(description=ParadeDB(Regex("run.*shoes")))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.regex(\'run.*shoes\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.regex(\'run.*shoes\')'
         )
         _run_query(queryset)
 
@@ -966,7 +969,7 @@ class TestExistsQuery:
         queryset = MockItem.objects.filter(id=ParadeDB(Exists()))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.exists()'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.exists()'
         )
         _run_query(queryset)
 
@@ -978,7 +981,7 @@ class TestFuzzyTermQuery:
         queryset = MockItem.objects.filter(description=ParadeDB(FuzzyTerm("shoes")))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.fuzzy_term(\'shoes\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.fuzzy_term(\'shoes\')'
         )
         _run_query(queryset)
 
@@ -988,7 +991,7 @@ class TestFuzzyTermQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.fuzzy_term(\'shoes\')::pdb.fuzzy(2)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.fuzzy_term(\'shoes\')::pdb.fuzzy(2)'
         )
         _run_query(queryset)
 
@@ -1002,7 +1005,7 @@ class TestTermSetQuery:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.term_set(ARRAY[\'shoes\', \'boots\']::text[])'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."description" @@@ pdb.term_set(ARRAY[\'shoes\', \'boots\']::text[])'
         )
         _run_query(queryset)
 
@@ -1010,7 +1013,7 @@ class TestTermSetQuery:
         queryset = MockItem.objects.filter(rating=ParadeDB(TermSet(1, 2, 3)))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."rating" @@@ pdb.term_set(ARRAY[1, 2, 3]::bigint[])'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."rating" @@@ pdb.term_set(ARRAY[1, 2, 3]::bigint[])'
         )
         _run_query(queryset)
 
@@ -1018,7 +1021,7 @@ class TestTermSetQuery:
         queryset = MockItem.objects.filter(in_stock=ParadeDB(TermSet(True, False)))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE "mock_items"."in_stock" @@@ pdb.term_set(ARRAY[true, false]::boolean[])'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."in_stock" @@@ pdb.term_set(ARRAY[true, false]::boolean[])'
         )
         _run_query(queryset)
 
@@ -1033,7 +1036,7 @@ class TestScoreAnnotation:
         ).annotate(search_score=Score())
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'running\', \'shoes\']'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'running\', \'shoes\']'
         )
         _run_query(queryset)
 
@@ -1046,7 +1049,7 @@ class TestScoreAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\' ORDER BY 8 DESC'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\' ORDER BY 9 DESC'
         )
         _run_query(queryset)
 
@@ -1059,7 +1062,7 @@ class TestScoreAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' AND pdb.score("mock_items"."id") > 0.0)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' AND pdb.score("mock_items"."id") > 0.0)'
         )
         _run_query(queryset)
 
@@ -1072,7 +1075,7 @@ class TestScoreAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' AND pdb.score("mock_items"."id") >= 0.1 AND pdb.score("mock_items"."id") <= 100.0)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' AND pdb.score("mock_items"."id") >= 0.1 AND pdb.score("mock_items"."id") <= 100.0)'
         )
         _run_query(queryset)
 
@@ -1086,7 +1089,7 @@ class TestScoreAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.score("mock_items"."id") AS "search_score", COALESCE(pdb.score("mock_items"."id"), 0.0) AS "safe_score" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.score("mock_items"."id") AS "search_score", COALESCE(pdb.score("mock_items"."id"), 0.0) AS "safe_score" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
         )
         _run_query(queryset)
 
@@ -1104,7 +1107,7 @@ class TestComplexQComposition:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' OR "mock_items"."description" &&& \'keyboard\' OR "mock_items"."description" &&& \'earbuds\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' OR "mock_items"."description" &&& \'keyboard\' OR "mock_items"."description" &&& \'earbuds\')'
         )
         _run_query(queryset)
 
@@ -1121,7 +1124,7 @@ class TestComplexQComposition:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ((("mock_items"."description" &&& \'shoes\' OR "mock_items"."description" &&& \'boots\') AND "mock_items"."rating" >= 3) OR "mock_items"."category" = Electronics)'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE ((("mock_items"."description" &&& \'shoes\' OR "mock_items"."description" &&& \'boots\') AND "mock_items"."rating" >= 3) OR "mock_items"."category" = Electronics)'
         )
         _run_query(queryset)
 
@@ -1135,7 +1138,7 @@ class TestComplexQComposition:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE (("mock_items"."description" &&& \'shoes\' OR "mock_items"."description" &&& \'boots\') AND NOT ("mock_items"."description" &&& \'running\'))'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE (("mock_items"."description" &&& \'shoes\' OR "mock_items"."description" &&& \'boots\') AND NOT ("mock_items"."description" &&& \'running\'))'
         )
         _run_query(queryset)
 
@@ -1152,7 +1155,7 @@ class TestMultipleSearchTypes:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ("mock_items"."description" ### \'running shoes\' OR "mock_items"."description" @@@ pdb.term(\'keyboard\'))'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE ("mock_items"."description" ### \'running shoes\' OR "mock_items"."description" @@@ pdb.term(\'keyboard\'))'
         )
         _run_query(queryset)
 
@@ -1162,7 +1165,7 @@ class TestMultipleSearchTypes:
         ).filter(description=ParadeDB(MatchAll("running")))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' AND "mock_items"."description" &&& \'running\')'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE ("mock_items"."description" &&& \'shoes\' AND "mock_items"."description" &&& \'running\')'
         )
         _run_query(queryset)
 
@@ -1177,7 +1180,7 @@ class TestSnippetAnnotation:
         ).annotate(snippet=Snippet("description"))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.snippet("mock_items"."description") AS "snippet" FROM "mock_items" WHERE "mock_items"."description" ||| ARRAY[\'wireless\', \'bluetooth\']'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippet("mock_items"."description") AS "snippet" FROM "mock_items" WHERE "mock_items"."description" ||| ARRAY[\'wireless\', \'bluetooth\']'
         )
         _run_query(queryset)
 
@@ -1195,7 +1198,7 @@ class TestSnippetAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.snippet("mock_items"."description", \'<mark>\', \'</mark>\', 100) AS "snippet" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippet("mock_items"."description", \'<mark>\', \'</mark>\', 100) AS "snippet" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
         )
         _run_query(queryset)
 
@@ -1210,7 +1213,7 @@ class TestSnippetsAnnotation:
         ).annotate(snippets=Snippets("description"))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.snippets("mock_items"."description") AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'artistic\', \'vase\']'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippets("mock_items"."description") AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'artistic\', \'vase\']'
         )
         _run_query(queryset)
 
@@ -1221,7 +1224,7 @@ class TestSnippetsAnnotation:
         ).annotate(snippets=Snippets("description", max_num_chars=15))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.snippets("mock_items"."description", max_num_chars => 15) AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'artistic\', \'vase\']'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippets("mock_items"."description", max_num_chars => 15) AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'artistic\', \'vase\']'
         )
         _run_query(queryset)
 
@@ -1234,7 +1237,7 @@ class TestSnippetsAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.snippets("mock_items"."description", max_num_chars => 15, "limit" => 1, "offset" => 1) AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& \'running\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippets("mock_items"."description", max_num_chars => 15, "limit" => 1, "offset" => 1) AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& \'running\''
         )
         _run_query(queryset)
 
@@ -1247,7 +1250,7 @@ class TestSnippetsAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.snippets("mock_items"."description", max_num_chars => 15, sort_by => \'position\') AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'artistic\', \'vase\']'
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippets("mock_items"."description", max_num_chars => 15, sort_by => \'position\') AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'artistic\', \'vase\']'
         )
         _run_query(queryset)
 
@@ -1268,9 +1271,133 @@ class TestSnippetsAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.snippets("mock_items"."description", start_tag => \'<mark>\', end_tag => \'</mark>\', max_num_chars => 30, "limit" => 2, "offset" => 0, sort_by => \'score\') AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippets("mock_items"."description", start_tag => \'<mark>\', end_tag => \'</mark>\', max_num_chars => 30, "limit" => 2, "offset" => 0, sort_by => \'score\') AS "snippets" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
         )
         _run_query(queryset)
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("mock_items")
+class TestVectorSearch:
+    """Test vector distance SQL generation and Top-K execution on mock_items.
+
+    The shared mock_items_search_idx indexes ``embedding`` with
+    ``vector_cosine_ops``, so cosine queries exercise Top-K index pushdown
+    while other operators fall back to a plain sort over the same index.
+    """
+
+    query_vector: ClassVar[list[float]] = [1, 0, 0, 0, 0, 0, 0, 0]
+
+    @staticmethod
+    def _anchor_embedding() -> list[float]:
+        anchor = MockItem.objects.order_by("id").first()
+        assert anchor is not None
+        assert anchor.embedding is not None
+        return list(anchor.embedding)
+
+    def test_l2_distance_order_by(self) -> None:
+        queryset = MockItem.objects.order_by(
+            L2Distance("embedding", self.query_vector)
+        )[:5]
+        sql, params = queryset.query.sql_with_params()
+        assert (
+            sql
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" ORDER BY ("mock_items"."embedding" <-> %s::vector) ASC LIMIT 5'
+        )
+        assert params == ("[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]",)
+        _run_query(queryset)
+
+    def test_cosine_distance_order_by(self) -> None:
+        queryset = MockItem.objects.order_by(
+            CosineDistance("embedding", self.query_vector)
+        )[:5]
+        sql, params = queryset.query.sql_with_params()
+        assert (
+            sql
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" ORDER BY ("mock_items"."embedding" <=> %s::vector) ASC LIMIT 5'
+        )
+        assert params == ("[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]",)
+        _run_query(queryset)
+
+    def test_inner_product_order_by(self) -> None:
+        queryset = MockItem.objects.order_by(
+            InnerProduct("embedding", self.query_vector)
+        )[:5]
+        sql, params = queryset.query.sql_with_params()
+        assert (
+            sql
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" ORDER BY ("mock_items"."embedding" <#> %s::vector) ASC LIMIT 5'
+        )
+        assert params == ("[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]",)
+        _run_query(queryset)
+
+    def test_distance_annotation(self) -> None:
+        queryset = MockItem.objects.annotate(
+            distance=L2Distance(F("embedding"), [0.5] * 8)
+        ).order_by("distance")[:3]
+        sql, params = queryset.query.sql_with_params()
+        assert (
+            sql
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", ("mock_items"."embedding" <-> %s::vector) AS "distance" FROM "mock_items" ORDER BY 9 ASC LIMIT 3'
+        )
+        assert params == ("[0.5,0.5,0.5,0.5,0.5,0.5,0.5,0.5]",)
+        _run_query(queryset)
+
+    def test_topk_query_with_match_all_predicate(self) -> None:
+        queryset = MockItem.objects.filter(id=ParadeDB(All())).order_by(
+            CosineDistance("embedding", self.query_vector)
+        )[:2]
+        sql, params = queryset.query.sql_with_params()
+        assert (
+            sql
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() ORDER BY ("mock_items"."embedding" <=> %s::vector) ASC LIMIT 2'
+        )
+        assert params == ("[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]",)
+        _run_query(queryset)
+
+    def test_embedding_roundtrip(self) -> None:
+        anchor = MockItem.objects.order_by("id").first()
+        assert anchor is not None
+        assert isinstance(anchor.embedding, list)
+        assert len(anchor.embedding) == 8
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT embedding::text FROM mock_items WHERE id = %s", [anchor.id]
+            )
+            (raw,) = cursor.fetchone()
+        assert anchor.embedding == pytest.approx(parse_vector(raw))
+
+    def test_topk_cosine_query_returns_nearest_neighbors(self) -> None:
+        embedding = self._anchor_embedding()
+        topk = list(
+            MockItem.objects.filter(id=ParadeDB(All()))
+            .annotate(distance=CosineDistance("embedding", embedding))
+            .order_by("distance")
+            .values_list("distance", flat=True)[:3]
+        )
+        full = sorted(
+            MockItem.objects.annotate(
+                distance=CosineDistance("embedding", embedding)
+            ).values_list("distance", flat=True)
+        )
+        assert topk == pytest.approx(full[:3])
+        assert topk[0] == pytest.approx(0.0, abs=1e-6)
+
+    def test_mismatched_operator_falls_back_to_sort(self) -> None:
+        embedding = self._anchor_embedding()
+        topk = list(
+            MockItem.objects.filter(id=ParadeDB(All()))
+            .annotate(distance=L2Distance("embedding", embedding))
+            .order_by("distance")
+            .values_list("distance", flat=True)[:3]
+        )
+        full = sorted(
+            MockItem.objects.annotate(
+                distance=L2Distance("embedding", embedding)
+            ).values_list("distance", flat=True)
+        )
+        assert topk == pytest.approx(full[:3])
+        assert topk[0] == pytest.approx(0.0, abs=1e-6)
 
 
 class TestSnippetPositionsAnnotation:
@@ -1283,7 +1410,7 @@ class TestSnippetPositionsAnnotation:
         ).annotate(positions=SnippetPositions("description"))
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.snippet_positions("mock_items"."description") AS "positions" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippet_positions("mock_items"."description") AS "positions" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
         )
         _run_query(queryset)
 
@@ -1297,7 +1424,7 @@ class TestSnippetPositionsAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", pdb.snippet("mock_items"."description") AS "snippet", pdb.snippet_positions("mock_items"."description") AS "positions" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippet("mock_items"."description") AS "snippet", pdb.snippet_positions("mock_items"."description") AS "positions" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
         )
         _run_query(queryset)
 
@@ -1335,7 +1462,7 @@ def test_fuzzy_transposition_cost_one() -> None:
     _assert_sql(
         str(queryset.query),
         """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
         FROM "mock_items"
         WHERE "mock_items"."description" @@@ pdb.term('shose')::pdb.fuzzy(1, f, t)
         """,
@@ -1352,7 +1479,7 @@ def test_boost_multi_term_or_query() -> None:
     _assert_sql(
         str(queryset.query),
         """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
         FROM "mock_items"
         WHERE "mock_items"."description" ||| ARRAY['shoes', 'boots']::pdb.boost(2.0)
         """,
@@ -1381,7 +1508,7 @@ def test_more_like_this_document_input_generates_correct_sql() -> None:
     _assert_sql(
         sql,
         """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
         FROM "mock_items"
         WHERE "mock_items"."id" @@@ pdb.more_like_this(%s)
         """,
@@ -1412,7 +1539,7 @@ def test_more_like_this_document_as_json_string() -> None:
     _assert_sql(
         sql,
         """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
         FROM "mock_items"
         WHERE "mock_items"."id" @@@ pdb.more_like_this(%s)
         """,
@@ -1435,7 +1562,7 @@ def test_multi_term_fuzzy_match_and_prefix() -> None:
     _assert_sql(
         str(queryset.query),
         """
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
         FROM "mock_items"
         WHERE "mock_items"."description" &&& ARRAY['slee', 'rann']::pdb.fuzzy(1, t)
         """,
@@ -1479,7 +1606,7 @@ def test_all_tokenizers(expected: str, tokenizer: Tokenizer) -> None:
     _assert_sql(
         str(queryset.query),
         f"""
-        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata"
+        SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
         FROM "mock_items"
         WHERE "mock_items"."description" &&& 'running shoes'::{expected}
         """,

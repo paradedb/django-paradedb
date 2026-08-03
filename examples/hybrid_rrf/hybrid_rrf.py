@@ -4,8 +4,6 @@
 Uses a single SQL query with CTEs to combine BM25 full-text search and vector
 similarity search, fused via Reciprocal Rank Fusion (RRF).
 
-No raw SQL - built entirely with Django ORM + django-cte + pgvector + django-paradedb.
-
 Reference: https://www.paradedb.com/blog/hybrid-search-in-postgresql-the-missing-manual
 """
 
@@ -13,22 +11,15 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import QUERY_EMBEDDINGS, setup_mock_items
-from common import MockItemWithEmbedding as MockItem
+from common import QUERY_EMBEDDINGS, MockItem, setup_mock_items
 from django.db.models import F, FloatField, Sum, Window
 from django.db.models.expressions import ExpressionWrapper, Value
 from django.db.models.functions import Cast, RowNumber
 from django_cte import CTE, with_cte
-from pgvector.django import CosineDistance
 
 from paradedb.functions import Score
 from paradedb.search import MatchAll, ParadeDB
-
-if MockItem is None:
-    raise ImportError(
-        "pgvector is required for this example. Install the example extras with "
-        "'uv sync --extra examples'."
-    )
+from paradedb.vector import CosineDistance
 
 
 def _rrf_score(k: float) -> ExpressionWrapper:
@@ -52,7 +43,7 @@ def hybrid_search(
 
     Builds one SQL statement with four CTEs:
       1. fulltext    - BM25 ranked results via ParadeDB
-      2. semantic    - vector similarity ranked results via pgvector
+      2. semantic    - vector similarity ranked results via cosine distance
       3. rrf         - UNION ALL of RRF score contributions
       4. rrf_scores  - aggregated RRF scores per item
 

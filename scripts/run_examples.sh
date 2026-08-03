@@ -4,6 +4,7 @@ set -euo pipefail
 
 : "${DJANGO_SPEC:="Django~=6.0"}"
 uv run --with "${DJANGO_SPEC}" python examples/quickstart/quickstart.py
+uv run --with "${DJANGO_SPEC}" python examples/vector_search/vector_search.py
 uv run --with "${DJANGO_SPEC}" python examples/autocomplete/setup.py
 uv run --with "${DJANGO_SPEC}" python examples/autocomplete/autocomplete.py
 uv run --with "${DJANGO_SPEC}" python examples/more_like_this/more_like_this.py

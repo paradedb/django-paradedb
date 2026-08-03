@@ -14,6 +14,7 @@ from django.utils.deconstruct import deconstructible
 
 from paradedb.api import PDB_TYPE_ALIAS
 from paradedb.search import Tokenizer
+from paradedb.vector import VectorField, vector_opclass
 
 if TYPE_CHECKING:
     ModelField = models.Field[Any, Any]
@@ -254,6 +255,29 @@ class ParadeDBIndex(models.Index):
             tokenizer = config.get("tokenizer")
             alias = config.get("alias")
             native_json_fields = config.get("json_fields")
+            metric = config.get("metric")
+
+            if metric is not None:
+                if any(
+                    option is not None
+                    for option in (
+                        json_keys,
+                        tokenizers,
+                        tokenizer,
+                        alias,
+                        native_json_fields,
+                    )
+                ):
+                    raise ValueError(
+                        f"Field {field_name!r} cannot mix 'metric' with tokenizer "
+                        f"or JSON options."
+                    )
+                if not isinstance(field, VectorField):
+                    raise ValueError(
+                        f"Field {field_name!r} uses 'metric' but is not a VectorField."
+                    )
+                expressions.append(f"{column} {vector_opclass(metric)}")
+                continue
 
             if native_json_fields is not None:
                 expressions.append(column)

@@ -13,6 +13,7 @@ from django.conf import settings
 from paradedb.indexes import ParadeDBIndex
 from paradedb.queryset import ParadeDBManager
 from paradedb.search import Tokenizer
+from paradedb.vector import VectorField
 
 
 def configure_django() -> None:
@@ -106,6 +107,7 @@ def _mock_items_indexes() -> list[ParadeDBIndex]:
                 "rating": {},
                 "category": {"tokenizer": Tokenizer.literal({"alias": "category"})},
                 "metadata": {"json_fields": {"fast": True}},
+                "embedding": {"metric": "cosine"},
             },
             key_field="id",
             name="search_idx",
@@ -119,7 +121,8 @@ class MockItem(models.Model):
     This unmanaged model maps to the mock_items table created by
     paradedb.create_bm25_test_table(). It contains sample product
     data with a pre-configured ParadeDB index on description, rating,
-    category, and native metadata subfields like ``metadata.color``.
+    category, native metadata subfields like ``metadata.color``, and
+    a pre-populated 8-dim ``embedding`` vector column.
     """
 
     id = models.IntegerField(primary_key=True)
@@ -129,6 +132,7 @@ class MockItem(models.Model):
     in_stock = models.BooleanField()
     created_at = models.DateTimeField()
     metadata = models.JSONField(null=True)
+    embedding = VectorField(dimensions=8, null=True)
 
     objects = ParadeDBManager()
 
@@ -140,34 +144,3 @@ class MockItem(models.Model):
 
     def __str__(self) -> str:
         return self.description
-
-
-# Optional: MockItem with vector embedding field for hybrid search examples
-try:
-    from pgvector.django import VectorField
-
-    class MockItemWithEmbedding(models.Model):
-        """MockItem with vector embedding for hybrid search examples."""
-
-        id = models.IntegerField(primary_key=True)
-        description = models.TextField()
-        category = models.CharField(max_length=100)
-        rating = models.IntegerField()
-        in_stock = models.BooleanField()
-        created_at = models.DateTimeField()
-        metadata = models.JSONField(null=True)
-        embedding = VectorField(dimensions=8, null=True)
-
-        objects = ParadeDBManager()
-
-        class Meta:
-            app_label = "examples"
-            managed = False
-            db_table = "mock_items"
-            indexes = _mock_items_indexes()
-
-        def __str__(self) -> str:
-            return self.description
-
-except ImportError:
-    MockItemWithEmbedding = None  # type: ignore[misc, assignment]

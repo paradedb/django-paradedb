@@ -870,3 +870,81 @@ class TestParadeDBIndex:
         )
         _path, _args, kwargs = index.deconstruct()
         assert "expressions" not in kwargs
+
+
+class TestVectorIndex:
+    """Test vector opclass DDL generation on ParadeDBIndex fields."""
+
+    @pytest.mark.parametrize(
+        ("metric", "opclass"),
+        [
+            ("l2", "vector_l2_ops"),
+            ("cosine", "vector_cosine_ops"),
+            ("ip", "vector_ip_ops"),
+        ],
+    )
+    def test_index_with_metric_emits_opclass(self, metric: str, opclass: str) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "embedding": {"metric": metric}},
+            key_field="id",
+            name="mock_items_search_idx",
+        )
+        sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
+        assert (
+            sql
+            == f'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" {opclass}\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_index_without_metric_emits_plain_column(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "embedding": {}},
+            key_field="id",
+            name="mock_items_search_idx",
+        )
+        sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
+        assert (
+            sql
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding"\n)\nWITH (key_field=\'id\')'
+        )
+
+    def test_invalid_metric_raises(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "embedding": {"metric": "hamming"}},
+            key_field="id",
+            name="mock_items_search_idx",
+        )
+        with pytest.raises(ValueError, match="Vector metric must be one of"):
+            index.create_sql(model=MockItem, schema_editor=_schema_editor())
+
+    def test_metric_on_non_vector_field_raises(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "description": {"metric": "l2"}},
+            key_field="id",
+            name="mock_items_search_idx",
+        )
+        with pytest.raises(ValueError, match="is not a VectorField"):
+            index.create_sql(model=MockItem, schema_editor=_schema_editor())
+
+    def test_metric_mixed_with_tokenizer_raises(self) -> None:
+        index = ParadeDBIndex(
+            fields={
+                "id": {},
+                "embedding": {"metric": "l2", "tokenizer": Tokenizer.simple()},
+            },
+            key_field="id",
+            name="mock_items_search_idx",
+        )
+        with pytest.raises(ValueError, match="cannot mix 'metric'"):
+            index.create_sql(model=MockItem, schema_editor=_schema_editor())
+
+    def test_index_with_metric_deconstructs(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "embedding": {"metric": "cosine"}},
+            key_field="id",
+            name="mock_items_search_idx",
+        )
+        _path, _args, kwargs = index.deconstruct()
+        assert kwargs["fields"] == {"id": {}, "embedding": {"metric": "cosine"}}
+
+        serialized, _imports = MigrationWriter.serialize(index)
+        assert "'metric': 'cosine'" in serialized

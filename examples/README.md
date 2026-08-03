@@ -117,7 +117,23 @@ uv run python examples/more_like_this/more_like_this.py
 
 ### 🔹 AI & Vectors
 
-#### 5. Hybrid Search with RRF (`hybrid_rrf/`)
+#### 5. Vector Search (`vector_search/vector_search.py`)
+
+_Semantic Top-K Retrieval, One Index._
+
+ParadeDB indexes pgvector `vector` columns inside its search index, so one index serves both keyword and vector queries. This example declares a `VectorField`, includes it in the shared `ParadeDBIndex` with a `cosine` metric opclass, and runs Top-K nearest-neighbor queries — with the mandatory `@@@` predicate (`ParadeDB(All())`) and `LIMIT`.
+
+**Prerequisites:**
+
+- The `pgvector` Postgres extension must be installed (included in the ParadeDB Docker image).
+
+**Run it:**
+
+```bash
+uv run python examples/vector_search/vector_search.py
+```
+
+#### 6. Hybrid Search with RRF (`hybrid_rrf/`)
 
 _The Best of Both Worlds: Keywords + Semantics._
 
@@ -125,7 +141,7 @@ Keyword search (BM25) is great for exact matches ("Part #123"). Vector search is
 
 **Prerequisites:**
 
-- `pgvector` must be installed (included in the ParadeDB Docker image).
+- The `pgvector` Postgres extension must be installed (included in the ParadeDB Docker image).
 
 **Run it:**
 
@@ -133,7 +149,7 @@ Keyword search (BM25) is great for exact matches ("Part #123"). Vector search is
 uv run python examples/hybrid_rrf/hybrid_rrf.py
 ```
 
-#### 6. RAG: Retrieval-Augmented Generation (`rag/`)
+#### 7. RAG: Retrieval-Augmented Generation (`rag/`)
 
 _Chat with your Data._
 

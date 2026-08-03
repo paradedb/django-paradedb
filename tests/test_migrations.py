@@ -14,6 +14,7 @@ from django.db.models.functions import Lower
 
 from paradedb.indexes import IndexExpression, ParadeDBIndex
 from paradedb.search import Tokenizer
+from paradedb.vector import VectorField
 
 pytestmark = [
     pytest.mark.integration,
@@ -131,6 +132,7 @@ def test_apply_and_unapply_create_model_migration(
             ("id", models.AutoField(primary_key=True)),
             ("title", models.TextField()),
             ("metadata", models.JSONField(default=dict)),
+            ("embedding", VectorField(dimensions=3, null=True)),
         ],
         options={
             "db_table": table_name,
@@ -144,6 +146,7 @@ def test_apply_and_unapply_create_model_migration(
                                 "color": {"tokenizer": Tokenizer.literal()},
                             }
                         },
+                        "embedding": {"metric": "cosine"},
                     },
                     key_field="id",
                     name=index_name,
@@ -182,7 +185,8 @@ def test_apply_and_unapply_create_model_migration(
             .replace(" ", "")
         )
         assert f"title::pdb.{tokenizer_name}" in normalized_index_def, index_def
-        assert {"id", "title", "metadata"}.issubset(column_names)
+        assert "vector_cosine_ops" in index_def, index_def
+        assert {"id", "title", "metadata", "embedding"}.issubset(column_names)
 
         # Insert test data in a separate transaction (simulates real usage)
         quoted_table = connection.ops.quote_name(table_name)

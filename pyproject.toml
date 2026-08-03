@@ -22,6 +22,7 @@ keywords = [
     "text search",
     "full text search",
     "hybrid search",
+    "vector search",
     "faceted search",
     "facets",
 ]
@@ -63,13 +64,11 @@ dev = [
     "psycopg[binary]>=3.1",
     "django-cte>=1.3",
     "httpx>=0.27",
-    "pgvector>=0.3",
     "python-dotenv>=1.0",
 ]
 examples = [
     "django-cte>=1.3",
     "httpx>=0.27",
-    "pgvector>=0.3",
     "psycopg[binary]>=3.1",
     "python-dotenv>=1.0",
 ]

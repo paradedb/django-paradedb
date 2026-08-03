@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+### Added
+
+- Native vector search support: `VectorField` for pgvector `vector(n)` columns, `L2Distance`/`CosineDistance`/`InnerProduct` distance expressions, and a `metric` option on `ParadeDBIndex` fields that emits the matching vector opclass (`vector_l2_ops`, `vector_cosine_ops`, `vector_ip_ops`). Examples no longer require the pgvector Python package.
+
 ### Changed
 
 - **Breaking**: `BM25Index` is renamed to `ParadeDBIndex`, and indexes are always created with `USING paradedb`. This release requires pg_search 0.25.0+. Update model definitions and existing migrations to the new class name.

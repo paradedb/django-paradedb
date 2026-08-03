@@ -3,6 +3,7 @@
 from django.db import models
 
 from paradedb.queryset import ParadeDBManager
+from paradedb.vector import VectorField
 
 
 class MockItem(models.Model):
@@ -15,6 +16,7 @@ class MockItem(models.Model):
     in_stock = models.BooleanField()
     created_at = models.DateTimeField()
     metadata = models.JSONField(null=True)
+    embedding = VectorField(dimensions=8, null=True)
 
     objects = ParadeDBManager()
 

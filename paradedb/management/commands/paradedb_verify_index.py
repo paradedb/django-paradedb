@@ -1,4 +1,4 @@
-"""Verify one BM25 index via ``pdb.verify_index()``."""
+"""Verify one ParadeDB index via ``pdb.verify_index()``."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from paradedb.management.commands._paradedb_diag_utils import (
 
 
 class Command(BaseCommand):
-    help = "Verify one ParadeDB BM25 index (pdb.verify_index)."
+    help = "Verify one ParadeDB index (pdb.verify_index)."
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("index", help="Index name (optionally schema-qualified).")

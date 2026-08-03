@@ -1,4 +1,4 @@
-"""List BM25 indexes via ``pdb.indexes()``."""
+"""List ParadeDB indexes via ``pdb.indexes()``."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from paradedb.management.commands._paradedb_diag_utils import write_json
 
 
 class Command(BaseCommand):
-    help = "List ParadeDB BM25 indexes (pdb.indexes)."
+    help = "List ParadeDB indexes (pdb.indexes)."
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(

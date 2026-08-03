@@ -17,7 +17,7 @@ def setup_autocomplete_table() -> int:
     from django.db import connection
 
     with connection.cursor() as cursor:
-        cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search")
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search CASCADE")
 
         # Ensure mock_items exists first
         cursor.execute(
@@ -56,14 +56,14 @@ def setup_autocomplete_table() -> int:
         count = cursor.fetchone()[0]
         print(f"  ✓ Copied {count} products from mock_items")
 
-        print("\nCreating autocomplete-optimized BM25 index...")
+        print("\nCreating autocomplete-optimized ParadeDB index...")
     with connection.schema_editor(atomic=False) as schema_editor:
         for index in AutocompleteItem._meta.indexes:
             statement = index.create_sql(
                 model=AutocompleteItem, schema_editor=schema_editor
             )
             schema_editor.execute(statement)
-        print("  ✓ Created BM25 index with:")
+        print("  ✓ Created ParadeDB index with:")
         print("    - description (standard tokenizer)")
         print("    - description_ngram (ngram 3-8 for substring matching)")
         print("    - category (literal for exact matching)")

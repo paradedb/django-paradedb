@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import django
 from django.conf import settings
 
-from paradedb.indexes import BM25Index
+from paradedb.indexes import ParadeDBIndex
 from paradedb.queryset import ParadeDBManager
 from paradedb.search import Tokenizer
 
@@ -60,16 +60,17 @@ def configure_django() -> None:
 
 
 def setup_mock_items() -> int:
-    """Create mock_items table with BM25 index. Returns row count."""
+    """Create mock_items table with a ParadeDB index. Returns row count."""
     from django.db import connection
 
     with connection.cursor() as cursor:
-        cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search")
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search CASCADE")
         cursor.execute(
             "CALL paradedb.create_bm25_test_table("
             "schema_name => 'public', table_name => 'mock_items')"
         )
-        cursor.execute("DROP INDEX IF EXISTS mock_items_bm25_idx;")
+        cursor.execute("DROP INDEX IF EXISTS search_idx;")
 
     # Render index SQL from the unmanaged model metadata.
     with connection.schema_editor(atomic=False) as schema_editor:
@@ -80,6 +81,14 @@ def setup_mock_items() -> int:
     return MockItem.objects.count()
 
 
+# Pre-computed 8-dim query embeddings in the same embedding space as the
+# mock_items.embedding column seeded by paradedb.create_bm25_test_table().
+QUERY_EMBEDDINGS: dict[str, list[float]] = {
+    "running shoes": [-0.02, 0.47, -0.76, 0.13, 0.34, 0.04, 0.19, -0.19],
+    "footwear for exercise": [-0.06, 0.40, -0.71, 0.02, 0.39, 0.15, 0.30, -0.14],
+    "wireless earbuds": [-0.08, 0.19, -0.88, 0.16, 0.30, 0.03, -0.08, -0.23],
+}
+
 # Examples are standalone scripts, so this module intentionally configures Django
 # at import time to keep per-example boilerplate minimal.
 configure_django()
@@ -88,9 +97,9 @@ configure_django()
 from django.db import models  # noqa: E402
 
 
-def _mock_items_indexes() -> list[BM25Index]:
+def _mock_items_indexes() -> list[ParadeDBIndex]:
     return [
-        BM25Index(
+        ParadeDBIndex(
             fields={
                 "id": {},
                 "description": {},
@@ -99,7 +108,7 @@ def _mock_items_indexes() -> list[BM25Index]:
                 "metadata": {"json_fields": {"fast": True}},
             },
             key_field="id",
-            name="mock_items_bm25_idx",
+            name="search_idx",
         ),
     ]
 
@@ -109,7 +118,7 @@ class MockItem(models.Model):
 
     This unmanaged model maps to the mock_items table created by
     paradedb.create_bm25_test_table(). It contains sample product
-    data with a pre-configured BM25 index on description, rating,
+    data with a pre-configured ParadeDB index on description, rating,
     category, and native metadata subfields like ``metadata.color``.
     """
 
@@ -147,7 +156,7 @@ try:
         in_stock = models.BooleanField()
         created_at = models.DateTimeField()
         metadata = models.JSONField(null=True)
-        embedding = VectorField(dimensions=384, null=True)
+        embedding = VectorField(dimensions=8, null=True)
 
         objects = ParadeDBManager()
 

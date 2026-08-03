@@ -49,7 +49,7 @@ _The "Hello World" of ParadeDB._
 
 This script demonstrates the fundamental building blocks of search. You will learn how to:
 
-- **Index data**: Define a `BM25Index` on your model.
+- **Index data**: Define a `ParadeDBIndex` on your model.
 - **Search**: Perform basic keyword queries.
 - **Score**: Sort results by relevance (BM25 score).
 - **Highlight**: Generate snippets (e.g., `<b>run</b>ning`) to show users why a result matched.
@@ -132,10 +132,6 @@ Keyword search (BM25) is great for exact matches ("Part #123"). Vector search is
 ```bash
 uv run python examples/hybrid_rrf/hybrid_rrf.py
 ```
-
-`hybrid_rrf.py` runs its setup step automatically. Run
-`examples/hybrid_rrf/setup.py` on its own only when you want to preload the
-sample embeddings before the demo.
 
 #### 6. RAG: Retrieval-Augmented Generation (`rag/`)
 

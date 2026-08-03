@@ -3,7 +3,7 @@
 from common import configure_django
 from django.db import models
 
-from paradedb.indexes import BM25Index
+from paradedb.indexes import ParadeDBIndex
 from paradedb.queryset import ParadeDBManager
 from paradedb.search import Tokenizer
 
@@ -25,7 +25,7 @@ class AutocompleteItem(models.Model):
         managed = False
         db_table = "autocomplete_items"
         indexes = (
-            BM25Index(
+            ParadeDBIndex(
                 fields={
                     "id": {},
                     "description": {

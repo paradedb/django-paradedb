@@ -12,7 +12,7 @@ from django.db.migrations.state import ProjectState
 from django.db.models import F, Q
 from django.db.models.functions import Lower
 
-from paradedb.indexes import BM25Index, IndexExpression
+from paradedb.indexes import IndexExpression, ParadeDBIndex
 from paradedb.search import Tokenizer
 
 pytestmark = [
@@ -52,14 +52,14 @@ def _fetch_index_definition(table_name: str, index_name: str) -> str | None:
 
 def _verify_index_usage(table_name: str, index_name: str) -> bool:  # noqa: ARG001
     """
-    Verify BM25 index is actually used by PostgreSQL query planner.
+    Verify the ParadeDB index is actually used by PostgreSQL query planner.
 
     Returns True if a ParadeDB Custom Scan is found in the execution plan,
-    indicating the BM25 index is being utilized for query execution.
+    indicating the index is being utilized for query execution.
 
     Args:
         table_name: Name of the table to check
-        index_name: Name of the BM25 index (kept for API consistency)
+        index_name: Name of the ParadeDB index (kept for API consistency)
     """
     quoted_table = connection.ops.quote_name(table_name)
     with connection.cursor() as cursor:
@@ -78,7 +78,7 @@ def _verify_index_usage(table_name: str, index_name: str) -> bool:  # noqa: ARG0
 
     # ParadeDB Custom Scan node names (from pg_search/src/postgres/customscan/)
     paradedb_scans = (
-        "ParadeDB Base Scan",  # BaseScan - standard BM25 queries
+        "ParadeDB Base Scan",  # BaseScan - standard search queries
         "ParadeDB Aggregate Scan",  # AggregateScan - GROUP BY/aggregates
         "ParadeDB Join Scan",  # JoinScan - join queries with LIMIT
     )
@@ -93,19 +93,19 @@ def _verify_index_usage(table_name: str, index_name: str) -> bool:  # noqa: ARG0
             "simple",
             Tokenizer.simple(),
             "migtests_items_simple",
-            "migtests_items_simple_bm25_idx",
+            "migtests_items_simple_search_idx",
         ),
         (
             "unicode_words",
             Tokenizer.unicode_words(),
             "migtests_items_unicode_words",
-            "migtests_items_unicode_words_bm25_idx",
+            "migtests_items_unicode_words_search_idx",
         ),
         (
             "literal",
             Tokenizer.literal(),
             "migtests_items_literal",
-            "migtests_items_literal_bm25_idx",
+            "migtests_items_literal_search_idx",
         ),
     ],
 )
@@ -113,7 +113,7 @@ def test_apply_and_unapply_create_model_migration(
     tokenizer_name: str, tokenizer: Tokenizer, table_name: str, index_name: str
 ) -> None:
     """
-    CreateModel with BM25Index migrates forwards/backwards, creates the index,
+    CreateModel with ParadeDBIndex migrates forwards/backwards, creates the index,
     and verifies the index is actually used by PostgreSQL query planner.
 
     Uses transaction=True to allow explicit transaction management and commits,
@@ -135,7 +135,7 @@ def test_apply_and_unapply_create_model_migration(
         options={
             "db_table": table_name,
             "indexes": [
-                BM25Index(
+                ParadeDBIndex(
                     fields={
                         "id": {},
                         "title": {"tokenizer": tokenizer},
@@ -174,7 +174,7 @@ def test_apply_and_unapply_create_model_migration(
             }
         index_def = _fetch_index_definition(table_name, index_name)
         assert index_def is not None
-        assert "USING bm25" in index_def
+        assert "USING paradedb" in index_def
         normalized_index_def = (
             index_def.replace('"', "")
             .replace("(", "")
@@ -196,9 +196,9 @@ def test_apply_and_unapply_create_model_migration(
             )
         connection.commit()
 
-        # Verify BM25 index is used by query planner in a fresh transaction
+        # Verify the ParadeDB index is used by query planner in a fresh transaction
         assert _verify_index_usage(table_name, index_name), (
-            f"BM25 index {index_name} exists but is not being used by query planner. "
+            f"Index {index_name} exists but is not being used by query planner. "
             f"Check EXPLAIN output for Custom Scan (ParadeDBScan)."
         )
 
@@ -215,10 +215,10 @@ def test_apply_and_unapply_create_model_migration(
 
 @pytest.mark.django_db(transaction=True)
 def test_create_model_migration_with_index_expressions() -> None:
-    """CreateModel supports BM25 indexes with computed IndexExpression entries."""
+    """CreateModel supports ParadeDB indexes with computed IndexExpression entries."""
     app_label = "migtests"
     table_name = "migtests_items_index_expression"
-    index_name = "migtests_items_index_expression_bm25_idx"
+    index_name = "migtests_items_index_expression_search_idx"
 
     _drop_table_if_exists(table_name)
     connection.commit()
@@ -234,7 +234,7 @@ def test_create_model_migration_with_index_expressions() -> None:
         options={
             "db_table": table_name,
             "indexes": [
-                BM25Index(
+                ParadeDBIndex(
                     fields={
                         "id": {},
                         "title": {"tokenizer": Tokenizer.unicode_words()},
@@ -275,7 +275,7 @@ def test_create_model_migration_with_index_expressions() -> None:
         index_def = _fetch_index_definition(table_name, index_name)
         assert index_def is not None, "Index was not created"
         normalized_index_def = index_def.lower().replace('"', "").replace(" ", "")
-        assert "usingbm25" in normalized_index_def
+        assert "usingparadedb" in normalized_index_def
         assert "lower(title)" in normalized_index_def, index_def
         assert "alias=title_lower" in normalized_index_def, index_def
         assert "rating+1" in normalized_index_def, index_def
@@ -313,7 +313,7 @@ def test_multiple_tokenizers_per_field_migration() -> None:
     """A field can be indexed with multiple tokenizers and queried via alias."""
     app_label = "migtests"
     table_name = "migtests_items_multi_tokenizer"
-    index_name = "migtests_items_multi_tokenizer_bm25_idx"
+    index_name = "migtests_items_multi_tokenizer_search_idx"
 
     _drop_table_if_exists(table_name)
     connection.commit()
@@ -327,7 +327,7 @@ def test_multiple_tokenizers_per_field_migration() -> None:
         options={
             "db_table": table_name,
             "indexes": [
-                BM25Index(
+                ParadeDBIndex(
                     fields={
                         "id": {},
                         "title": {
@@ -361,7 +361,7 @@ def test_multiple_tokenizers_per_field_migration() -> None:
         assert _table_exists(table_name)
         index_def = _fetch_index_definition(table_name, index_name)
         assert index_def is not None
-        assert "USING bm25" in index_def
+        assert "USING paradedb" in index_def
         normalized_index_def = (
             index_def.replace('"', "")
             .replace("(", "")
@@ -407,7 +407,7 @@ def test_multiple_tokenizers_with_ngram_options_migration() -> None:
     """Ngram positional args and named args work in tokenizers DSL."""
     app_label = "migtests"
     table_name = "migtests_items_multi_ngram_tokenizer"
-    index_name = "migtests_items_multi_ngram_tokenizer_bm25_idx"
+    index_name = "migtests_items_multi_ngram_tokenizer_search_idx"
 
     _drop_table_if_exists(table_name)
     connection.commit()
@@ -421,7 +421,7 @@ def test_multiple_tokenizers_with_ngram_options_migration() -> None:
         options={
             "db_table": table_name,
             "indexes": [
-                BM25Index(
+                ParadeDBIndex(
                     fields={
                         "id": {},
                         "title": {
@@ -487,15 +487,15 @@ def test_multiple_tokenizers_with_ngram_options_migration() -> None:
 
 @pytest.mark.django_db(transaction=True)
 def test_add_and_remove_index_concurrently() -> None:
-    """AddIndexConcurrently creates and reverses a BM25 index."""
+    """AddIndexConcurrently creates and reverses a ParadeDB index."""
     app_label = "migtests"
     table_name = "migtests_concurrent"
-    index_name = "migtests_concurrent_bm25_idx"
+    index_name = "migtests_concurrent_search_idx"
 
     _drop_table_if_exists(table_name)
     connection.commit()
 
-    bm25_index = BM25Index(
+    search_index = ParadeDBIndex(
         fields={
             "id": {},
             "title": {"tokenizer": Tokenizer.unicode_words()},
@@ -525,10 +525,10 @@ def test_add_and_remove_index_concurrently() -> None:
         assert _table_exists(table_name)
         assert _fetch_index_definition(table_name, index_name) is None
 
-        # Step 2: Add the BM25 index concurrently.
+        # Step 2: Add the index concurrently.
         add_index_op = AddIndexConcurrently(
             model_name="concurrentitem",
-            index=bm25_index,
+            index=search_index,
         )
 
         before_state = to_state.clone()
@@ -541,7 +541,7 @@ def test_add_and_remove_index_concurrently() -> None:
 
         index_def = _fetch_index_definition(table_name, index_name)
         assert index_def is not None, "Index was not created"
-        assert "USING bm25" in index_def
+        assert "USING paradedb" in index_def
 
         # Step 3: Verify the index is functional.
         quoted_table = connection.ops.quote_name(table_name)
@@ -571,15 +571,15 @@ def test_add_and_remove_index_concurrently() -> None:
 
 @pytest.mark.django_db(transaction=True)
 def test_remove_and_add_index_concurrently() -> None:
-    """RemoveIndexConcurrently drops and reverses a BM25 index."""
+    """RemoveIndexConcurrently drops and reverses a ParadeDB index."""
     app_label = "migtests"
     table_name = "migtests_concurrent_rm"
-    index_name = "migtests_concurrent_rm_bm25_idx"
+    index_name = "migtests_concurrent_rm_search_idx"
 
     _drop_table_if_exists(table_name)
     connection.commit()
 
-    bm25_index = BM25Index(
+    search_index = ParadeDBIndex(
         fields={
             "id": {},
             "title": {"tokenizer": Tokenizer.unicode_words()},
@@ -597,7 +597,7 @@ def test_remove_and_add_index_concurrently() -> None:
         ],
         options={
             "db_table": table_name,
-            "indexes": [bm25_index],
+            "indexes": [search_index],
         },
     )
 
@@ -634,7 +634,7 @@ def test_remove_and_add_index_concurrently() -> None:
 
         index_def = _fetch_index_definition(table_name, index_name)
         assert index_def is not None, "Index was not recreated on reverse"
-        assert "USING bm25" in index_def
+        assert "USING paradedb" in index_def
 
     finally:
         _drop_table_if_exists(table_name)
@@ -643,15 +643,15 @@ def test_remove_and_add_index_concurrently() -> None:
 
 @pytest.mark.django_db(transaction=True)
 def test_add_partial_index() -> None:
-    """BM25Index with condition creates a partial index with a WHERE clause."""
+    """ParadeDBIndex with condition creates a partial index with a WHERE clause."""
     app_label = "migtests"
     table_name = "migtests_partial"
-    index_name = "migtests_partial_bm25_idx"
+    index_name = "migtests_partial_search_idx"
 
     _drop_table_if_exists(table_name)
     connection.commit()
 
-    bm25_index = BM25Index(
+    search_index = ParadeDBIndex(
         fields={
             "id": {},
             "title": {"tokenizer": Tokenizer.unicode_words()},
@@ -670,7 +670,7 @@ def test_add_partial_index() -> None:
         ],
         options={
             "db_table": table_name,
-            "indexes": [bm25_index],
+            "indexes": [search_index],
         },
     )
 
@@ -687,7 +687,7 @@ def test_add_partial_index() -> None:
         assert _table_exists(table_name)
         index_def = _fetch_index_definition(table_name, index_name)
         assert index_def is not None, "Index was not created"
-        assert "USING bm25" in index_def
+        assert "USING paradedb" in index_def
         assert "WHERE" in index_def
 
         # Insert test data and verify the index is functional

@@ -948,3 +948,151 @@ class TestVectorIndex:
 
         serialized, _imports = MigrationWriter.serialize(index)
         assert "'metric': 'cosine'" in serialized
+
+
+class TestVectorIndexOptions:
+    """Test vector build options in the WITH clause of ParadeDBIndex."""
+
+    def test_index_with_all_options_emits_with_clause(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "embedding": {"metric": "cosine"}},
+            key_field="id",
+            name="mock_items_search_idx",
+            centroid_ratio=0.01,
+            training_samples_per_centroid=32,
+            cluster_replication=1,
+        )
+        sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
+        assert (
+            sql
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_cosine_ops\n)\nWITH (key_field=\'id\', centroid_ratio=0.01, training_samples_per_centroid=32, cluster_replication=1)'
+        )
+
+    def test_index_with_single_option(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "embedding": {"metric": "l2"}},
+            key_field="id",
+            name="mock_items_search_idx",
+            cluster_replication=2,
+        )
+        sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
+        assert (
+            sql
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_l2_ops\n)\nWITH (key_field=\'id\', cluster_replication=2)'
+        )
+
+    def test_options_allowed_without_vector_field(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "description": {}},
+            key_field="id",
+            name="mock_items_search_idx",
+            centroid_ratio=0.5,
+        )
+        sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
+        assert "centroid_ratio=0.5" in sql
+
+    @pytest.mark.parametrize(
+        "centroid_ratio",
+        [0.0000001, 0.0, 1.5, -0.01],
+    )
+    def test_centroid_ratio_out_of_range_raises(self, centroid_ratio: float) -> None:
+        with pytest.raises(ValueError, match="centroid_ratio must be between"):
+            ParadeDBIndex(
+                fields={"id": {}},
+                key_field="id",
+                name="mock_items_search_idx",
+                centroid_ratio=centroid_ratio,
+            )
+
+    def test_centroid_ratio_invalid_type_raises(self) -> None:
+        with pytest.raises(TypeError, match="centroid_ratio must be a number"):
+            ParadeDBIndex(
+                fields={"id": {}},
+                key_field="id",
+                name="mock_items_search_idx",
+                centroid_ratio="0.01",  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize("training_samples_per_centroid", [0, 100001, -1])
+    def test_training_samples_per_centroid_out_of_range_raises(
+        self, training_samples_per_centroid: int
+    ) -> None:
+        with pytest.raises(
+            ValueError, match="training_samples_per_centroid must be between"
+        ):
+            ParadeDBIndex(
+                fields={"id": {}},
+                key_field="id",
+                name="mock_items_search_idx",
+                training_samples_per_centroid=training_samples_per_centroid,
+            )
+
+    @pytest.mark.parametrize("training_samples_per_centroid", [32.5, True, "32"])
+    def test_training_samples_per_centroid_invalid_type_raises(
+        self, training_samples_per_centroid: object
+    ) -> None:
+        with pytest.raises(
+            TypeError, match="training_samples_per_centroid must be an integer"
+        ):
+            ParadeDBIndex(
+                fields={"id": {}},
+                key_field="id",
+                name="mock_items_search_idx",
+                training_samples_per_centroid=training_samples_per_centroid,  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize("cluster_replication", [0, 2147483648])
+    def test_cluster_replication_out_of_range_raises(
+        self, cluster_replication: int
+    ) -> None:
+        with pytest.raises(ValueError, match="cluster_replication must be between"):
+            ParadeDBIndex(
+                fields={"id": {}},
+                key_field="id",
+                name="mock_items_search_idx",
+                cluster_replication=cluster_replication,
+            )
+
+    def test_options_deconstruct_and_serialize(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "embedding": {"metric": "cosine"}},
+            key_field="id",
+            name="mock_items_search_idx",
+            centroid_ratio=0.01,
+            training_samples_per_centroid=32,
+            cluster_replication=1,
+        )
+        _path, _args, kwargs = index.deconstruct()
+        assert kwargs["centroid_ratio"] == 0.01
+        assert kwargs["training_samples_per_centroid"] == 32
+        assert kwargs["cluster_replication"] == 1
+
+        serialized, _imports = MigrationWriter.serialize(index)
+        assert "centroid_ratio=0.01" in serialized
+        assert "training_samples_per_centroid=32" in serialized
+        assert "cluster_replication=1" in serialized
+
+    def test_unset_options_omitted_from_deconstruct(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}},
+            key_field="id",
+            name="mock_items_search_idx",
+        )
+        _path, _args, kwargs = index.deconstruct()
+        assert "centroid_ratio" not in kwargs
+        assert "training_samples_per_centroid" not in kwargs
+        assert "cluster_replication" not in kwargs
+
+    def test_indexes_with_equal_options_compare_equal(self) -> None:
+        def build(cluster_replication: int) -> ParadeDBIndex:
+            return ParadeDBIndex(
+                fields={"id": {}, "embedding": {"metric": "cosine"}},
+                key_field="id",
+                name="mock_items_search_idx",
+                centroid_ratio=0.01,
+                training_samples_per_centroid=32,
+                cluster_replication=cluster_replication,
+            )
+
+        assert build(1) == build(1)
+        assert build(1) != build(2)

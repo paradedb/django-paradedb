@@ -92,6 +92,24 @@ def _expression_requires_tokenizer(expression: Expression) -> bool:
     return False
 
 
+def _validate_int_index_option(name: str, value: Any, *, maximum: int) -> None:
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be an integer.")
+    if not 1 <= value <= maximum:
+        raise ValueError(f"{name} must be between 1 and {maximum}, inclusive.")
+
+
+def _validate_centroid_ratio(value: Any) -> None:
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError("centroid_ratio must be a number.")
+    if not 0.000001 <= value <= 1.0:
+        raise ValueError("centroid_ratio must be between 0.000001 and 1.0, inclusive.")
+
+
 def _render_native_json_fields_json(json_fields: dict[str, dict[str, Any]]) -> str:
     return json.dumps(json_fields, separators=(",", ":"), sort_keys=True)
 
@@ -171,6 +189,11 @@ class ParadeDBIndex(models.Index):
 
     The index is created with ``USING paradedb``, the index access method
     name in pg_search 0.25.0+.
+
+    ``centroid_ratio``, ``training_samples_per_centroid``, and
+    ``cluster_replication`` are index-wide vector build options emitted in
+    the ``WITH (...)`` clause. They apply to every vector field in the index
+    and are meaningful only when the index contains a vector field.
     """
 
     suffix = "search"
@@ -183,10 +206,25 @@ class ParadeDBIndex(models.Index):
         name: str,
         expressions: list[IndexExpression] | None = None,
         condition: models.Q | None = None,
+        centroid_ratio: float | None = None,
+        training_samples_per_centroid: int | None = None,
+        cluster_replication: int | None = None,
     ) -> None:
+        _validate_centroid_ratio(centroid_ratio)
+        _validate_int_index_option(
+            "training_samples_per_centroid",
+            training_samples_per_centroid,
+            maximum=100000,
+        )
+        _validate_int_index_option(
+            "cluster_replication", cluster_replication, maximum=2147483647
+        )
         self.fields_config = fields
         self.key_field = key_field
         self.index_expressions = list(expressions or [])
+        self.centroid_ratio = centroid_ratio
+        self.training_samples_per_centroid = training_samples_per_centroid
+        self.cluster_replication = cluster_replication
         super().__init__(name=name, fields=list(fields.keys()), condition=condition)
 
     def deconstruct(self) -> tuple[str, Any, dict[str, Any]]:
@@ -196,6 +234,14 @@ class ParadeDBIndex(models.Index):
         kwargs["name"] = self.name
         if self.index_expressions:
             kwargs["expressions"] = self.index_expressions
+        for option in (
+            "centroid_ratio",
+            "training_samples_per_centroid",
+            "cluster_replication",
+        ):
+            value = getattr(self, option)
+            if value is not None:
+                kwargs[option] = value
         return path, args, kwargs
 
     def create_sql(
@@ -217,6 +263,14 @@ class ParadeDBIndex(models.Index):
                 "json_fields="
                 + _quote_term(_render_native_json_fields_json(json_fields))
             )
+        for option in (
+            "centroid_ratio",
+            "training_samples_per_centroid",
+            "cluster_replication",
+        ):
+            value = getattr(self, option)
+            if value is not None:
+                storage_params.append(f"{option}={value}")
 
         create_stmt = "CREATE INDEX"
         if concurrently:

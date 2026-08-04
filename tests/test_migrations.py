@@ -150,6 +150,9 @@ def test_apply_and_unapply_create_model_migration(
                     },
                     key_field="id",
                     name=index_name,
+                    centroid_ratio=0.01,
+                    training_samples_per_centroid=32,
+                    cluster_replication=1,
                 )
             ],
         },
@@ -186,6 +189,9 @@ def test_apply_and_unapply_create_model_migration(
         )
         assert f"title::pdb.{tokenizer_name}" in normalized_index_def, index_def
         assert "vector_cosine_ops" in index_def, index_def
+        assert "centroid_ratio" in index_def, index_def
+        assert "training_samples_per_centroid" in index_def, index_def
+        assert "cluster_replication" in index_def, index_def
         assert {"id", "title", "metadata", "embedding"}.issubset(column_names)
 
         # Insert test data in a separate transaction (simulates real usage)

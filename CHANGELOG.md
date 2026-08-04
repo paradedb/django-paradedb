@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## Unreleased
 
+### Added
+
+- Vector index build options on `ParadeDBIndex`: `centroid_ratio`, `training_samples_per_centroid`, and `cluster_replication` are emitted in the `WITH (...)` clause alongside `key_field`. They are index-wide, apply to every vector field in the index, and are validated against the ranges accepted by pg_search.
+
 ## [0.11.0] - 2026-08-04
 
 ### Added

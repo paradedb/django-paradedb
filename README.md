@@ -45,7 +45,7 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 | Python     | 3.10+                                                              |
 | Django     | 4.2+                                                               |
 | ParadeDB   | 0.25.0+                                                            |
-| PostgreSQL | 15+ (with ParadeDB extension)                                      |
+| PostgreSQL | 15+ (with the ParadeDB pg_search extension)                        |
 | pgvector   | Required for vector search (included in the ParadeDB Docker image) |
 
 ## Examples
@@ -54,7 +54,7 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 - [Vector Search](examples/vector_search/vector_search.py)
 - [Faceted Search](examples/faceted_search/faceted_search.py)
 - [Hybrid Search (RRF)](examples/hybrid_rrf/hybrid_rrf.py)
-- [RAG](examples/rag/rag.py)
+- [Retrieval-Augmented Generation (RAG)](examples/rag/rag.py)
 - [Autocomplete](examples/autocomplete/autocomplete.py)
 - [More Like This](examples/more_like_this/more_like_this.py)
 

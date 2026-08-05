@@ -59,7 +59,7 @@ Requires the `pgvector` extension, which is included in the ParadeDB Docker imag
 uv run python examples/hybrid_rrf/hybrid_rrf.py
 ```
 
-## RAG (`rag/rag.py`)
+## Retrieval-Augmented Generation (RAG) (`rag/rag.py`)
 
 A small question-answering flow. Retrieves relevant context with ParadeDB, then sends it to an LLM so answers are grounded in your own data.
 

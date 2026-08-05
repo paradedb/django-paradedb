@@ -32,10 +32,6 @@ def retrieve(
     query: str, query_embedding: list[float], top_k: int = 5
 ) -> list[MockItem]:
     """Retrieve relevant products with hybrid retrieval.
-
-    The ``@@@`` predicate narrows to keyword matches and activates the ParadeDB
-    index scan; ordering by ``CosineDistance`` then ranks those matches
-    semantically. One index serves both halves.
     """
     qs = (
         MockItem.objects.filter(description=ParadeDB(Parse(query, lenient=True)))

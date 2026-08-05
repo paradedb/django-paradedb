@@ -23,5 +23,6 @@ comment:
   require_head: true
 
 ignore:
+  - "examples/**/*"
   - "scripts/**/*"
   - "tests/**/*"

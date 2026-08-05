@@ -1,4 +1,4 @@
-# **Contributing to django-paradedb**
+# Contributing to django-paradedb
 
 Welcome! We're excited that you're interested in contributing to django-paradedb and want to make the process as smooth as possible.
 
@@ -24,12 +24,11 @@ This repository has a workflow to assign issues to new contributors automaticall
 
 If you find yourself unable to make progress, don't hesitate to seek help in the issue comments or the [ParadeDB Community Slack](https://paradedb.com/slack). If you no longer wish to work on the issue(s) you self-assigned, please remove yourself from the Assignees list in the sidebar to release it.
 
-### Development Workflow
+### Development Setup
 
 django-paradedb is a Python package that provides Django ORM integration for ParadeDB. Development is done with `uv`, which keeps Python selection and dependencies aligned between local work and CI.
 
 ```bash
-# Clone the repository
 git clone https://github.com/paradedb/django-paradedb.git
 cd django-paradedb
 
@@ -40,18 +39,46 @@ uv sync --extra dev
 
 # Install prek hooks
 uvx prek install
+```
 
-# Run tests
+### Running Tests
+
+Run the tests to verify every change:
+
+```bash
 bash scripts/run_tests.sh
+```
 
-# Run linting
+To run a subset of tests, pass pytest selectors:
+
+```bash
+bash scripts/run_tests.sh tests/test_paradedb_queries.py::test_tokenizer_override_invalid_identifier
+```
+
+The script starts a ParadeDB container via Docker and sets `DATABASE_URL` automatically.
+
+Some tests require newer pg_search versions and are skipped automatically if the feature is not available.
+
+### Linting and Formatting
+
+```bash
+# Linting and formatting
 uv run ruff check .
 uv run ruff format .
 
-# Run type checking
+# Type checking
 uv run mypy paradedb
 
-# Run API/package consistency checks
+# Pre-commit hooks (markdownlint, codespell, etc.)
+uvx prek install
+uvx prek run --all-files
+```
+
+### API and Packaging Consistency Checks
+
+Run these before opening a PR if your change touches SQL wrappers, API constants, packaging, or release metadata:
+
+```bash
 uv run python scripts/check_api_coverage.py
 uv run python scripts/check_api_stub_sync.py
 bash scripts/smoke_wheel_install.sh
@@ -69,7 +96,9 @@ All changes to django-paradedb happen through GitHub Pull Requests. Here is the 
 6. Open a pull request towards the `main` branch. Ensure that all tests and checks pass. Note that the django-paradedb repository has pull request title linting in place and follows the [Conventional Commits spec](https://www.conventionalcommits.org/).
 7. Congratulations! Our team will review your pull request.
 
-If your change touches SQL wrappers, API constants, packaging, or release metadata, run the API/package checks above before opening the PR.
+### Changelog
+
+When you make a change that a user of this project would care about, record it in the `Unreleased` section of [CHANGELOG.md](CHANGELOG.md). If the change is breaking, make sure to denote that.
 
 ### Documentation
 

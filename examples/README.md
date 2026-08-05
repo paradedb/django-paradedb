@@ -1,179 +1,97 @@
-# ParadeDB for Django: Examples & Cookbook
+# Examples
 
-Welcome to the **ParadeDB for Django** examples! This directory contains a collection of self-contained scripts designed to teach you how to integrate full-text search, vector retrieval, and aggregations into your Django application using ParadeDB.
+Self-contained scripts that show how to use ParadeDB from Django. Run them all with `scripts/run_examples.sh`, or follow the setup below and run them one at a time.
 
-Think of this as a **cookbook**: whether you need simple keyword search, an e-commerce filtering system, or a cutting-edge RAG (Retrieval-Augmented Generation) pipeline, you'll find a recipe here.
+## Getting Started
 
-## 🚀 Getting Started
-
-Before running any example, you need to set up your environment.
-
-### 1. Install Dependencies
-
-All examples share a common set of dependencies.
+### 1. Install dependencies
 
 ```bash
 # Install uv: https://docs.astral.sh/uv/getting-started/installation/
-
-# Create or update an environment with the example dependencies
 uv sync --extra examples
 ```
 
 ### 2. Start ParadeDB
 
-You need a running ParadeDB instance. We provide a helper script to start one via Docker and set the necessary environment variables.
-
 ```bash
-# Sourcing this script starts ParadeDB and exports DATABASE_URL
 source scripts/run_paradedb.sh
 ```
 
-**Note:** If you already have a Postgres instance with ParadeDB installed, you can simply set the `DATABASE_URL` environment variable manually:
-`export DATABASE_URL=postgresql://user:password@localhost:5432/dbname`
+This starts a ParadeDB container via Docker and exports `DATABASE_URL`. If you already have a Postgres instance with ParadeDB installed, set `DATABASE_URL` yourself instead:
 
----
+```bash
+export DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+```
 
-## 📚 The Examples
+## Quickstart (`quickstart/quickstart.py`)
 
-We've organized the examples into three categories:
-
-1. **Essentials**: Core search features used in almost every app.
-2. **Smart Features**: UX enhancements like autocomplete and recommendations.
-3. **AI & Vectors**: Advanced semantic search and generative AI flows.
-
-### 🔹 Essentials
-
-#### 1. Quickstart (`quickstart/quickstart.py`)
-
-_The "Hello World" of ParadeDB._
-
-This script demonstrates the fundamental building blocks of search. You will learn how to:
-
-- **Index data**: Define a `ParadeDBIndex` on your model.
-- **Search**: Perform basic keyword queries.
-- **Score**: Sort results by relevance (BM25 score).
-- **Highlight**: Generate snippets (e.g., `<b>run</b>ning`) to show users why a result matched.
-
-**Run it:**
+The "Hello World" of ParadeDB. Covers defining a `ParadeDBIndex` on a model, running keyword queries, sorting by BM25 relevance, and highlighting matched terms in snippets.
 
 ```bash
 uv run python examples/quickstart/quickstart.py
 ```
 
-#### 2. Faceted Search (`faceted_search/faceted_search.py`)
+## Vector Search (`vector_search/vector_search.py`)
 
-_Building an E-commerce Sidebar._
+Top-K nearest-neighbor retrieval over pgvector `vector` columns. ParadeDB indexes the vector column inside its search index, so one index serves both keyword and vector queries. Declares a `VectorField`, includes it in the shared `ParadeDBIndex` with a `cosine` metric opclass, and queries with the required `@@@` predicate and `LIMIT`.
 
-Facets are the "filters" you see on shopping sites (e.g., "Brand (5)", "Color (3)"). This example shows how to compute these counts efficiently in a single query.
-
-**Key Concepts:**
-
-- **Aggregations**: Counting documents by category, rating, etc.
-- **Hybrid Results**: Getting search results _and_ facet counts together.
-
-**Run it:**
-
-```bash
-uv run python examples/faceted_search/faceted_search.py
-```
-
----
-
-### 🔹 Smart Features
-
-#### 3. Autocomplete (`autocomplete/`)
-
-_Instant "As-You-Type" Suggestions._
-
-Standard search requires hitting "Enter". Autocomplete gives immediate feedback. This example uses **N-gram tokenization** to match substrings (e.g., "wir" matches "wireless").
-
-**How it works:**
-
-1. We create a specialized index that breaks text into small chunks (n-grams).
-2. Queries match these chunks, allowing for partial matches even in the middle of words.
-
-**Run it:**
-
-```bash
-uv run python examples/autocomplete/autocomplete.py
-```
-
-`autocomplete.py` bootstraps its own setup. Run `examples/autocomplete/setup.py`
-only if you want to inspect or prepare the demo data separately.
-
-#### 4. More Like This (`more_like_this/more_like_this.py`)
-
-_Recommendations & "Related Content"._
-
-Want to show "Related Articles" or "Customers also bought"? This feature analyzes the text of a document to find others with similar keywords, using TF-IDF logic—no complex vector embeddings required.
-
-**Run it:**
-
-```bash
-uv run python examples/more_like_this/more_like_this.py
-```
-
----
-
-### 🔹 AI & Vectors
-
-#### 5. Vector Search (`vector_search/vector_search.py`)
-
-_Semantic Top-K Retrieval, One Index._
-
-ParadeDB indexes pgvector `vector` columns inside its search index, so one index serves both keyword and vector queries. This example declares a `VectorField`, includes it in the shared `ParadeDBIndex` with a `cosine` metric opclass, and runs Top-K nearest-neighbor queries — with the mandatory `@@@` predicate (`ParadeDB(All())`) and `LIMIT`.
-
-**Prerequisites:**
-
-- The `pgvector` Postgres extension must be installed (included in the ParadeDB Docker image).
-
-**Run it:**
+Requires the `pgvector` extension, which is included in the ParadeDB Docker image.
 
 ```bash
 uv run python examples/vector_search/vector_search.py
 ```
 
-#### 6. Hybrid Search with RRF (`hybrid_rrf/`)
+## Faceted Search (`faceted_search/faceted_search.py`)
 
-_The Best of Both Worlds: Keywords + Semantics._
+Builds an e-commerce-style filter sidebar. Computes search results and facet counts (by category, rating, and so on) together in a single query.
 
-Keyword search (BM25) is great for exact matches ("Part #123"). Vector search is great for meaning ("warm clothing" matches "coat"). **Hybrid Search** combines them using **Reciprocal Rank Fusion (RRF)** for superior results.
+```bash
+uv run python examples/faceted_search/faceted_search.py
+```
 
-**Prerequisites:**
+## Autocomplete (`autocomplete/autocomplete.py`)
 
-- The `pgvector` Postgres extension must be installed (included in the ParadeDB Docker image).
+As-you-type suggestions using n-gram tokenization, which matches substrings in the middle of words — typing `wir` matches `wireless`.
 
-**Run it:**
+```bash
+uv run python examples/autocomplete/autocomplete.py
+```
+
+The script bootstraps its own data. Run `examples/autocomplete/setup.py` only if you want to inspect or prepare the demo data separately.
+
+## More Like This (`more_like_this/more_like_this.py`)
+
+"Related content" recommendations. Finds documents with similar keywords using TF-IDF logic, without requiring vector embeddings.
+
+```bash
+uv run python examples/more_like_this/more_like_this.py
+```
+
+## Hybrid Search (RRF) (`hybrid_rrf/hybrid_rrf.py`)
+
+Combines BM25 keyword search (good for exact matches like part numbers) with vector similarity (good for meaning) using Reciprocal Rank Fusion, which ranks better than either method alone.
+
+Requires the `pgvector` extension, which is included in the ParadeDB Docker image.
 
 ```bash
 uv run python examples/hybrid_rrf/hybrid_rrf.py
 ```
 
-#### 7. RAG: Retrieval-Augmented Generation (`rag/`)
+## RAG (`rag/rag.py`)
 
-_Chat with your Data._
+A small question-answering flow. Retrieves relevant context with ParadeDB, then sends it to an LLM so answers are grounded in your own data.
 
-This example builds a mini QA system. It searches your data for relevant context and feeds it to an LLM (Large Language Model) to answer questions based _only_ on your data.
-
-**Prerequisites:**
-
-- An API Key from [OpenRouter](https://openrouter.ai/) (provides access to GPT-4, Claude, etc.).
-- Set `export OPENROUTER_API_KEY=sk-...` in your terminal.
-
-**Run it:**
+Requires an [OpenRouter](https://openrouter.ai/) API key:
 
 ```bash
+export OPENROUTER_API_KEY=sk-...
 uv run python examples/rag/rag.py
 ```
 
----
+## Shared Helpers (`common.py`)
 
-## 🛠 Under the Hood: `common.py`
+Most examples import from `examples/common.py`, which keeps the boilerplate out of the example scripts:
 
-You might notice that many examples import from `common`. This is a helper module located at `examples/common.py`. It handles the boring stuff so the examples remain focused:
-
-- **`configure_django()`**: Sets up a minimal in-memory Django configuration.
-- **`MockItem`**: A simple Django model used across examples to simulate products.
-- **`setup_mock_items()`**: Populates the database with dummy data.
-
-Feel free to read `common.py` if you're curious how to set up standalone Django scripts!
+- `configure_django()` sets up a minimal standalone Django configuration.
+- `MockItem` is the Django model used across examples to simulate products.
+- `setup_mock_items()` populates the database with demo data.

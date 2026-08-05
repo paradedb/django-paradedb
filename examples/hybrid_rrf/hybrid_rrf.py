@@ -18,7 +18,7 @@ from django.db.models.functions import Cast, RowNumber
 from django_cte import CTE, with_cte
 
 from paradedb.functions import Score
-from paradedb.search import MatchAll, ParadeDB
+from paradedb.search import All, MatchAll, ParadeDB
 from paradedb.vector import CosineDistance
 
 
@@ -64,9 +64,10 @@ def hybrid_search(
     )
     fulltext_cte = CTE(fulltext_qs, name="fulltext")
 
-    # CTE 2: Vector similarity search with ROW_NUMBER rank
+    # CTE 2: Vector similarity search with ROW_NUMBER rank.
     semantic_qs = (
-        MockItem.objects.annotate(distance=CosineDistance("embedding", query_embedding))
+        MockItem.objects.filter(id=ParadeDB(All()))
+        .annotate(distance=CosineDistance("embedding", query_embedding))
         .annotate(rank=Window(expression=RowNumber(), order_by=F("distance").asc()))
         .order_by("distance")
         .values("id", "rank")[:top_k]

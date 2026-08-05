@@ -9,23 +9,34 @@ import httpx
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from common import MockItem, setup_mock_items
+from common import QUERY_EMBEDDINGS, MockItem, setup_mock_items
 
-from paradedb.functions import Score
 from paradedb.search import ParadeDB, Parse
+from paradedb.vector import CosineDistance
 
 load_dotenv()
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 MODEL = os.environ.get("RAG_MODEL", "anthropic/claude-3-haiku")
 
+# Maps each demo question to a pre-computed query embedding in common.py. A real
+# application would embed the question with the same model used for the column.
+QUERY_EMBEDDING_SEEDS: dict[str, str] = {
+    "What running shoes do you have?": "running shoes",
+    "I need comfortable shoes for everyday use": "footwear for exercise",
+    "Do you have any wireless audio products?": "wireless earbuds",
+}
 
-def retrieve(query: str, top_k: int = 5) -> list[MockItem]:
-    """Retrieve relevant products using BM25 search."""
+
+def retrieve(
+    query: str, query_embedding: list[float], top_k: int = 5
+) -> list[MockItem]:
+    """Retrieve relevant products with hybrid retrieval.
+    """
     qs = (
         MockItem.objects.filter(description=ParadeDB(Parse(query, lenient=True)))
-        .annotate(score=Score())
-        .order_by("-score")[:top_k]
+        .annotate(distance=CosineDistance("embedding", query_embedding))
+        .order_by("distance")[:top_k]
     )
     return list(qs)
 
@@ -87,10 +98,10 @@ def rag(query: str) -> None:
     print("=" * 60)
 
     # Retrieve
-    items = retrieve(query)
+    items = retrieve(query, QUERY_EMBEDDINGS[QUERY_EMBEDDING_SEEDS[query]])
     print(f"\nRetrieved {len(items)} products:")
     for item in items:
-        print(f"  • {item.description} (score: {item.score:.2f})")
+        print(f"  • {item.description} (distance: {item.distance:.4f})")
 
     # Generate
     context = format_context(items)

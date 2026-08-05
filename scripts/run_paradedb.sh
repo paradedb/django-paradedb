@@ -30,6 +30,15 @@ if ! command -v docker >/dev/null 2>&1; then
   if [[ "$RUNNING" == "1" ]]; then exit 1; else return 1; fi
 fi
 
+# A container left over from a failed run can exist without publishing the
+# port, in which case reusing it yields confusing connection errors. Drop it
+# so the normal creation path below builds a working one.
+if docker ps -a --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}" &&
+! docker port "${CONTAINER_NAME}" 5432 2>/dev/null | grep -q ":${PORT}$"; then
+  echo "Container ${CONTAINER_NAME} exists but does not publish port ${PORT}; recreating it..."
+  docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
+fi
+
 if ! docker ps -a --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
   echo "Starting ParadeDB container ${CONTAINER_NAME} from ${IMAGE}..."
   docker run -d \

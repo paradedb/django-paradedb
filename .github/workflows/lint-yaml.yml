@@ -36,7 +36,7 @@ jobs:
         uses: actions/setup-node@v7
 
       - name: Install Prettier
-        run: npm install -g prettier
+        run: npm install -g prettier@3.9.6
 
       - name: Check YAML Formatting
         run: prettier --check "**/*.{yml,yaml}"

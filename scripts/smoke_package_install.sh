@@ -62,5 +62,9 @@ sql = str(
     SmokeModel.objects.filter(description=ParadeDB(MatchAll("shoes"))).query
 )
 if "&&&" not in sql:
-    raise SystemExit("Wheel smoke test failed: expected ParadeDB SQL operator.")
+    raise SystemExit("Package smoke test failed: expected ParadeDB SQL operator.")
 PY
+
+WHEEL_NAME="$(basename "$(find "${DIST_DIR}" -name 'django_paradedb-*.whl' | head -1)")"
+VERSION="${WHEEL_NAME#django_paradedb-}"; VERSION="${VERSION%%-*}"
+echo "✅ Package smoke install passed for django-paradedb ${VERSION}"

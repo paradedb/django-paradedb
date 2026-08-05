@@ -28,7 +28,6 @@ repos:
       - id: debug-statements
       - id: destroyed-symlinks
       - id: fix-byte-order-marker
-      - id: requirements-txt-fixer
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.45.0
@@ -40,7 +39,7 @@ repos:
     hooks:
       - id: codespell
         args: ["--config", ".codespellrc", "--check-filenames"]
-
+        exclude: ^uv\.lock$
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.14
     hooks:

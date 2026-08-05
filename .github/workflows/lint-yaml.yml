@@ -12,6 +12,8 @@ on:
       - "**/*.yml"
       - "**/*.yaml"
       - ".github/workflows/lint-yaml.yml"
+      - ".prettierignore"
+      - ".prettierrc"
   workflow_dispatch:
 
 concurrency:

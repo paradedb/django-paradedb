@@ -37,7 +37,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -46,7 +46,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv venv --python "3.13"
+          uv venv --python "3.14"
           uv sync --extra dev
 
       - name: Ruff check
@@ -170,14 +170,6 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Run examples
-        run: scripts/run_examples.sh
-
-      - name: Run RAG example (if API key configured)
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: |
-          if [ -n "${OPENROUTER_API_KEY}" ]; then
-            uv run --with "${DJANGO_SPEC}" python examples/rag/rag.py
-          else
-            echo "Skipping RAG example: OPENROUTER_API_KEY is not configured."
-          fi
+        run: scripts/run_examples.sh

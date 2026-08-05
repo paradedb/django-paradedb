@@ -36,9 +36,7 @@
 
 ## ParadeDB for Django
 
-The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com) (powered by the [`pg_search`](https://github.com/paradedb/paradedb) Postgres extension), including first-class support for managing ParadeDB indexes and running queries using the full ParadeDB API. The integration covers both full-text (BM25) and vector search — vector search indexes pgvector `vector` columns directly in the ParadeDB index. Follow the [getting started guide](https://docs.paradedb.com/documentation/getting-started/environment#django) to begin.
-
-django-paradedb also ships native vector search over pgvector `vector` columns — declare a `VectorField`, add it to your `ParadeDBIndex` with a distance metric, and query with `L2Distance`/`CosineDistance`/`InnerProduct`. See the [vector search documentation](https://docs.paradedb.com/documentation/vector/overview).
+The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com) (powered by the [`pg_search`](https://github.com/paradedb/paradedb) Postgres extension), including first-class support for managing ParadeDB indexes and running queries using the full ParadeDB API. The integration covers both [full-text search](https://docs.paradedb.com/documentation/full-text/overview) and [vector search](https://docs.paradedb.com/documentation/vector/overview) over pgvector `vector` types. Follow the [getting started guide](https://docs.paradedb.com/documentation/getting-started/environment#django) to begin.
 
 ## Requirements & Compatibility
 
@@ -55,10 +53,12 @@ django-paradedb also ships native vector search over pgvector `vector` columns �
 - [Quickstart](examples/quickstart/quickstart.py)
 - [Vector Search](examples/vector_search/vector_search.py)
 - [Faceted Search](examples/faceted_search/faceted_search.py)
-- [Autocomplete](examples/autocomplete/autocomplete.py)
-- [More Like This](examples/more_like_this/more_like_this.py)
 - [Hybrid Search (RRF)](examples/hybrid_rrf/hybrid_rrf.py)
 - [RAG](examples/rag/rag.py)
+- [Autocomplete](examples/autocomplete/autocomplete.py)
+- [More Like This](examples/more_like_this/more_like_this.py)
+
+See [examples/README.md](examples/README.md) for setup instructions and a description of each example.
 
 ## Contributing
 

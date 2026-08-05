@@ -40,7 +40,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -49,7 +49,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv venv --python "3.13"
+          uv venv --python "3.14"
           uv sync --extra dev
 
       - name: Run Schema Compatibility Check
@@ -89,7 +89,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
@@ -98,7 +98,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv venv --python "3.13"
+          uv venv --python "3.14"
           uv sync --extra dev
 
       - name: Run unit tests

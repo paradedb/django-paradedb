@@ -55,7 +55,7 @@ To run a subset of tests, pass pytest selectors:
 bash scripts/run_tests.sh tests/test_paradedb_queries.py::test_tokenizer_override_invalid_identifier
 ```
 
-The script starts a ParadeDB container via Docker and sets `DATABASE_URL` automatically. The default container is `django-paradedb` on port `5432`. Each ParadeDB ORM integration uses its own container name, so a container from another repo is never reused by mistake. They all bind port `5432`, so stop one before starting another.
+The script starts a ParadeDB container via Docker and sets `DATABASE_URL` automatically. The default container is `django-paradedb` on port `5432`.
 
 Some tests require newer pg_search versions and are skipped automatically if the feature is not available.
 

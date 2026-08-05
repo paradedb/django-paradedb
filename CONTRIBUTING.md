@@ -81,7 +81,7 @@ Run these before opening a PR if your change touches SQL wrappers, API constants
 ```bash
 uv run python scripts/check_api_coverage.py
 uv run python scripts/check_api_stub_sync.py
-bash scripts/smoke_wheel_install.sh
+bash scripts/smoke_package_install.sh
 ```
 
 ### Pull Request Workflow

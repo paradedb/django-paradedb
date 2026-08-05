@@ -53,10 +53,10 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 - [Quickstart](examples/quickstart/quickstart.py)
 - [Vector Search](examples/vector_search/vector_search.py)
 - [Faceted Search](examples/faceted_search/faceted_search.py)
-- [Autocomplete](examples/autocomplete/autocomplete.py)
-- [More Like This](examples/more_like_this/more_like_this.py)
 - [Hybrid Search (RRF)](examples/hybrid_rrf/hybrid_rrf.py)
 - [RAG](examples/rag/rag.py)
+- [Autocomplete](examples/autocomplete/autocomplete.py)
+- [More Like This](examples/more_like_this/more_like_this.py)
 
 See [examples/README.md](examples/README.md) for setup instructions and a description of each example.
 

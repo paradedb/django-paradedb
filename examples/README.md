@@ -49,24 +49,6 @@ Builds an e-commerce-style filter sidebar. Computes search results and facet cou
 uv run python examples/faceted_search/faceted_search.py
 ```
 
-## Autocomplete (`autocomplete/autocomplete.py`)
-
-As-you-type suggestions using n-gram tokenization, which matches substrings in the middle of words — typing `wir` matches `wireless`.
-
-```bash
-uv run python examples/autocomplete/autocomplete.py
-```
-
-The script bootstraps its own data. Run `examples/autocomplete/setup.py` only if you want to inspect or prepare the demo data separately.
-
-## More Like This (`more_like_this/more_like_this.py`)
-
-"Related content" recommendations. Finds documents with similar keywords using TF-IDF logic, without requiring vector embeddings.
-
-```bash
-uv run python examples/more_like_this/more_like_this.py
-```
-
 ## Hybrid Search (RRF) (`hybrid_rrf/hybrid_rrf.py`)
 
 Combines BM25 keyword search (good for exact matches like part numbers) with vector similarity (good for meaning) using Reciprocal Rank Fusion, which ranks better than either method alone.
@@ -86,6 +68,24 @@ Requires an [OpenRouter](https://openrouter.ai/) API key:
 ```bash
 export OPENROUTER_API_KEY=sk-...
 uv run python examples/rag/rag.py
+```
+
+## Autocomplete (`autocomplete/autocomplete.py`)
+
+As-you-type suggestions using n-gram tokenization, which matches substrings in the middle of words — typing `wir` matches `wireless`.
+
+```bash
+uv run python examples/autocomplete/autocomplete.py
+```
+
+The script bootstraps its own data. Run `examples/autocomplete/setup.py` only if you want to inspect or prepare the demo data separately.
+
+## More Like This (`more_like_this/more_like_this.py`)
+
+"Related content" recommendations. Finds documents with similar keywords using TF-IDF logic, without requiring vector embeddings.
+
+```bash
+uv run python examples/more_like_this/more_like_this.py
 ```
 
 ## Shared Helpers (`common.py`)

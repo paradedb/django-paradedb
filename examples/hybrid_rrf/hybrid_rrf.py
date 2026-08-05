@@ -65,8 +65,6 @@ def hybrid_search(
     fulltext_cte = CTE(fulltext_qs, name="fulltext")
 
     # CTE 2: Vector similarity search with ROW_NUMBER rank.
-    # The ParadeDB(All()) predicate is required: without a @@@ predicate the
-    # index cannot serve the query and Postgres falls back to a sequential scan.
     semantic_qs = (
         MockItem.objects.filter(id=ParadeDB(All()))
         .annotate(distance=CosineDistance("embedding", query_embedding))

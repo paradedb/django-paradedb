@@ -31,8 +31,7 @@ QUERY_EMBEDDING_SEEDS: dict[str, str] = {
 def retrieve(
     query: str, query_embedding: list[float], top_k: int = 5
 ) -> list[MockItem]:
-    """Retrieve relevant products with hybrid retrieval.
-    """
+    """Retrieve relevant products with hybrid retrieval."""
     qs = (
         MockItem.objects.filter(description=ParadeDB(Parse(query, lenient=True)))
         .annotate(distance=CosineDistance("embedding", query_embedding))

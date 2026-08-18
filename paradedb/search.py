@@ -835,6 +835,25 @@ class ParadeDB:
     ) -> ParadeDB:
         return self
 
+    def relabeled_clone(self, change_map: dict[str, str]) -> ParadeDB:  # noqa: ARG002
+        # A term holds no table aliases; nested expressions resolve at render time.
+        return self
+
+    def get_source_expressions(self) -> list[Any]:
+        return []
+
+    def set_source_expressions(self, exprs: list[Any]) -> None:  # noqa: ARG002
+        return None
+
+    def get_refs(self) -> set[str]:
+        return set()
+
+    def get_group_by_cols(self) -> list[Any]:
+        return []
+
+    def replace_expressions(self, replacements: dict[Any, Any]) -> Any:
+        return replacements.get(self, self)
+
     def as_sql(
         self,
         compiler: SQLCompiler,

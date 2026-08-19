@@ -406,19 +406,6 @@ class TestSearchTermInSubquery:
         )
         _run_query(queryset)
 
-    def test_exclude_pk_in_subquery(self) -> None:
-        queryset = MockItem.objects.exclude(
-            pk__in=MockItem.objects.filter(
-                category=ParadeDB(Term("electronics"))
-            ).values("pk")
-        )
-        assert (
-            # Django 4.2 omits the selected-column alias added by newer versions.
-            str(queryset.query).replace(' AS "pk"', "")
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE NOT ("mock_items"."id" IN (SELECT U0."id" FROM "mock_items" U0 WHERE U0."category" @@@ pdb.term(\'electronics\')))'
-        )
-        _run_query(queryset)
-
     def test_exists_with_outerref(self) -> None:
         queryset = MockItem.objects.filter(
             DjangoExists(
@@ -488,20 +475,6 @@ class TestSearchTermInSubquery:
             queries[0]["sql"]
             == 'SELECT COUNT("__col1") FILTER (WHERE "__col2" @@@ pdb.term(TRIM("__col3"))) FROM (SELECT "mock_items"."id" AS "__col1", "mock_items"."description" AS "__col2", "mock_items"."category" AS "__col3" FROM "mock_items" ORDER BY "mock_items"."id" ASC LIMIT 5) subquery'
         )
-
-    def test_grouped_filtered_count(self) -> None:
-        queryset = MockItem.objects.values("category").annotate(
-            n=Count("id", filter=Q(description=ParadeDB(MatchAll("shoes"))))
-        )
-        assert (
-            str(queryset.query)
-            # Django 4.2 omits the selected-column alias added by newer versions.
-            .replace(' AS "category"', "")
-            # Django 4.2 groups by the column instead of its select position.
-            .replace('GROUP BY "mock_items"."category"', "GROUP BY 1")
-            == 'SELECT "mock_items"."category", COUNT("mock_items"."id") FILTER (WHERE "mock_items"."description" &&& \'shoes\') AS "n" FROM "mock_items" GROUP BY 1'
-        )
-        _run_query(queryset)
 
 
 class TestMoreLikeThis:

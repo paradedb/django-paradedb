@@ -11,8 +11,24 @@ from typing import ClassVar
 import pytest
 from django.contrib.postgres.fields import ArrayField
 from django.db import connection
-from django.db.models import F, Func, Q, TextField, Value, Window
+from django.db.models import (
+    BooleanField,
+    Count,
+    ExpressionWrapper,
+    F,
+    Func,
+    OuterRef,
+    Q,
+    Subquery,
+    TextField,
+    Value,
+    Window,
+)
+from django.db.models import (
+    Exists as DjangoExists,
+)
 from django.db.models.functions import Cast, Coalesce, Trim
+from django.test.utils import CaptureQueriesContext
 
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.search import (
@@ -324,6 +340,141 @@ class TestParadeDBLookup:
         )
         assert params == ("shoes ",)
         _run_query(queryset)
+
+
+class TestSearchTermInSubquery:
+    def test_contains_subquery(self) -> None:
+        term = ParadeDB(
+            Term(
+                Cast(
+                    Subquery(MockItem.objects.values("category")[:1]),
+                    TextField(),
+                )
+            )
+        )
+        assert term.contains_subquery
+
+    def test_pk_in_subquery(self) -> None:
+        queryset = MockItem.objects.filter(
+            pk__in=MockItem.objects.filter(
+                description=ParadeDB(MatchAll("shoes"))
+            ).values("pk")
+        )
+        assert (
+            # Django 4.2 omits the selected-column alias added by newer versions.
+            str(queryset.query).replace(' AS "pk"', "")
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" FROM "mock_items" U0 WHERE U0."description" &&& \'shoes\')'
+        )
+        _run_query(queryset)
+
+    def test_pk_in_subquery_with_column_expression(self) -> None:
+        queryset = MockItem.objects.filter(
+            pk__in=MockItem.objects.filter(
+                description=ParadeDB(Term(Trim(F("category"))))
+            ).values("pk")
+        )
+        assert (
+            # Django 4.2 omits the selected-column alias added by newer versions.
+            str(queryset.query).replace(' AS "pk"', "")
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" FROM "mock_items" U0 WHERE U0."description" @@@ pdb.term(TRIM(U0."category")))'
+        )
+        _run_query(queryset)
+
+    def test_pk_in_subquery_with_f_expression(self) -> None:
+        queryset = MockItem.objects.filter(
+            pk__in=MockItem.objects.filter(
+                description=ParadeDB(Term(F("category")))
+            ).values("pk")
+        )
+        assert (
+            # Django 4.2 omits the selected-column alias added by newer versions.
+            str(queryset.query).replace(' AS "pk"', "")
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" FROM "mock_items" U0 WHERE U0."description" @@@ pdb.term(U0."category"))'
+        )
+        _run_query(queryset)
+
+    def test_pk_in_subquery_with_modified_column_expression(self) -> None:
+        queryset = MockItem.objects.filter(
+            pk__in=MockItem.objects.filter(
+                description=ParadeDB(Boost(Term(Trim(F("category"))), 2.0))
+            ).values("pk")
+        )
+        assert (
+            # Django 4.2 omits the selected-column alias added by newer versions.
+            str(queryset.query).replace(' AS "pk"', "")
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" FROM "mock_items" U0 WHERE U0."description" @@@ pdb.term(TRIM(U0."category"))::pdb.boost(2.0))'
+        )
+        _run_query(queryset)
+
+    def test_exists_with_outerref(self) -> None:
+        queryset = MockItem.objects.filter(
+            DjangoExists(
+                MockItem.objects.filter(
+                    pk=OuterRef("pk"),
+                    description=ParadeDB(MatchAll("shoes")),
+                )
+            )
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE EXISTS(SELECT 1 AS "a" FROM "mock_items" U0 WHERE (U0."description" &&& \'shoes\' AND U0."id" = ("mock_items"."id")) LIMIT 1)'
+        )
+        _run_query(queryset)
+
+    def test_group_by_expression_containing_term(self) -> None:
+        queryset = (
+            MockItem.objects.annotate(
+                hit=ExpressionWrapper(
+                    Q(description=ParadeDB(MatchAll("shoes"))),
+                    output_field=BooleanField(),
+                )
+            )
+            .values("hit")
+            .annotate(n=Count("id"))
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."description" &&& \'shoes\' AS "hit", COUNT("mock_items"."id") AS "n" FROM "mock_items" GROUP BY 1'
+        )
+        _run_query(queryset)
+
+    def test_aggregate_with_filtered_count(self) -> None:
+        with CaptureQueriesContext(connection) as queries:
+            MockItem.objects.aggregate(
+                n=Count("id", filter=Q(description=ParadeDB(MatchAll("shoes"))))
+            )
+        assert (
+            queries[0]["sql"]
+            == 'SELECT COUNT("mock_items"."id") FILTER (WHERE "mock_items"."description" &&& \'shoes\') AS "n" FROM "mock_items"'
+        )
+
+    def test_aggregate_filter_references_annotation(self) -> None:
+        with CaptureQueriesContext(connection) as queries:
+            MockItem.objects.annotate(search_term=Trim(F("category"))).aggregate(
+                n=Count(
+                    "id",
+                    filter=Q(
+                        description=ParadeDB(Term(Cast(F("search_term"), TextField())))
+                    ),
+                )
+            )
+        assert (
+            queries[0]["sql"]
+            == 'SELECT COUNT("mock_items"."id") FILTER (WHERE "mock_items"."description" @@@ pdb.term((TRIM("mock_items"."category"))::text)) AS "n" FROM "mock_items"'
+        )
+
+    def test_sliced_aggregate_with_column_expression(self) -> None:
+        with CaptureQueriesContext(connection) as queries:
+            MockItem.objects.order_by("pk")[:5].aggregate(
+                n=Count(
+                    "id",
+                    filter=Q(description=ParadeDB(Term(Trim(F("category"))))),
+                )
+            )
+        assert (
+            queries[0]["sql"]
+            == 'SELECT COUNT("__col1") FILTER (WHERE "__col2" @@@ pdb.term(TRIM("__col3"))) FROM (SELECT "mock_items"."id" AS "__col1", "mock_items"."description" AS "__col2", "mock_items"."category" AS "__col3" FROM "mock_items" ORDER BY "mock_items"."id" ASC LIMIT 5) subquery'
+        )
 
 
 class TestMoreLikeThis:
@@ -1447,7 +1598,7 @@ def _raw_ids(sql: str) -> set[int]:
 
 
 def _where_sql(lhs_sql: str, expr: ParadeDB) -> str:
-    sql, _ = expr.as_sql(None, connection, lhs_sql)  # type: ignore[arg-type]
+    sql, _ = expr.as_paradedb_sql(None, lhs_sql)  # type: ignore[arg-type]
     return sql
 
 

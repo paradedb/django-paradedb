@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Iterator, Sequence
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Any, Literal, TypeAlias
 
@@ -21,7 +21,7 @@ from django.db.models import (
     TextField,
     UUIDField,
 )
-from django.db.models.expressions import Expression
+from django.db.models.expressions import BaseExpression, Expression, F
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
 from django.utils.deconstruct import deconstructible
@@ -65,7 +65,9 @@ from paradedb.api import (
     PDB_TYPE_TOKENIZER_WHITESPACE,
 )
 
-SearchValue: TypeAlias = "str | list[str] | tuple[str, ...] | Modifier | Expression"
+SearchValue: TypeAlias = (
+    "str | list[str] | tuple[str, ...] | Modifier | BaseExpression | F"
+)
 Modifiable: TypeAlias = "SearchValue | QueryExpression"
 
 
@@ -794,7 +796,7 @@ QueryExpression: TypeAlias = (
 TermType: TypeAlias = QueryExpression | MoreLikeThis | Modifier
 
 
-class ParadeDB:
+class ParadeDB(BaseExpression):
     """Wrapper for ParadeDB search terms.
 
     Usage:
@@ -818,27 +820,52 @@ class ParadeDB:
         TypeError: If query term types are mixed
     """
 
-    contains_aggregate = False
-    contains_over_clause = False
-    contains_column_references = False
-
     def __init__(self, term: TermType) -> None:
         self._term = term
 
-    def resolve_expression(
-        self,
-        query: Any = None,  # noqa: ARG002
-        allow_joins: bool = True,  # noqa: ARG002
-        reuse: set[str] | None = None,  # noqa: ARG002
-        summarize: bool = False,  # noqa: ARG002
-        for_save: bool = False,  # noqa: ARG002
-    ) -> ParadeDB:
-        return self
+    @staticmethod
+    def _source_expressions(value: Any) -> list[Any]:
+        if isinstance(value, BaseExpression | F):
+            return [value]
+        if isinstance(value, Modifier | Term):
+            return ParadeDB._source_expressions(value.value)
+        if isinstance(value, Phrase | MatchAny | MatchAll):
+            return [
+                expression
+                for term in value.terms
+                for expression in ParadeDB._source_expressions(term)
+            ]
+        return []
 
-    def as_sql(
+    @staticmethod
+    def _replace_source_expressions(value: Any, exprs: Iterator[Any]) -> Any:
+        if isinstance(value, BaseExpression | F):
+            return next(exprs)
+        if isinstance(value, Modifier):
+            return replace(
+                value,
+                value=ParadeDB._replace_source_expressions(value.value, exprs),
+            )
+        if isinstance(value, Term):
+            return Term(ParadeDB._replace_source_expressions(value.value, exprs))
+        if isinstance(value, Phrase | MatchAny | MatchAll):
+            return type(value)(
+                *(
+                    ParadeDB._replace_source_expressions(term, exprs)
+                    for term in value.terms
+                )
+            )
+        return value
+
+    def get_source_expressions(self) -> list[Any]:
+        return self._source_expressions(self._term)
+
+    def set_source_expressions(self, exprs: Sequence[Any]) -> None:
+        self._term = self._replace_source_expressions(self._term, iter(exprs))
+
+    def as_paradedb_sql(
         self,
         compiler: SQLCompiler,
-        _connection: BaseDatabaseWrapper,
         lhs_sql: str,
     ) -> tuple[str, list[object]]:
         rendered, params = self._render_term(self._term, compiler)
@@ -887,9 +914,8 @@ class ParadeDB:
             return f"{rendered}::{value.tokenizer.render()}", params
         if isinstance(value, QueryExpression):
             return ParadeDB(value)._render_term(value, compiler)
-        if isinstance(value, Expression):
-            expression = value.resolve_expression(compiler.query)
-            sql, expression_params = compiler.compile(expression)
+        if isinstance(value, BaseExpression):
+            sql, expression_params = compiler.compile(value)
             return sql, list(expression_params)
         if isinstance(value, str):
             return _quote_term(value), []
@@ -1083,7 +1109,7 @@ class ParadeDBExact(Exact):  # type: ignore[type-arg]
     ) -> tuple[str, list[Any]]:
         if isinstance(self.rhs, ParadeDB):
             lhs_sql, lhs_params = self.process_lhs(compiler, connection)
-            rhs_sql, rhs_params = self.rhs.as_sql(compiler, connection, lhs_sql)
+            rhs_sql, rhs_params = self.rhs.as_paradedb_sql(compiler, lhs_sql)
             return rhs_sql, [*lhs_params, *rhs_params]
 
         result = super().as_sql(compiler, connection)

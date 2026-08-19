@@ -1616,7 +1616,7 @@ def _raw_ids(sql: str) -> set[int]:
 
 
 def _where_sql(lhs_sql: str, expr: ParadeDB) -> str:
-    sql, _ = expr.as_paradedb_sql(None, connection, lhs_sql)  # type: ignore[arg-type]
+    sql, _ = expr.as_paradedb_sql(None, lhs_sql)  # type: ignore[arg-type]
     return sql
 
 

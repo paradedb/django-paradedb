@@ -821,16 +821,11 @@ class ParadeDB(BaseExpression):
     """
 
     def __init__(self, term: TermType) -> None:
-        super().__init__()
         self._term = term
 
-    # ParadeDB terms aren't Django expressions, but some of their values can be.
-    # These paired walkers expose those values in a stable order and later rebuild
-    # the ParadeDB term tree around Django's resolved or replaced expressions.
     @staticmethod
     def _source_expressions(value: Any) -> list[Any]:
         if isinstance(value, BaseExpression | F):
-            # Django is responsible for traversing inside its own expressions.
             return [value]
         if isinstance(value, Modifier | Term):
             return ParadeDB._source_expressions(value.value)
@@ -847,8 +842,6 @@ class ParadeDB(BaseExpression):
         if isinstance(value, BaseExpression | F):
             return next(exprs)
         if isinstance(value, Modifier):
-            # Search terms and modifiers are frozen dataclasses, so rebuild them
-            # instead of mutating their expression-bearing values.
             return replace(
                 value,
                 value=ParadeDB._replace_source_expressions(value.value, exprs),
@@ -870,18 +863,9 @@ class ParadeDB(BaseExpression):
     def set_source_expressions(self, exprs: Sequence[Any]) -> None:
         self._term = self._replace_source_expressions(self._term, iter(exprs))
 
-    def get_group_by_cols(self) -> list[Any]:
-        # Embedded expressions contribute the columns on which their SQL depends.
-        return [
-            column
-            for expression in self.get_source_expressions()
-            for column in expression.get_group_by_cols()
-        ]
-
     def as_paradedb_sql(
         self,
         compiler: SQLCompiler,
-        _connection: BaseDatabaseWrapper,
         lhs_sql: str,
     ) -> tuple[str, list[object]]:
         rendered, params = self._render_term(self._term, compiler)
@@ -1125,9 +1109,7 @@ class ParadeDBExact(Exact):  # type: ignore[type-arg]
     ) -> tuple[str, list[Any]]:
         if isinstance(self.rhs, ParadeDB):
             lhs_sql, lhs_params = self.process_lhs(compiler, connection)
-            rhs_sql, rhs_params = self.rhs.as_paradedb_sql(
-                compiler, connection, lhs_sql
-            )
+            rhs_sql, rhs_params = self.rhs.as_paradedb_sql(compiler, lhs_sql)
             return rhs_sql, [*lhs_params, *rhs_params]
 
         result = super().as_sql(compiler, connection)

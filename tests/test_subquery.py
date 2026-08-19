@@ -8,7 +8,16 @@ Django relabels the inner query's aliases when a queryset is inlined via
 from __future__ import annotations
 
 import pytest
-from django.db.models import BooleanField, Count, Exists, ExpressionWrapper, OuterRef, Q
+from django.db.models import (
+    BooleanField,
+    Count,
+    Exists,
+    ExpressionWrapper,
+    F,
+    OuterRef,
+    Q,
+)
+from django.db.models.functions import Trim
 
 from paradedb.search import MatchAll, ParadeDB, Term
 from tests.models import MockItem
@@ -92,6 +101,20 @@ class TestSearchTermInSubquery:
             result["n"]
             == MockItem.objects.filter(description=ParadeDB(MatchAll("shoes"))).count()
         )
+
+    def test_sliced_aggregate_with_column_expression(self, mock_items: None) -> None:
+        _ = mock_items
+        expected = MockItem.objects.filter(
+            pk__in=MockItem.objects.order_by("pk").values("pk")[:5],
+            description=ParadeDB(Term(Trim(F("category")))),
+        ).count()
+        result = MockItem.objects.order_by("pk")[:5].aggregate(
+            n=Count(
+                "id",
+                filter=Q(description=ParadeDB(Term(Trim(F("category"))))),
+            )
+        )
+        assert result["n"] == expected
 
     def test_grouped_filtered_count(self, mock_items: None) -> None:
         _ = mock_items

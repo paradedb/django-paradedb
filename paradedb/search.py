@@ -929,8 +929,7 @@ class ParadeDB(BaseExpression):
         if isinstance(value, QueryExpression):
             return ParadeDB(value)._render_term(value, compiler)
         if isinstance(value, Expression):
-            expression = value.resolve_expression(compiler.query)
-            sql, expression_params = compiler.compile(expression)
+            sql, expression_params = compiler.compile(value)
             return sql, list(expression_params)
         if isinstance(value, str):
             return _quote_term(value), []

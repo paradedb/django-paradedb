@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Iterator
-from copy import copy
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Any, Literal, TypeAlias
@@ -22,7 +21,7 @@ from django.db.models import (
     TextField,
     UUIDField,
 )
-from django.db.models.expressions import Expression
+from django.db.models.expressions import BaseExpression, Expression
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
 from django.utils.deconstruct import deconstructible
@@ -795,7 +794,7 @@ QueryExpression: TypeAlias = (
 TermType: TypeAlias = QueryExpression | MoreLikeThis | Modifier
 
 
-class ParadeDB:
+class ParadeDB(BaseExpression):
     """Wrapper for ParadeDB search terms.
 
     Usage:
@@ -820,6 +819,7 @@ class ParadeDB:
     """
 
     def __init__(self, term: TermType) -> None:
+        super().__init__()
         self._term = term
 
     # ParadeDB terms aren't Django expressions, but some of their values can be.
@@ -862,74 +862,11 @@ class ParadeDB:
             )
         return value
 
-    # These flags must describe embedded Django expressions rather than the
-    # ParadeDB wrapper itself so Django can plan grouping and query rewrites.
-    @property
-    def contains_aggregate(self) -> bool:
-        return any(
-            expression.contains_aggregate
-            for expression in self.get_source_expressions()
-        )
-
-    @property
-    def contains_over_clause(self) -> bool:
-        return any(
-            expression.contains_over_clause
-            for expression in self.get_source_expressions()
-        )
-
-    @property
-    def contains_column_references(self) -> bool:
-        return any(
-            expression.contains_column_references
-            for expression in self.get_source_expressions()
-        )
-
-    def resolve_expression(
-        self,
-        query: Any = None,
-        allow_joins: bool = True,
-        reuse: set[str] | None = None,
-        summarize: bool = False,
-        for_save: bool = False,
-    ) -> ParadeDB:
-        expressions = self.get_source_expressions()
-        if not expressions:
-            return self
-        # Query expressions can be reused, so install resolved children on a clone.
-        clone = copy(self)
-        clone.set_source_expressions(
-            [
-                expression.resolve_expression(
-                    query, allow_joins, reuse, summarize, for_save
-                )
-                for expression in expressions
-            ]
-        )
-        return clone
-
-    def relabeled_clone(self, change_map: dict[str, str]) -> ParadeDB:
-        expressions = self.get_source_expressions()
-        if not expressions:
-            return self
-        # Subquery construction renames table aliases inside every child expression.
-        clone = copy(self)
-        clone.set_source_expressions(
-            [expression.relabeled_clone(change_map) for expression in expressions]
-        )
-        return clone
-
     def get_source_expressions(self) -> list[Any]:
         return self._source_expressions(self._term)
 
-    def set_source_expressions(self, exprs: list[Any]) -> None:
+    def set_source_expressions(self, exprs: Sequence[Any]) -> None:
         self._term = self._replace_source_expressions(self._term, iter(exprs))
-
-    def get_refs(self) -> set[str]:
-        # Aggregate rewrites use these names to retain referenced annotations.
-        return set().union(
-            *(expression.get_refs() for expression in self.get_source_expressions())
-        )
 
     def get_group_by_cols(self) -> list[Any]:
         # Embedded expressions contribute the columns on which their SQL depends.
@@ -939,20 +876,7 @@ class ParadeDB:
             for column in expression.get_group_by_cols()
         ]
 
-    def replace_expressions(self, replacements: dict[Any, Any]) -> Any:
-        if self in replacements:
-            return replacements[self]
-        expressions = self.get_source_expressions()
-        if not expressions:
-            return self
-        # Django replaces inner-query columns with outer-query Ref expressions.
-        clone = copy(self)
-        clone.set_source_expressions(
-            [expression.replace_expressions(replacements) for expression in expressions]
-        )
-        return clone
-
-    def as_sql(
+    def as_paradedb_sql(
         self,
         compiler: SQLCompiler,
         _connection: BaseDatabaseWrapper,
@@ -1200,7 +1124,9 @@ class ParadeDBExact(Exact):  # type: ignore[type-arg]
     ) -> tuple[str, list[Any]]:
         if isinstance(self.rhs, ParadeDB):
             lhs_sql, lhs_params = self.process_lhs(compiler, connection)
-            rhs_sql, rhs_params = self.rhs.as_sql(compiler, connection, lhs_sql)
+            rhs_sql, rhs_params = self.rhs.as_paradedb_sql(
+                compiler, connection, lhs_sql
+            )
             return rhs_sql, [*lhs_params, *rhs_params]
 
         result = super().as_sql(compiler, connection)

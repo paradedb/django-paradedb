@@ -19,6 +19,7 @@ from django.db.models import (
     Func,
     OuterRef,
     Q,
+    Subquery,
     TextField,
     Value,
     Window,
@@ -342,6 +343,17 @@ class TestParadeDBLookup:
 
 
 class TestSearchTermInSubquery:
+    def test_contains_subquery(self) -> None:
+        term = ParadeDB(
+            Term(
+                Cast(
+                    Subquery(MockItem.objects.values("category")[:1]),
+                    TextField(),
+                )
+            )
+        )
+        assert term.contains_subquery
+
     def test_pk_in_subquery(self) -> None:
         queryset = MockItem.objects.filter(
             pk__in=MockItem.objects.filter(
@@ -1592,7 +1604,7 @@ def _raw_ids(sql: str) -> set[int]:
 
 
 def _where_sql(lhs_sql: str, expr: ParadeDB) -> str:
-    sql, _ = expr.as_sql(None, connection, lhs_sql)  # type: ignore[arg-type]
+    sql, _ = expr.as_paradedb_sql(None, connection, lhs_sql)  # type: ignore[arg-type]
     return sql
 
 

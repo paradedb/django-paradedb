@@ -354,6 +354,30 @@ class TestSearchTermInSubquery:
         )
         _run_query(queryset)
 
+    def test_pk_in_subquery_with_column_expression(self) -> None:
+        queryset = MockItem.objects.filter(
+            pk__in=MockItem.objects.filter(
+                description=ParadeDB(Term(Trim(F("category"))))
+            ).values("pk")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" AS "pk" FROM "mock_items" U0 WHERE U0."description" @@@ pdb.term(TRIM(U0."category")))'
+        )
+        _run_query(queryset)
+
+    def test_pk_in_subquery_with_modified_column_expression(self) -> None:
+        queryset = MockItem.objects.filter(
+            pk__in=MockItem.objects.filter(
+                description=ParadeDB(Boost(Term(Trim(F("category"))), 2.0))
+            ).values("pk")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" AS "pk" FROM "mock_items" U0 WHERE U0."description" @@@ pdb.term(TRIM(U0."category"))::pdb.boost(2.0))'
+        )
+        _run_query(queryset)
+
     def test_exclude_pk_in_subquery(self) -> None:
         queryset = MockItem.objects.exclude(
             pk__in=MockItem.objects.filter(
@@ -406,6 +430,21 @@ class TestSearchTermInSubquery:
         assert (
             queries[0]["sql"]
             == 'SELECT COUNT("mock_items"."id") FILTER (WHERE "mock_items"."description" &&& \'shoes\') AS "n" FROM "mock_items"'
+        )
+
+    def test_aggregate_filter_references_annotation(self) -> None:
+        with CaptureQueriesContext(connection) as queries:
+            MockItem.objects.annotate(search_term=Trim(F("category"))).aggregate(
+                n=Count(
+                    "id",
+                    filter=Q(
+                        description=ParadeDB(Term(Cast(F("search_term"), TextField())))
+                    ),
+                )
+            )
+        assert (
+            queries[0]["sql"]
+            == 'SELECT COUNT("mock_items"."id") FILTER (WHERE "mock_items"."description" @@@ pdb.term((TRIM("mock_items"."category"))::text)) AS "n" FROM "mock_items"'
         )
 
     def test_sliced_aggregate_with_column_expression(self) -> None:

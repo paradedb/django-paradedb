@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Fixed
 
-- `ParadeDB` search terms can now be used inside subqueries and aggregate filters. A queryset filtered with a `ParadeDB(...)` term used as `pk__in=...`, in `Exists()`/`OuterRef`, or as `Count(filter=Q(...))` raised `AttributeError: 'ParadeDB' object has no attribute 'relabeled_clone'` (or `get_refs`); the term now implements Django's leaf expression protocol (`relabeled_clone`, `get_source_expressions`, `get_refs`, `get_group_by_cols`, `replace_expressions`).
+- `ParadeDB` search terms can now be used inside subqueries and aggregate filters. A queryset filtered with a `ParadeDB(...)` term used as `pk__in=...`, in `Exists()`/`OuterRef`, or as `Count(filter=Q(...))` raised `AttributeError: 'ParadeDB' object has no attribute 'relabeled_clone'` (or `get_refs`); the term now participates in Django's expression traversal and preserves nested expressions when queries are relabeled or rewritten.
 
 ## [0.12.0] - 2026-08-04
 

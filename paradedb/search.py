@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
-from dataclasses import dataclass
+from collections.abc import Iterable, Iterator
+from copy import copy
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Any, Literal, TypeAlias
 
@@ -818,41 +819,138 @@ class ParadeDB:
         TypeError: If query term types are mixed
     """
 
-    contains_aggregate = False
-    contains_over_clause = False
-    contains_column_references = False
-
     def __init__(self, term: TermType) -> None:
         self._term = term
 
+    # ParadeDB terms aren't Django expressions, but some of their values can be.
+    # These paired walkers expose those values in a stable order and later rebuild
+    # the ParadeDB term tree around Django's resolved or replaced expressions.
+    @staticmethod
+    def _source_expressions(value: Any) -> list[Any]:
+        if isinstance(value, Expression):
+            # Django is responsible for traversing inside its own expressions.
+            return [value]
+        if isinstance(value, Modifier | Term):
+            return ParadeDB._source_expressions(value.value)
+        if isinstance(value, Phrase | MatchAny | MatchAll):
+            return [
+                expression
+                for term in value.terms
+                for expression in ParadeDB._source_expressions(term)
+            ]
+        return []
+
+    @staticmethod
+    def _replace_source_expressions(value: Any, exprs: Iterator[Any]) -> Any:
+        if isinstance(value, Expression):
+            return next(exprs)
+        if isinstance(value, Modifier):
+            # Search terms and modifiers are frozen dataclasses, so rebuild them
+            # instead of mutating their expression-bearing values.
+            return replace(
+                value,
+                value=ParadeDB._replace_source_expressions(value.value, exprs),
+            )
+        if isinstance(value, Term):
+            return Term(ParadeDB._replace_source_expressions(value.value, exprs))
+        if isinstance(value, Phrase | MatchAny | MatchAll):
+            return type(value)(
+                *(
+                    ParadeDB._replace_source_expressions(term, exprs)
+                    for term in value.terms
+                )
+            )
+        return value
+
+    # These flags must describe embedded Django expressions rather than the
+    # ParadeDB wrapper itself so Django can plan grouping and query rewrites.
+    @property
+    def contains_aggregate(self) -> bool:
+        return any(
+            expression.contains_aggregate
+            for expression in self.get_source_expressions()
+        )
+
+    @property
+    def contains_over_clause(self) -> bool:
+        return any(
+            expression.contains_over_clause
+            for expression in self.get_source_expressions()
+        )
+
+    @property
+    def contains_column_references(self) -> bool:
+        return any(
+            expression.contains_column_references
+            for expression in self.get_source_expressions()
+        )
+
     def resolve_expression(
         self,
-        query: Any = None,  # noqa: ARG002
-        allow_joins: bool = True,  # noqa: ARG002
-        reuse: set[str] | None = None,  # noqa: ARG002
-        summarize: bool = False,  # noqa: ARG002
-        for_save: bool = False,  # noqa: ARG002
+        query: Any = None,
+        allow_joins: bool = True,
+        reuse: set[str] | None = None,
+        summarize: bool = False,
+        for_save: bool = False,
     ) -> ParadeDB:
-        return self
+        expressions = self.get_source_expressions()
+        if not expressions:
+            return self
+        # Query expressions can be reused, so install resolved children on a clone.
+        clone = copy(self)
+        clone.set_source_expressions(
+            [
+                expression.resolve_expression(
+                    query, allow_joins, reuse, summarize, for_save
+                )
+                for expression in expressions
+            ]
+        )
+        return clone
 
-    def relabeled_clone(self, change_map: dict[str, str]) -> ParadeDB:  # noqa: ARG002
-        # A term holds no table aliases; nested expressions resolve at render time.
-        return self
+    def relabeled_clone(self, change_map: dict[str, str]) -> ParadeDB:
+        expressions = self.get_source_expressions()
+        if not expressions:
+            return self
+        # Subquery construction renames table aliases inside every child expression.
+        clone = copy(self)
+        clone.set_source_expressions(
+            [expression.relabeled_clone(change_map) for expression in expressions]
+        )
+        return clone
 
     def get_source_expressions(self) -> list[Any]:
-        return []
+        return self._source_expressions(self._term)
 
-    def set_source_expressions(self, exprs: list[Any]) -> None:  # noqa: ARG002
-        return None
+    def set_source_expressions(self, exprs: list[Any]) -> None:
+        self._term = self._replace_source_expressions(self._term, iter(exprs))
 
     def get_refs(self) -> set[str]:
-        return set()
+        # Aggregate rewrites use these names to retain referenced annotations.
+        return set().union(
+            *(expression.get_refs() for expression in self.get_source_expressions())
+        )
 
     def get_group_by_cols(self) -> list[Any]:
-        return []
+        # Embedded expressions contribute the columns on which their SQL depends.
+        return [
+            column
+            for expression in self.get_source_expressions()
+            for column in expression.get_group_by_cols()
+        ]
 
     def replace_expressions(self, replacements: dict[Any, Any]) -> Any:
-        return replacements.get(self, self)
+        if self in replacements:
+            return replacements[self]
+        expressions = self.get_source_expressions()
+        if not expressions:
+            return self
+        # Django replaces inner-query columns with outer-query Ref expressions.
+        clone = copy(self)
+        clone.set_source_expressions(
+            [expression.replace_expressions(replacements) for expression in expressions]
+        )
+        return clone
 
     def as_sql(
         self,

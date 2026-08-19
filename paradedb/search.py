@@ -21,7 +21,7 @@ from django.db.models import (
     TextField,
     UUIDField,
 )
-from django.db.models.expressions import BaseExpression, Expression
+from django.db.models.expressions import BaseExpression, Expression, F
 from django.db.models.lookups import Exact
 from django.db.models.sql.compiler import SQLCompiler
 from django.utils.deconstruct import deconstructible
@@ -65,7 +65,9 @@ from paradedb.api import (
     PDB_TYPE_TOKENIZER_WHITESPACE,
 )
 
-SearchValue: TypeAlias = "str | list[str] | tuple[str, ...] | Modifier | Expression"
+SearchValue: TypeAlias = (
+    "str | list[str] | tuple[str, ...] | Modifier | BaseExpression | F"
+)
 Modifiable: TypeAlias = "SearchValue | QueryExpression"
 
 
@@ -827,7 +829,7 @@ class ParadeDB(BaseExpression):
     # the ParadeDB term tree around Django's resolved or replaced expressions.
     @staticmethod
     def _source_expressions(value: Any) -> list[Any]:
-        if isinstance(value, Expression):
+        if isinstance(value, BaseExpression | F):
             # Django is responsible for traversing inside its own expressions.
             return [value]
         if isinstance(value, Modifier | Term):
@@ -842,7 +844,7 @@ class ParadeDB(BaseExpression):
 
     @staticmethod
     def _replace_source_expressions(value: Any, exprs: Iterator[Any]) -> Any:
-        if isinstance(value, Expression):
+        if isinstance(value, BaseExpression | F):
             return next(exprs)
         if isinstance(value, Modifier):
             # Search terms and modifiers are frozen dataclasses, so rebuild them
@@ -928,7 +930,7 @@ class ParadeDB(BaseExpression):
             return f"{rendered}::{value.tokenizer.render()}", params
         if isinstance(value, QueryExpression):
             return ParadeDB(value)._render_term(value, compiler)
-        if isinstance(value, Expression):
+        if isinstance(value, BaseExpression):
             sql, expression_params = compiler.compile(value)
             return sql, list(expression_params)
         if isinstance(value, str):

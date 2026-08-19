@@ -378,6 +378,18 @@ class TestSearchTermInSubquery:
         )
         _run_query(queryset)
 
+    def test_pk_in_subquery_with_f_expression(self) -> None:
+        queryset = MockItem.objects.filter(
+            pk__in=MockItem.objects.filter(
+                description=ParadeDB(Term(F("category")))
+            ).values("pk")
+        )
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" AS "pk" FROM "mock_items" U0 WHERE U0."description" @@@ pdb.term(U0."category"))'
+        )
+        _run_query(queryset)
+
     def test_pk_in_subquery_with_modified_column_expression(self) -> None:
         queryset = MockItem.objects.filter(
             pk__in=MockItem.objects.filter(

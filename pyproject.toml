@@ -25,6 +25,7 @@ keywords = [
     "vector search",
     "faceted search",
     "facets",
+    "aggregations",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

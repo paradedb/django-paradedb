@@ -29,6 +29,13 @@ repos:
       - id: destroyed-symlinks
       - id: fix-byte-order-marker
 
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:
@@ -46,13 +53,6 @@ repos:
       - id: codespell
         args: ["--config", ".codespellrc", "--check-filenames"]
         exclude: ^uv\.lock$
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.4
-    hooks:
-      - id: ruff-check
-        args: [--fix]
-      - id: ruff-format
-
   - repo: local
     hooks:
       - id: mypy

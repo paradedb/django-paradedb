@@ -295,7 +295,7 @@ class Phrase:
     Note: The slop parameter controls the maximum number of intervening unmatched
     tokens allowed between words in a phrase. Higher values increase query flexibility
     but may impact performance. Commonly used values are 0-10.
-    See: https://docs.paradedb.com/documentation/full-text/phrase
+    See: https://paradedb.com/docs/documentation/full-text/phrase
     """
 
     terms: tuple[SearchValue, ...]

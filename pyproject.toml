@@ -75,7 +75,7 @@ examples = [
 ]
 [project.urls]
 Homepage = "https://paradedb.com"
-Documentation = "https://docs.paradedb.com"
+Documentation = "https://paradedb.com/docs"
 Repository = "https://github.com/paradedb/django-paradedb"
 Issues = "https://github.com/paradedb/django-paradedb/issues"
 Changelog = "https://github.com/paradedb/django-paradedb/blob/main/CHANGELOG.md"

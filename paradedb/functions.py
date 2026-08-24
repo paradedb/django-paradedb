@@ -150,7 +150,7 @@ class SnippetPositions(Func):
     Wraps ``pdb.snippet_positions(column)`` which returns start/end byte
     offset pairs for each matching term.
 
-    See: https://docs.paradedb.com/documentation/full-text/highlight#byte-offsets
+    See: https://paradedb.com/docs/documentation/full-text/highlight#byte-offsets
     """
 
     function = FN_SNIPPET_POSITIONS

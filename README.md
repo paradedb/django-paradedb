@@ -44,7 +44,7 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 | ---------- | ------------------------------------------------------------------ |
 | Python     | 3.10+                                                              |
 | Django     | 4.2+                                                               |
-| ParadeDB   | 0.25.0+                                                            |
+| ParadeDB   | 0.26.0+                                                            |
 | PostgreSQL | 15+ (with the ParadeDB pg_search extension)                        |
 | pgvector   | Required for vector search (included in the ParadeDB Docker image) |
 

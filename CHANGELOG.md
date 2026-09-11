@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Changed
+
+- Indexes no longer require `key_field`. Omitted values stay out of generated SQL and migrations; explicit values remain supported for older pg_search versions.
+
 ## [0.13.0] - 2026-08-19
 
 ### Fixed

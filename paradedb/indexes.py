@@ -174,7 +174,6 @@ class IndexExpression:
                     alias="rating_plus_one",
                 ),
             ],
-            key_field="id",
             name="search_idx",
         )
     """
@@ -190,6 +189,9 @@ class ParadeDBIndex(models.Index):
     The index is created with ``USING paradedb``, the index access method
     name in pg_search 0.25.0+.
 
+    ``key_field`` is optional and deprecated. Pass it only when creating
+    indexes on older pg_search versions that still require it.
+
     ``centroid_ratio``, ``training_samples_per_centroid``, and
     ``cluster_replication`` are index-wide vector build options emitted in
     the ``WITH (...)`` clause. They apply to every vector field in the index
@@ -202,7 +204,7 @@ class ParadeDBIndex(models.Index):
         self,
         *,
         fields: dict[str, dict[str, Any]],
-        key_field: str,
+        key_field: str | None = None,
         name: str,
         expressions: list[IndexExpression] | None = None,
         condition: models.Q | None = None,
@@ -230,7 +232,8 @@ class ParadeDBIndex(models.Index):
     def deconstruct(self) -> tuple[str, Any, dict[str, Any]]:
         path, args, kwargs = super().deconstruct()
         kwargs["fields"] = self.fields_config
-        kwargs["key_field"] = self.key_field
+        if self.key_field is not None:
+            kwargs["key_field"] = self.key_field
         kwargs["name"] = self.name
         if self.index_expressions:
             kwargs["expressions"] = self.index_expressions
@@ -257,7 +260,9 @@ class ParadeDBIndex(models.Index):
 
         expressions, json_fields = self._build_index_expressions(model, schema_editor)
         expr_sql = ",\n    ".join(expressions)
-        storage_params = [f"key_field={_quote_term(self.key_field)}"]
+        storage_params = []
+        if self.key_field is not None:
+            storage_params.append(f"key_field={_quote_term(self.key_field)}")
         if json_fields:
             storage_params.append(
                 "json_fields="
@@ -279,9 +284,10 @@ class ParadeDBIndex(models.Index):
             f"{create_stmt} %(name)s ON %(table)s\n"
             "USING paradedb (\n"
             "    %(expressions)s\n"
-            ")\n"
-            f"WITH ({', '.join(storage_params)})"
+            ")"
         )
+        if storage_params:
+            template += f"\nWITH ({', '.join(storage_params)})"
 
         condition_sql = self._get_condition_sql(model, schema_editor)  # type: ignore[attr-defined]
         if condition_sql:

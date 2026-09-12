@@ -33,14 +33,8 @@ jobs:
       - name: Checkout Git Repository
         uses: actions/checkout@v7
 
-      - name: Set up NodeJS Environment
-        uses: actions/setup-node@v7
-
-      - name: Install Prettier and markdownlint
-        run: npm install -g prettier@3.9.6 markdownlint-cli@0.45.0
-
-      - name: Run Markdown Lint
-        run: markdownlint "**/*.md"
-
-      - name: Run Prettier
-        run: prettier --check "{**/*.md,**/*.mdx}"
+      - name: Lint Markdown
+        uses: paradedb/actions/lint-prettier@a024855293e56a720daa69e6648d023dd0cb9f77
+        with:
+          patterns: "{**/*.md,**/*.mdx}"
+          markdown: "true"

@@ -34,7 +34,7 @@ fi
 # port, in which case reusing it yields confusing connection errors. Drop it
 # so the normal creation path below builds a working one.
 if docker ps -a --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}" &&
-! docker port "${CONTAINER_NAME}" 5432 2>/dev/null | grep -q ":${PORT}$"; then
+  ! docker port "${CONTAINER_NAME}" 5432 2>/dev/null | grep -q ":${PORT}$"; then
   echo "Container ${CONTAINER_NAME} exists but does not publish port ${PORT}; recreating it..."
   docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
 fi

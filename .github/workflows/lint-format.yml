@@ -26,34 +26,5 @@ jobs:
       - name: Checkout Git Repository
         uses: actions/checkout@v7
 
-      - name: Check for CRLF Files
-        run: |
-          FILES=$(git ls-files --eol | grep crlf || true)
-          if [[ ! -z "$FILES" ]]; then
-            echo "The following files have incorrect line endings:"
-            echo "$FILES"
-            false
-          fi
-
-      - name: Check for Trailing Whitespaces
-        run: |
-          FILES=$(git grep -Ilr '[[:blank:]]$' || true)
-          if [[ ! -z "$FILES" ]]; then
-            echo "The following files have trailing whitespaces:"
-            echo "$FILES"
-            exit 1
-          fi
-
-      - name: Check for Missing Final Newlines
-        run: |
-          MISSING=""
-          while IFS= read -r file; do
-            if [[ -s "$file" && -n "$(tail -c1 "$file")" ]]; then
-              MISSING="${MISSING}${file}"$'\n'
-            fi
-          done < <(git grep -Il '.')
-          if [[ -n "$MISSING" ]]; then
-            echo "The following files are missing a trailing newline:"
-            echo "$MISSING"
-            exit 1
-          fi
+      - name: Lint Format
+        uses: paradedb/actions/lint-format@v12

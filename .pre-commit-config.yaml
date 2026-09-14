@@ -36,6 +36,12 @@ repos:
         args: [--fix]
       - id: ruff-format
 
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.14.1-1
+    hooks:
+      - id: shfmt
+        args: ["-i", "2", "-ci"]
+
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
     hooks:

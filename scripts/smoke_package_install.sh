@@ -66,5 +66,6 @@ if "&&&" not in sql:
 PY
 
 WHEEL_NAME="$(basename "$(find "${DIST_DIR}" -name 'django_paradedb-*.whl' | head -1)")"
-VERSION="${WHEEL_NAME#django_paradedb-}"; VERSION="${VERSION%%-*}"
+VERSION="${WHEEL_NAME#django_paradedb-}"
+VERSION="${VERSION%%-*}"
 echo "✅ Package smoke install passed for django-paradedb ${VERSION}"

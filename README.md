@@ -48,6 +48,8 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 | PostgreSQL | 15+ (with the ParadeDB pg_search extension)                        |
 | pgvector   | Required for vector search (included in the ParadeDB Docker image) |
 
+`ParadeDBIndex(fields={"description": {}}, name="search_idx")` creates an index without a designated key field. This requires a pg_search version with keyless index support. Pass the deprecated `key_field` argument explicitly when using older servers.
+
 ## Examples
 
 - [Quickstart](examples/quickstart/quickstart.py)

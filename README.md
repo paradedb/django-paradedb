@@ -10,16 +10,16 @@
 </h1>
 
 <p align="center">
-  <b>Search without a second system.</b><br/>
+  <b>Just use Postgres.</b><br/>
   One Postgres for your application data, full-text search, vector retrieval, and aggregations.
 </p>
 
 <h3 align="center">
   <a href="https://paradedb.com">Website</a> &bull;
-  <a href="https://paradedb.com/docs">Docs</a> &bull;
+  <a href="https://www.paradedb.com/docs/start/introduction">Docs</a> &bull;
   <a href="https://paradedb.com/slack/">Community</a> &bull;
   <a href="https://paradedb.com/blog/">Blog</a> &bull;
-  <a href="https://paradedb.com/docs/changelog/">Changelog</a>
+  <a href="https://www.paradedb.com/docs/project/changelog">Changelog</a>
 </h3>
 
 <p align="center">
@@ -36,7 +36,7 @@
 
 ## ParadeDB for Django
 
-The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com) (powered by the [`pg_search`](https://github.com/paradedb/paradedb) Postgres extension), including first-class support for managing ParadeDB indexes and running queries using the full ParadeDB API. The integration covers both [full-text search](https://paradedb.com/docs/documentation/full-text/overview) and [vector search](https://paradedb.com/docs/documentation/vector/overview) over pgvector `vector` types. Follow the [getting started guide](https://paradedb.com/docs/documentation/getting-started/environment#django) to begin.
+The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com) (powered by the [`pg_search`](https://github.com/paradedb/paradedb) Postgres extension). Follow the [getting started guide](https://www.paradedb.com/docs/start/connect-your-app#django) to begin.
 
 ## Requirements & Compatibility
 

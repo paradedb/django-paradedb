@@ -27,6 +27,6 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Check Typo
-        uses: paradedb/actions/check-typo@v12
+        uses: paradedb/actions/check-typo@v13
         with:
           config: .codespellrc

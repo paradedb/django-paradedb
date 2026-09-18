@@ -40,7 +40,6 @@ class AutocompleteItem(models.Model):
                     },
                     "category": {"tokenizer": Tokenizer.literal({"alias": "category"})},
                 },
-                key_field="id",
                 name="autocomplete_items_idx",
             ),
         )

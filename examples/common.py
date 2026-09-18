@@ -68,7 +68,7 @@ def setup_mock_items() -> int:
         cursor.execute("CREATE EXTENSION IF NOT EXISTS vector")
         cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_search CASCADE")
         cursor.execute(
-            "CALL paradedb.create_bm25_test_table("
+            "CALL paradedb.create_paradedb_test_table("
             "schema_name => 'public', table_name => 'mock_items')"
         )
         cursor.execute("DROP INDEX IF EXISTS search_idx;")
@@ -83,7 +83,7 @@ def setup_mock_items() -> int:
 
 
 # Pre-computed 8-dim query embeddings in the same embedding space as the
-# mock_items.embedding column seeded by paradedb.create_bm25_test_table().
+# mock_items.embedding column seeded by paradedb.create_paradedb_test_table().
 QUERY_EMBEDDINGS: dict[str, list[float]] = {
     "running shoes": [-0.02, 0.47, -0.76, 0.13, 0.34, 0.04, 0.19, -0.19],
     "footwear for exercise": [-0.06, 0.40, -0.71, 0.02, 0.39, 0.15, 0.30, -0.14],
@@ -109,7 +109,6 @@ def _mock_items_indexes() -> list[ParadeDBIndex]:
                 "metadata": {"json_fields": {"fast": True}},
                 "embedding": {"metric": "cosine"},
             },
-            key_field="id",
             name="search_idx",
         ),
     ]
@@ -119,7 +118,7 @@ class MockItem(models.Model):
     """ParadeDB's built-in mock_items table.
 
     This unmanaged model maps to the mock_items table created by
-    paradedb.create_bm25_test_table(). It contains sample product
+    paradedb.create_paradedb_test_table(). It contains sample product
     data with a pre-configured ParadeDB index on description, rating,
     category, native metadata subfields like ``metadata.color``, and
     a pre-populated 8-dim ``embedding`` vector column.

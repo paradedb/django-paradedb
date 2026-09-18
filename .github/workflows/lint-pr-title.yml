@@ -23,4 +23,4 @@ jobs:
 
     steps:
       - name: Checkout Git Repository
-        uses: paradedb/actions/lint-pr-title@v12
+        uses: paradedb/actions/lint-pr-title@v13

@@ -73,5 +73,5 @@ echo "ParadeDB is running in container ${CONTAINER_NAME}."
 echo "DATABASE_URL is set to: ${DATABASE_URL}"
 
 if [[ "$RUNNING" == "0" ]]; then
-  echo "You can now use the examples in your current shell."
+  echo "ParadeDB is ready. Connect using DATABASE_URL in your current shell."
 fi

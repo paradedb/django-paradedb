@@ -50,15 +50,15 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 
 ## Examples
 
-- [Quickstart](examples/quickstart/quickstart.py)
-- [Vector Search](examples/vector_search/vector_search.py)
-- [Faceted Search](examples/faceted_search/faceted_search.py)
-- [Hybrid Search (RRF)](examples/hybrid_rrf/hybrid_rrf.py)
-- [Retrieval-Augmented Generation (RAG)](examples/rag/rag.py)
-- [Autocomplete](examples/autocomplete/autocomplete.py)
-- [More Like This](examples/more_like_this/more_like_this.py)
+Follow the [example setup guide](https://www.paradedb.com/docs/guides/setup), then choose a guide and select the Django tab:
 
-See [examples/README.md](examples/README.md) for setup instructions and a description of each example.
+- [Quickstart](https://www.paradedb.com/docs/guides/quickstart)
+- [Vector Search](https://www.paradedb.com/docs/guides/vector-search)
+- [Faceted Search](https://www.paradedb.com/docs/guides/faceted-search)
+- [Hybrid Search (RRF)](https://www.paradedb.com/docs/guides/hybrid-search)
+- [Retrieval-Augmented Generation (RAG)](https://www.paradedb.com/docs/guides/rag-and-agents)
+- [Autocomplete](https://www.paradedb.com/docs/guides/search-as-you-type)
+- [More Like This](https://www.paradedb.com/docs/guides/more-like-this)
 
 ## Contributing
 

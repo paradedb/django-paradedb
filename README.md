@@ -56,8 +56,8 @@ Complete the [Start tutorial](https://www.paradedb.com/docs/start/connect-your-a
 - [Vector Search](https://www.paradedb.com/docs/guides/vector-search)
 - [Faceted Search](https://www.paradedb.com/docs/guides/faceted-search)
 - [Hybrid Search (RRF)](https://www.paradedb.com/docs/guides/hybrid-search)
-- [Retrieval-Augmented Generation (RAG)](https://www.paradedb.com/docs/guides/rag-and-agents)
-- [Autocomplete](https://www.paradedb.com/docs/guides/search-as-you-type)
+- [Retrieval-Augmented Generation (RAG)](https://www.paradedb.com/docs/guides/rag)
+- [Autocomplete](https://www.paradedb.com/docs/guides/autocomplete)
 - [More Like This](https://www.paradedb.com/docs/guides/more-like-this)
 
 ## Contributing

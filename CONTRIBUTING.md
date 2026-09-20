@@ -106,7 +106,7 @@ If you are adding a new feature that requires new documentation, please add the 
 
 - The main README.md for user-facing features
 - Docstrings for API documentation
-- The `examples/` directory for usage examples
+- The [ParadeDB documentation](https://www.paradedb.com/docs/reference/overview) for usage examples
 
 We will not merge a feature without appropriate documentation.
 

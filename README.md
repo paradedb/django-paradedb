@@ -48,18 +48,6 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 | PostgreSQL | 15+ (with the ParadeDB pg_search extension)                        |
 | pgvector   | Required for vector search (included in the ParadeDB Docker image) |
 
-## Examples
-
-- [Quickstart](examples/quickstart/quickstart.py)
-- [Vector Search](examples/vector_search/vector_search.py)
-- [Faceted Search](examples/faceted_search/faceted_search.py)
-- [Hybrid Search (RRF)](examples/hybrid_rrf/hybrid_rrf.py)
-- [Retrieval-Augmented Generation (RAG)](examples/rag/rag.py)
-- [Autocomplete](examples/autocomplete/autocomplete.py)
-- [More Like This](examples/more_like_this/more_like_this.py)
-
-See [examples/README.md](examples/README.md) for setup instructions and a description of each example.
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, running tests, linting, and the PR workflow.

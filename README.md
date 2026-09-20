@@ -48,10 +48,6 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 | PostgreSQL | 15+ (with the ParadeDB pg_search extension)                        |
 | pgvector   | Required for vector search (included in the ParadeDB Docker image) |
 
-## Examples
-
-See [Run Your First Queries](https://www.paradedb.com/docs/start/run-queries) for examples and the [Reference](https://www.paradedb.com/docs/reference/overview) for query syntax. Select the Django tab in the code examples.
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, running tests, linting, and the PR workflow.

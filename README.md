@@ -52,7 +52,7 @@ The official [Django](https://www.djangoproject.com/) integration for [ParadeDB]
 
 Follow the [example setup guide](https://www.paradedb.com/docs/guides/setup), then choose a guide and select the Django tab:
 
-- [Quickstart](https://www.paradedb.com/docs/guides/quickstart)
+- [Quickstart](https://www.paradedb.com/docs/start/connect-your-app)
 - [Vector Search](https://www.paradedb.com/docs/guides/vector-search)
 - [Faceted Search](https://www.paradedb.com/docs/guides/faceted-search)
 - [Hybrid Search (RRF)](https://www.paradedb.com/docs/guides/hybrid-search)

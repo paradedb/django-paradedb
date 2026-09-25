@@ -55,7 +55,7 @@ jobs:
       - name: Run Schema Compatibility Check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: uv run --no-sync python scripts/check_schema_compat.py ${{ env.PARADEDB_VERSION }}
+        run: uv run --no-sync python scripts/check_schema_compat.py "${PARADEDB_VERSION}"
 
   integration-tests:
     name: Integration Tests
@@ -118,12 +118,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh issue create \
-            --repo ${{ github.repository }} \
-            --title "Schema compat failure for ParadeDB v${{ env.PARADEDB_VERSION }}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Schema compat failure for ParadeDB v${PARADEDB_VERSION}" \
             --body "$(cat <<EOF
-          The schema compatibility check or integration tests failed against ParadeDB **v${{ env.PARADEDB_VERSION }}**.
+          The schema compatibility check or integration tests failed against ParadeDB **v${PARADEDB_VERSION}**.
 
-          **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          **Workflow run:** ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
 
           Please investigate and update django-paradedb as needed.
           EOF

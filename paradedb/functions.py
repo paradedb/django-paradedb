@@ -201,10 +201,17 @@ class Agg(Func):
         json_spec: str,
         *,
         exact: bool | None = None,
+        visibility: str | None = None,
         filter: Any | None = None,
     ) -> None:
         if exact is not None and not isinstance(exact, bool):
             raise TypeError("Agg exact must be a boolean when provided.")
+        if visibility is not None:
+            if visibility not in ("transaction", "raw", "threshold"):
+                raise ValueError("visibility must be transaction, raw, or threshold.")
+            if exact is not None:
+                raise ValueError("Specify visibility or exact, not both.")
+        self._visibility = visibility
         self._json_spec = json_spec
         self._exact = exact
         self._filter = filter
@@ -241,7 +248,9 @@ class Agg(Func):
         **_extra_context: Any,
     ) -> tuple[str, list[Any]]:
         json_literal = _quote_term(self._json_spec)
-        if self._exact is False:
+        if self._visibility is not None:
+            sql = f"{self.function}({json_literal}, {_quote_term(self._visibility)})"
+        elif self._exact is False:
             sql = f"{self.function}({json_literal}, false)"
         else:
             sql = f"{self.function}({json_literal})"
@@ -375,3 +384,45 @@ __all__ = [
     "paradedb_verify_all_indexes",
     "paradedb_verify_index",
 ]
+
+
+def paradedb_vector_info(
+    index: str, field: str, *, using: str = DEFAULT_DB_ALIAS
+) -> list[dict[str, Any]]:
+    """Return ``paradedb.vector_info()`` diagnostics for a vector index field."""
+    params: list[Any] = [index, field]
+    args = "%s::regclass, %s::text"
+    sql = f"SELECT * FROM paradedb.vector_info({args})"
+    return _execute_table_function(sql, params, using=using)
+
+
+def paradedb_vector_config(
+    index: str, field: str, *, using: str = DEFAULT_DB_ALIAS
+) -> list[dict[str, Any]]:
+    """Return ``paradedb.vector_config()`` diagnostics for a vector index field."""
+    params: list[Any] = [index, field]
+    args = "%s::regclass, %s::text"
+    sql = f"SELECT * FROM paradedb.vector_config({args})"
+    return _execute_table_function(sql, params, using=using)
+
+
+def paradedb_vector_estimator_info(
+    index: str,
+    field: str,
+    queries: Sequence[Sequence[float]] | None = None,
+    *,
+    using: str = DEFAULT_DB_ALIAS,
+) -> list[dict[str, Any]]:
+    """Return ``paradedb.vector_estimator_info()`` diagnostics for a vector index field."""
+    params: list[Any] = [index, field]
+    args = "%s::regclass, %s::text"
+    if queries is not None:
+        params.append(
+            [
+                "[" + ",".join(str(float(value)) for value in query) + "]"
+                for query in queries
+            ]
+        )
+        args += ", %s::vector[]"
+    sql = f"SELECT * FROM paradedb.vector_estimator_info({args})"
+    return _execute_table_function(sql, params, using=using)

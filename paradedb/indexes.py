@@ -207,6 +207,10 @@ class ParadeDBIndex(models.Index):
         condition: models.Q | None = None,
         training_sample_ratio: float | None = None,
         max_leaf_size: int | None = None,
+        partition_by: str | None = None,
+        vector_router: str | None = None,
+        target_segment_count: int | None = None,
+        vector_fields: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         _validate_training_sample_ratio(training_sample_ratio)
         _validate_int_index_option(
@@ -214,6 +218,23 @@ class ParadeDBIndex(models.Index):
             max_leaf_size,
             maximum=2147483647,
         )
+        _validate_int_index_option(
+            "target_segment_count", target_segment_count, maximum=2147483647
+        )
+        if partition_by is not None and (
+            not isinstance(partition_by, str)
+            or not partition_by.strip()
+            or any(not field.strip() for field in partition_by.split(","))
+        ):
+            raise ValueError(
+                "partition_by must be a comma-separated list of non-empty index field names."
+            )
+        if vector_router is not None and vector_router not in ("graph", "ivf"):
+            raise ValueError("vector_router must be graph or ivf.")
+        self.vector_router = vector_router
+        self.partition_by = partition_by
+        self.target_segment_count = target_segment_count
+        self.vector_fields = vector_fields
         self.fields_config = fields
         self.index_expressions = list(expressions or [])
         self.training_sample_ratio = training_sample_ratio
@@ -229,7 +250,12 @@ class ParadeDBIndex(models.Index):
         for option in (
             "training_sample_ratio",
             "max_leaf_size",
+            "target_segment_count",
         ):
+            value = getattr(self, option)
+            if value is not None:
+                kwargs[option] = value
+        for option in ("partition_by", "vector_fields", "vector_router"):
             value = getattr(self, option)
             if value is not None:
                 kwargs[option] = value
@@ -257,10 +283,25 @@ class ParadeDBIndex(models.Index):
         for option in (
             "training_sample_ratio",
             "max_leaf_size",
+            "target_segment_count",
         ):
             value = getattr(self, option)
             if value is not None:
                 storage_params.append(f"{option}={value}")
+
+        if self.vector_router is not None:
+            storage_params.append("vector_router=" + _quote_term(self.vector_router))
+        if self.partition_by is not None:
+            storage_params.append("partition_by=" + _quote_term(self.partition_by))
+        if self.vector_fields is not None:
+            storage_params.append(
+                "vector_fields="
+                + _quote_term(
+                    json.dumps(
+                        self.vector_fields, separators=(",", ":"), sort_keys=True
+                    )
+                )
+            )
 
         create_stmt = "CREATE INDEX"
         if concurrently:

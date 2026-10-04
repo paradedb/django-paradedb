@@ -36,17 +36,17 @@
 
 ## ParadeDB for Django
 
-The official [Django](https://www.djangoproject.com/) integration for [ParadeDB](https://paradedb.com) (powered by the [`pg_search`](https://github.com/paradedb/paradedb) Postgres extension). Follow the [getting started guide](https://www.paradedb.com/docs/start/connect-your-app#django) to begin.
+The official [Django](https://www.djangoproject.com/) integration for ParadeDB. Get started with the [setup guide](https://www.paradedb.com/docs/start/connect-your-app#django).
 
 ## Requirements & Compatibility
 
-| Component  | Supported                                                                                                                                                         |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Python     | 3.10+                                                                                                                                                             |
-| Django     | 4.2+                                                                                                                                                              |
-| ParadeDB   | 0.26.0+                                                                                                                                                           |
-| PostgreSQL | 15+ (with the ParadeDB pg_search extension)                                                                                                                       |
-| pgvector   | Provides vector data types for ParadeDB’s [native vector search](https://www.paradedb.com/docs/reference/vector/overview) (included in the ParadeDB Docker image) |
+| Component            | Supported                                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Python               | 3.10+                                                                                                                         |
+| Django               | 4.2+                                                                                                                          |
+| PostgreSQL           | 15+                                                                                                                           |
+| pgvector             | 0.7.0+ (provides vector types for ParadeDB’s [native vector search](https://www.paradedb.com/docs/reference/vector/overview)) |
+| ParadeDB / pg_search | 0.26.0+                                                                                                                       |
 
 ## Contributing
 
@@ -54,15 +54,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, running tests, lin
 
 ## Support
 
-If you're missing a feature or have found a bug, please open a
-[GitHub Issue](https://github.com/paradedb/django-paradedb/issues/new/choose).
-
-To get community support, you can:
-
-- Post a question in the [ParadeDB Slack Community](https://paradedb.com/slack)
-- Ask for help on our [GitHub Discussions](https://github.com/paradedb/paradedb/discussions)
-
-If you need commercial support, please [contact the ParadeDB team](mailto:sales@paradedb.com).
+If you're missing a feature or have found a bug, please open a [GitHub Issue](https://github.com/paradedb/django-paradedb/issues/new/choose). For community support, join the [ParadeDB Slack Community](https://paradedb.com/slack).
 
 ## Acknowledgments
 

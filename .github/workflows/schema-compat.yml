@@ -52,6 +52,9 @@ jobs:
           uv venv --python "3.14"
           uv sync --extra dev
 
+      - name: Test tooling scripts
+        run: uv run --no-sync python -m unittest discover -s scripts/tests -p "test_*.py"
+
       - name: Run Schema Compatibility Check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -71,7 +74,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12

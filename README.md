@@ -40,13 +40,13 @@ The official [Django](https://www.djangoproject.com/) integration for ParadeDB. 
 
 ## Requirements & Compatibility
 
-| Component            | Supported                                                                                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Python               | 3.10+                                                                                                                                                       |
-| Django               | 4.2+                                                                                                                                                        |
-| ParadeDB / pg_search | 0.26.0+                                                                                                                                                     |
-| PostgreSQL           | 15+                                                                                                                                                         |
-| pgvector             | 0.7.0+ (vector types for ParadeDB’s [native vector search](https://www.paradedb.com/docs/reference/vector/overview); included in the ParadeDB Docker image) |
+| Component            | Supported                                                                                                                                                            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Python               | 3.10+                                                                                                                                                                |
+| Django               | 4.2+                                                                                                                                                                 |
+| PostgreSQL           | 15+                                                                                                                                                                  |
+| pgvector             | 0.7.0+ (provides vector types for ParadeDB’s [native vector search](https://www.paradedb.com/docs/reference/vector/overview), included in the ParadeDB Docker image) |
+| ParadeDB / pg_search | 0.26.0+                                                                                                                                                              |
 
 ## Contributing
 

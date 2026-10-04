@@ -606,7 +606,6 @@ class MoreLikeThis(Expression):
         id: object | None = None,
         document: dict[str, Any] | str | None = None,
         fields: Iterable[str] | None = None,
-        key_field: str | None = None,
         min_term_freq: int | None = None,
         max_query_terms: int | None = None,
         min_doc_freq: int | None = None,
@@ -620,7 +619,6 @@ class MoreLikeThis(Expression):
         self.document: str | None = None
         self._document_input = document
         self.fields = list(fields) if fields is not None else None
-        self.key_field = key_field
         self.min_term_freq = min_term_freq
         self.max_query_terms = max_query_terms
         self.min_doc_freq = min_doc_freq
@@ -635,7 +633,6 @@ class MoreLikeThis(Expression):
         if self._count_inputs() != 1:
             raise ValueError("MoreLikeThis requires exactly one input source.")
 
-        self._validate_key_field()
         self._validate_fields()
         self._validate_stopwords()
 
@@ -654,12 +651,6 @@ class MoreLikeThis(Expression):
                 self._document_input is not None,
             ]
         )
-
-    def _validate_key_field(self) -> None:
-        if self.key_field is not None and not isinstance(self.key_field, str):
-            raise TypeError("MoreLikeThis key_field must be a string.")
-        if isinstance(self.key_field, str) and not self.key_field.strip():
-            raise ValueError("MoreLikeThis key_field cannot be empty.")
 
     def _validate_fields(self) -> None:
         if self.fields is None:

@@ -44,8 +44,8 @@ class Score(Func):
     function = FN_SCORE
     output_field = FloatField()
 
-    def __init__(self, key_field: str | None = None) -> None:
-        expression = F(key_field or "pk")
+    def __init__(self, field: str | None = None) -> None:
+        expression = F(field or "pk")
         super().__init__(expression)
 
 

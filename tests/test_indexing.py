@@ -45,7 +45,6 @@ def test_tokenizers_mixed_with_top_level_tokenizer_config_raises_value_error() -
                 "tokenizer": Tokenizer.simple(),
             },
         },
-        key_field="id",
         name="mock_items_search_idx",
     )
     with pytest.raises(ValueError, match="cannot mix 'tokenizers'"):
@@ -62,7 +61,6 @@ def test_json_key_without_tokenizer_raises_value_error() -> None:
                 }
             },
         },
-        key_field="id",
         name="mock_items_search_idx",
     )
     with pytest.raises(ValueError, match="requires an explicit"):
@@ -79,7 +77,6 @@ def test_json_key_with_invalid_tokenizer_type_raises_type_error() -> None:
                 }
             },
         },
-        key_field="id",
         name="mock_items_search_idx",
     )
     with pytest.raises(TypeError, match="tokenizer must be a Tokenizer"):
@@ -94,7 +91,6 @@ def test_native_json_fields_on_non_json_field_raises_value_error() -> None:
                 "json_fields": {"fast": True},
             },
         },
-        key_field="id",
         name="mock_items_search_idx",
     )
     with pytest.raises(ValueError, match="is not a JSONField"):
@@ -107,7 +103,6 @@ def test_index_with_equivalent_tokenizers_compares_equal() -> None:
             "id": {},
             "description": {"tokenizer": Tokenizer.unicode_words()},
         },
-        key_field="id",
         name="mock_items_search_idx",
     )
     right = ParadeDBIndex(
@@ -115,7 +110,6 @@ def test_index_with_equivalent_tokenizers_compares_equal() -> None:
             "id": {},
             "description": {"tokenizer": Tokenizer.unicode_words()},
         },
-        key_field="id",
         name="mock_items_search_idx",
     )
 
@@ -142,7 +136,6 @@ def test_repeated_makemigrations_does_not_recreate_tokenizer_indexes() -> None:
                                 "id": {},
                                 "description": {"tokenizer": Tokenizer.simple()},
                             },
-                            key_field="id",
                             name="migration_mock_items_search_idx",
                         )
                     ],
@@ -186,14 +179,13 @@ class TestParadeDBIndex:
         """Basic ParadeDB index DDL generation."""
         index = ParadeDBIndex(
             fields={"id": {}, "description": {}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "description"\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "description"\n)'
         )
 
     def test_index_with_tokenizer(self) -> None:
@@ -207,14 +199,13 @@ class TestParadeDBIndex:
                     ),
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.simple(\'lowercase=true\',\'stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.simple(\'lowercase=true\',\'stemmer=english\'))\n)'
         )
 
     def test_index_with_tokenizer_only(self) -> None:
@@ -224,14 +215,13 @@ class TestParadeDBIndex:
                 "id": {},
                 "description": {"tokenizer": Tokenizer.simple()},
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.simple)\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.simple)\n)'
         )
 
     def test_json_field_index(self) -> None:
@@ -257,14 +247,13 @@ class TestParadeDBIndex:
                     }
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == "CREATE INDEX \"mock_items_search_idx\" ON \"mock_items\"\nUSING paradedb (\n    \"id\",\n    ((\"metadata\"->>'title')::pdb.simple('alias=metadata_title','lowercase=true')),\n    ((\"metadata\"->>'brand')::pdb.simple('alias=metadata_brand'))\n)\nWITH (key_field='id')"
+            == "CREATE INDEX \"mock_items_search_idx\" ON \"mock_items\"\nUSING paradedb (\n    \"id\",\n    ((\"metadata\"->>'title')::pdb.simple('alias=metadata_title','lowercase=true')),\n    ((\"metadata\"->>'brand')::pdb.simple('alias=metadata_brand'))\n)"
         )
 
     def test_json_field_native_json_fields(self) -> None:
@@ -279,14 +268,13 @@ class TestParadeDBIndex:
                     }
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "metadata"\n)\nWITH (key_field=\'id\', json_fields=\'{"metadata":{"expand_dots":false,"fast":true}}\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "metadata"\n)\nWITH (json_fields=\'{"metadata":{"expand_dots":false,"fast":true}}\')'
         )
 
     def test_json_key_without_tokenizer_raises(self) -> None:
@@ -300,7 +288,6 @@ class TestParadeDBIndex:
                     }
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
@@ -328,14 +315,13 @@ class TestParadeDBIndex:
                     }
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "description",\n    (("metadata"->>\'color\')::pdb.literal(\'alias=metadata_color\')),\n    (("metadata"->>\'location\')::pdb.literal(\'alias=metadata_location\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "description",\n    (("metadata"->>\'color\')::pdb.literal(\'alias=metadata_color\')),\n    (("metadata"->>\'location\')::pdb.literal(\'alias=metadata_location\'))\n)'
         )
 
     def test_field_with_multiple_tokenizers(self) -> None:
@@ -357,14 +343,13 @@ class TestParadeDBIndex:
                     ]
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple(\'alias=description_simple\',\'lowercase=true\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple(\'alias=description_simple\',\'lowercase=true\'))\n)'
         )
 
     def test_multiple_tokenizers_allows_secondary_entries_without_alias(self) -> None:
@@ -379,14 +364,13 @@ class TestParadeDBIndex:
                     ]
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple)\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.simple)\n)'
         )
 
     def test_multiple_tokenizers_cannot_mix_with_single_tokenizer_keys(self) -> None:
@@ -399,7 +383,6 @@ class TestParadeDBIndex:
                     "tokenizer": Tokenizer.simple(),
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
@@ -428,14 +411,13 @@ class TestParadeDBIndex:
                     ]
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.ngram(3,3,\'alias=description_ngram\',\'prefix_only=true\',\'positions=true\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.ngram(3,3,\'alias=description_ngram\',\'prefix_only=true\',\'positions=true\'))\n)'
         )
 
     def test_structured_regex_pattern_and_alias_in_multi_tokenizer_dsl(self) -> None:
@@ -455,14 +437,13 @@ class TestParadeDBIndex:
                     ]
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.regex_pattern(\'(?i)\\bh\\w*\',\'alias=description_regex\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.regex_pattern(\'(?i)\\bh\\w*\',\'alias=description_regex\'))\n)'
         )
 
     def test_structured_lindera_dictionary_argument_in_multi_tokenizer_dsl(
@@ -484,14 +465,13 @@ class TestParadeDBIndex:
                     ]
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.lindera(\'japanese\',\'alias=description_jp\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ("description"::pdb.literal),\n    ("description"::pdb.lindera(\'japanese\',\'alias=description_jp\'))\n)'
         )
 
     def test_value_based_token_filter_named_args(self) -> None:
@@ -511,14 +491,13 @@ class TestParadeDBIndex:
                     ),
                 },
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == "CREATE INDEX \"mock_items_search_idx\" ON \"mock_items\"\nUSING paradedb (\n    \"id\",\n    (\"description\"::pdb.simple('lowercase=false','stopwords_language=English,French','remove_long=20','remove_short=2','stemmer=english'))\n)\nWITH (key_field='id')"
+            == "CREATE INDEX \"mock_items_search_idx\" ON \"mock_items\"\nUSING paradedb (\n    \"id\",\n    (\"description\"::pdb.simple('lowercase=false','stopwords_language=English,French','remove_long=20','remove_short=2','stemmer=english'))\n)"
         )
 
     def test_indexed_expression_with_concat(self) -> None:
@@ -539,21 +518,19 @@ class TestParadeDBIndex:
                     tokenizer=Tokenizer.simple(options={"alias": "description_concat"}),
                 )
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ((("mock_items"."description" || \' \' || "mock_items"."category"))::pdb.simple(\'alias=description_concat\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ((("mock_items"."description" || \' \' || "mock_items"."category"))::pdb.simple(\'alias=description_concat\'))\n)'
         )
 
     def test_create_sql_concurrently(self) -> None:
         """create_sql with concurrently=True emits CREATE INDEX CONCURRENTLY."""
         index = ParadeDBIndex(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
@@ -569,7 +546,6 @@ class TestParadeDBIndex:
         """create_sql without concurrently does not emit CONCURRENTLY."""
         index = ParadeDBIndex(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
@@ -581,7 +557,6 @@ class TestParadeDBIndex:
         """create_sql with condition appends a WHERE clause."""
         index = ParadeDBIndex(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
-            key_field="id",
             name="mock_items_search_idx",
             condition=Q(description__isnull=False),
         )
@@ -594,7 +569,6 @@ class TestParadeDBIndex:
         """create_sql with both condition and concurrently emits both."""
         index = ParadeDBIndex(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
-            key_field="id",
             name="mock_items_search_idx",
             condition=Q(description__isnull=False),
         )
@@ -611,7 +585,6 @@ class TestParadeDBIndex:
         """json_fields and condition can both be emitted in the same CREATE INDEX."""
         index = ParadeDBIndex(
             fields={"id": {}, "metadata": {"json_fields": {"fast": True}}},
-            key_field="id",
             name="mock_items_search_idx",
             condition=Q(description__isnull=False),
         )
@@ -624,7 +597,6 @@ class TestParadeDBIndex:
         """create_sql without condition does not append WHERE clause."""
         index = ParadeDBIndex(
             fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
@@ -642,14 +614,13 @@ class TestParadeDBIndex:
                     tokenizer=Tokenizer.simple(options={"alias": "description_lower"}),
                 ),
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "description",\n    ((LOWER("mock_items"."description"))::pdb.simple(\'alias=description_lower\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "description",\n    ((LOWER("mock_items"."description"))::pdb.simple(\'alias=description_lower\'))\n)'
         )
 
     def test_index_expression_non_text_with_pdb_alias(self) -> None:
@@ -662,14 +633,13 @@ class TestParadeDBIndex:
                     alias="rating_indexed",
                 ),
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "description",\n    (("mock_items"."rating")::pdb.alias(\'rating_indexed\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "description",\n    (("mock_items"."rating")::pdb.alias(\'rating_indexed\'))\n)'
         )
 
     def test_index_expression_with_tokenizer_and_filters(self) -> None:
@@ -689,14 +659,13 @@ class TestParadeDBIndex:
                     ),
                 ),
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ((LOWER("mock_items"."description"))::pdb.simple(\'alias=desc_processed\',\'lowercase=true\',\'stemmer=english\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ((LOWER("mock_items"."description"))::pdb.simple(\'alias=desc_processed\',\'lowercase=true\',\'stemmer=english\'))\n)'
         )
 
     def test_index_expression_with_arithmetic(self) -> None:
@@ -709,14 +678,13 @@ class TestParadeDBIndex:
                     alias="rating_plus_one",
                 ),
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ((("mock_items"."rating" + 1))::pdb.alias(\'rating_plus_one\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ((("mock_items"."rating" + 1))::pdb.alias(\'rating_plus_one\'))\n)'
         )
 
     def test_index_expression_non_text_transform_from_text_source_uses_alias(
@@ -731,14 +699,13 @@ class TestParadeDBIndex:
                     alias="description_length",
                 ),
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ((LENGTH("mock_items"."description"))::pdb.alias(\'description_length\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    ((LENGTH("mock_items"."description"))::pdb.alias(\'description_length\'))\n)'
         )
 
     def test_index_expression_with_json_path_reference(self) -> None:
@@ -751,7 +718,6 @@ class TestParadeDBIndex:
                     alias="word_count",
                 ),
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
@@ -768,14 +734,13 @@ class TestParadeDBIndex:
                     alias="rating_alias",
                 ),
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    (("mock_items"."rating")::pdb.alias(\'rating_alias\'))\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    (("mock_items"."rating")::pdb.alias(\'rating_alias\'))\n)'
         )
 
     def test_index_expression_with_ngram_tokenizer_and_args(self) -> None:
@@ -793,7 +758,6 @@ class TestParadeDBIndex:
                     ),
                 ),
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
@@ -815,7 +779,6 @@ class TestParadeDBIndex:
                     alias="rating_idx",
                 ),
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         schema_editor = _schema_editor()
@@ -833,7 +796,6 @@ class TestParadeDBIndex:
         index = ParadeDBIndex(
             fields={"id": {}},
             expressions=[expr],
-            key_field="id",
             name="mock_items_search_idx",
         )
         _path, _args, kwargs = index.deconstruct()
@@ -852,7 +814,6 @@ class TestParadeDBIndex:
                     tokenizer=Tokenizer.simple(options={"alias": "desc_lower"}),
                 )
             ],
-            key_field="id",
             name="mock_items_search_idx",
         )
         serialized, imports = MigrationWriter.serialize(index)
@@ -865,7 +826,6 @@ class TestParadeDBIndex:
         """ParadeDBIndex without expressions does not include key in deconstruct."""
         index = ParadeDBIndex(
             fields={"id": {}, "description": {}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         _path, _args, kwargs = index.deconstruct()
@@ -886,31 +846,28 @@ class TestVectorIndex:
     def test_index_with_metric_emits_opclass(self, metric: str, opclass: str) -> None:
         index = ParadeDBIndex(
             fields={"id": {}, "embedding": {"metric": metric}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
         assert (
             sql
-            == f'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" {opclass}\n)\nWITH (key_field=\'id\')'
+            == f'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" {opclass}\n)'
         )
 
     def test_index_without_metric_emits_plain_column(self) -> None:
         index = ParadeDBIndex(
             fields={"id": {}, "embedding": {}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding"\n)\nWITH (key_field=\'id\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding"\n)'
         )
 
     def test_invalid_metric_raises(self) -> None:
         index = ParadeDBIndex(
             fields={"id": {}, "embedding": {"metric": "hamming"}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         with pytest.raises(ValueError, match="Vector metric must be one of"):
@@ -919,7 +876,6 @@ class TestVectorIndex:
     def test_metric_on_non_vector_field_raises(self) -> None:
         index = ParadeDBIndex(
             fields={"id": {}, "description": {"metric": "l2"}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         with pytest.raises(ValueError, match="is not a VectorField"):
@@ -931,7 +887,6 @@ class TestVectorIndex:
                 "id": {},
                 "embedding": {"metric": "l2", "tokenizer": Tokenizer.simple()},
             },
-            key_field="id",
             name="mock_items_search_idx",
         )
         with pytest.raises(ValueError, match="cannot mix 'metric'"):
@@ -940,7 +895,6 @@ class TestVectorIndex:
     def test_index_with_metric_deconstructs(self) -> None:
         index = ParadeDBIndex(
             fields={"id": {}, "embedding": {"metric": "cosine"}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         _path, _args, kwargs = index.deconstruct()
@@ -956,143 +910,146 @@ class TestVectorIndexOptions:
     def test_index_with_all_options_emits_with_clause(self) -> None:
         index = ParadeDBIndex(
             fields={"id": {}, "embedding": {"metric": "cosine"}},
-            key_field="id",
             name="mock_items_search_idx",
-            centroid_ratio=0.01,
-            training_samples_per_centroid=32,
-            cluster_replication=1,
+            training_sample_ratio=0.01,
+            max_leaf_size=32,
         )
         sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_cosine_ops\n)\nWITH (key_field=\'id\', centroid_ratio=0.01, training_samples_per_centroid=32, cluster_replication=1)'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_cosine_ops\n)\nWITH (training_sample_ratio=0.01, max_leaf_size=32)'
         )
 
     def test_index_with_single_option(self) -> None:
         index = ParadeDBIndex(
             fields={"id": {}, "embedding": {"metric": "l2"}},
-            key_field="id",
             name="mock_items_search_idx",
-            cluster_replication=2,
         )
         sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_l2_ops\n)\nWITH (key_field=\'id\', cluster_replication=2)'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_l2_ops\n)'
         )
 
     def test_options_allowed_without_vector_field(self) -> None:
         index = ParadeDBIndex(
             fields={"id": {}, "description": {}},
-            key_field="id",
             name="mock_items_search_idx",
-            centroid_ratio=0.5,
+            training_sample_ratio=0.5,
         )
         sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
-        assert "centroid_ratio=0.5" in sql
+        assert "training_sample_ratio=0.5" in sql
 
     @pytest.mark.parametrize(
-        "centroid_ratio",
+        "training_sample_ratio",
         [0.0000001, 0.0, 1.5, -0.01],
     )
-    def test_centroid_ratio_out_of_range_raises(self, centroid_ratio: float) -> None:
-        with pytest.raises(ValueError, match="centroid_ratio must be between"):
-            ParadeDBIndex(
-                fields={"id": {}},
-                key_field="id",
-                name="mock_items_search_idx",
-                centroid_ratio=centroid_ratio,
-            )
-
-    def test_centroid_ratio_invalid_type_raises(self) -> None:
-        with pytest.raises(TypeError, match="centroid_ratio must be a number"):
-            ParadeDBIndex(
-                fields={"id": {}},
-                key_field="id",
-                name="mock_items_search_idx",
-                centroid_ratio="0.01",  # type: ignore[arg-type]
-            )
-
-    @pytest.mark.parametrize("training_samples_per_centroid", [0, 100001, -1])
-    def test_training_samples_per_centroid_out_of_range_raises(
-        self, training_samples_per_centroid: int
+    def test_training_sample_ratio_out_of_range_raises(
+        self, training_sample_ratio: float
     ) -> None:
-        with pytest.raises(
-            ValueError, match="training_samples_per_centroid must be between"
-        ):
+        with pytest.raises(ValueError, match="training_sample_ratio must be between"):
             ParadeDBIndex(
                 fields={"id": {}},
-                key_field="id",
                 name="mock_items_search_idx",
-                training_samples_per_centroid=training_samples_per_centroid,
+                training_sample_ratio=training_sample_ratio,
             )
 
-    @pytest.mark.parametrize("training_samples_per_centroid", [32.5, True, "32"])
-    def test_training_samples_per_centroid_invalid_type_raises(
-        self, training_samples_per_centroid: object
-    ) -> None:
-        with pytest.raises(
-            TypeError, match="training_samples_per_centroid must be an integer"
-        ):
+    def test_training_sample_ratio_invalid_type_raises(self) -> None:
+        with pytest.raises(TypeError, match="training_sample_ratio must be a number"):
             ParadeDBIndex(
                 fields={"id": {}},
-                key_field="id",
                 name="mock_items_search_idx",
-                training_samples_per_centroid=training_samples_per_centroid,  # type: ignore[arg-type]
+                training_sample_ratio="0.01",  # type: ignore[arg-type]
             )
 
-    @pytest.mark.parametrize("cluster_replication", [0, 2147483648])
-    def test_cluster_replication_out_of_range_raises(
-        self, cluster_replication: int
-    ) -> None:
-        with pytest.raises(ValueError, match="cluster_replication must be between"):
+    @pytest.mark.parametrize("max_leaf_size", [0, 2147483648, -1])
+    def test_max_leaf_size_out_of_range_raises(self, max_leaf_size: int) -> None:
+        with pytest.raises(ValueError, match="max_leaf_size must be between"):
             ParadeDBIndex(
                 fields={"id": {}},
-                key_field="id",
                 name="mock_items_search_idx",
-                cluster_replication=cluster_replication,
+                max_leaf_size=max_leaf_size,
+            )
+
+    @pytest.mark.parametrize("max_leaf_size", [32.5, True, "32"])
+    def test_max_leaf_size_invalid_type_raises(self, max_leaf_size: object) -> None:
+        with pytest.raises(TypeError, match="max_leaf_size must be an integer"):
+            ParadeDBIndex(
+                fields={"id": {}},
+                name="mock_items_search_idx",
+                max_leaf_size=max_leaf_size,  # type: ignore[arg-type]
             )
 
     def test_options_deconstruct_and_serialize(self) -> None:
         index = ParadeDBIndex(
             fields={"id": {}, "embedding": {"metric": "cosine"}},
-            key_field="id",
             name="mock_items_search_idx",
-            centroid_ratio=0.01,
-            training_samples_per_centroid=32,
-            cluster_replication=1,
+            training_sample_ratio=0.01,
+            max_leaf_size=32,
         )
         _path, _args, kwargs = index.deconstruct()
-        assert kwargs["centroid_ratio"] == 0.01
-        assert kwargs["training_samples_per_centroid"] == 32
-        assert kwargs["cluster_replication"] == 1
+        assert kwargs["training_sample_ratio"] == 0.01
+        assert kwargs["max_leaf_size"] == 32
 
         serialized, _imports = MigrationWriter.serialize(index)
-        assert "centroid_ratio=0.01" in serialized
-        assert "training_samples_per_centroid=32" in serialized
-        assert "cluster_replication=1" in serialized
+        assert "training_sample_ratio=0.01" in serialized
+        assert "max_leaf_size=32" in serialized
 
     def test_unset_options_omitted_from_deconstruct(self) -> None:
         index = ParadeDBIndex(
             fields={"id": {}},
-            key_field="id",
             name="mock_items_search_idx",
         )
         _path, _args, kwargs = index.deconstruct()
-        assert "centroid_ratio" not in kwargs
-        assert "training_samples_per_centroid" not in kwargs
-        assert "cluster_replication" not in kwargs
+        assert "training_sample_ratio" not in kwargs
+        assert "max_leaf_size" not in kwargs
 
     def test_indexes_with_equal_options_compare_equal(self) -> None:
-        def build(cluster_replication: int) -> ParadeDBIndex:
+        def build(max_leaf_size: int) -> ParadeDBIndex:
             return ParadeDBIndex(
                 fields={"id": {}, "embedding": {"metric": "cosine"}},
-                key_field="id",
                 name="mock_items_search_idx",
-                centroid_ratio=0.01,
-                training_samples_per_centroid=32,
-                cluster_replication=cluster_replication,
+                training_sample_ratio=0.01,
+                max_leaf_size=max_leaf_size,
             )
 
         assert build(1) == build(1)
         assert build(1) != build(2)
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("paradedb_ready")
+def test_create_partial_index_with_nullable_nonunique_first_field() -> None:
+    class KeylessItem(models.Model):  # noqa: DJ008
+        description = models.TextField(null=True)  # noqa: DJ001
+        rating = models.IntegerField()
+
+        class Meta:
+            app_label = "tests"
+            db_table = "keyless_items"
+
+    index = ParadeDBIndex(
+        fields={"description": {"tokenizer": Tokenizer.simple()}, "rating": {}},
+        name="keyless_partial_idx",
+        condition=Q(rating__gte=3),
+    )
+    with connection.schema_editor() as editor:
+        editor.create_model(KeylessItem)
+    try:
+        KeylessItem.objects.bulk_create(
+            [
+                KeylessItem(description="alpha", rating=3),
+                KeylessItem(description="alpha", rating=4),
+                KeylessItem(description=None, rating=3),
+            ]
+        )
+        with connection.schema_editor() as editor:
+            editor.add_index(KeylessItem, index)
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_get_indexdef('keyless_partial_idx'::regclass)")
+            (definition,) = cursor.fetchone()
+            assert "WHERE" in definition
+    finally:
+        with connection.schema_editor() as editor:
+            editor.delete_model(KeylessItem)

@@ -409,22 +409,6 @@ class TestMoreLikeThisValidation:
         assert mlt.max_query_terms == 100
         assert mlt.min_word_length == 1
 
-    def test_mlt_custom_key_field(self) -> None:
-        """MLT accepts custom key_field parameter."""
-        mlt = MoreLikeThis(id=1, key_field="custom_id")
-        assert mlt.key_field == "custom_id"
-
-        # Default should be None
-        mlt = MoreLikeThis(id=1)
-        assert mlt.key_field is None
-
-    def test_mlt_key_field_validation(self) -> None:
-        with pytest.raises(TypeError, match="key_field must be a string"):
-            MoreLikeThis(id=1, key_field=1)  # type: ignore[arg-type]
-
-        with pytest.raises(ValueError, match="key_field cannot be empty"):
-            MoreLikeThis(id=1, key_field="")
-
 
 class TestVectorFieldValidation:
     """Validation and serialization coverage for VectorField."""

@@ -101,13 +101,15 @@ def _validate_int_index_option(name: str, value: Any, *, maximum: int) -> None:
         raise ValueError(f"{name} must be between 1 and {maximum}, inclusive.")
 
 
-def _validate_centroid_ratio(value: Any) -> None:
+def _validate_training_sample_ratio(value: Any) -> None:
     if value is None:
         return
     if isinstance(value, bool) or not isinstance(value, int | float):
-        raise TypeError("centroid_ratio must be a number.")
+        raise TypeError("training_sample_ratio must be a number.")
     if not 0.000001 <= value <= 1.0:
-        raise ValueError("centroid_ratio must be between 0.000001 and 1.0, inclusive.")
+        raise ValueError(
+            "training_sample_ratio must be between 0.000001 and 1.0, inclusive."
+        )
 
 
 def _render_native_json_fields_json(json_fields: dict[str, dict[str, Any]]) -> str:
@@ -174,7 +176,6 @@ class IndexExpression:
                     alias="rating_plus_one",
                 ),
             ],
-            key_field="id",
             name="search_idx",
         )
     """
@@ -188,10 +189,9 @@ class ParadeDBIndex(models.Index):
     """ParadeDB index.
 
     The index is created with ``USING paradedb``, the index access method
-    name in pg_search 0.25.0+.
+    name in pg_search 0.26.0+.
 
-    ``centroid_ratio``, ``training_samples_per_centroid``, and
-    ``cluster_replication`` are index-wide vector build options emitted in
+    ``training_sample_ratio`` and ``max_leaf_size`` are index-wide vector build options emitted in
     the ``WITH (...)`` clause. They apply to every vector field in the index
     and are meaningful only when the index contains a vector field.
     """
@@ -202,42 +202,33 @@ class ParadeDBIndex(models.Index):
         self,
         *,
         fields: dict[str, dict[str, Any]],
-        key_field: str,
         name: str,
         expressions: list[IndexExpression] | None = None,
         condition: models.Q | None = None,
-        centroid_ratio: float | None = None,
-        training_samples_per_centroid: int | None = None,
-        cluster_replication: int | None = None,
+        training_sample_ratio: float | None = None,
+        max_leaf_size: int | None = None,
     ) -> None:
-        _validate_centroid_ratio(centroid_ratio)
+        _validate_training_sample_ratio(training_sample_ratio)
         _validate_int_index_option(
-            "training_samples_per_centroid",
-            training_samples_per_centroid,
-            maximum=100000,
-        )
-        _validate_int_index_option(
-            "cluster_replication", cluster_replication, maximum=2147483647
+            "max_leaf_size",
+            max_leaf_size,
+            maximum=2147483647,
         )
         self.fields_config = fields
-        self.key_field = key_field
         self.index_expressions = list(expressions or [])
-        self.centroid_ratio = centroid_ratio
-        self.training_samples_per_centroid = training_samples_per_centroid
-        self.cluster_replication = cluster_replication
+        self.training_sample_ratio = training_sample_ratio
+        self.max_leaf_size = max_leaf_size
         super().__init__(name=name, fields=list(fields.keys()), condition=condition)
 
     def deconstruct(self) -> tuple[str, Any, dict[str, Any]]:
         path, args, kwargs = super().deconstruct()
         kwargs["fields"] = self.fields_config
-        kwargs["key_field"] = self.key_field
         kwargs["name"] = self.name
         if self.index_expressions:
             kwargs["expressions"] = self.index_expressions
         for option in (
-            "centroid_ratio",
-            "training_samples_per_centroid",
-            "cluster_replication",
+            "training_sample_ratio",
+            "max_leaf_size",
         ):
             value = getattr(self, option)
             if value is not None:
@@ -257,16 +248,15 @@ class ParadeDBIndex(models.Index):
 
         expressions, json_fields = self._build_index_expressions(model, schema_editor)
         expr_sql = ",\n    ".join(expressions)
-        storage_params = [f"key_field={_quote_term(self.key_field)}"]
+        storage_params = []
         if json_fields:
             storage_params.append(
                 "json_fields="
                 + _quote_term(_render_native_json_fields_json(json_fields))
             )
         for option in (
-            "centroid_ratio",
-            "training_samples_per_centroid",
-            "cluster_replication",
+            "training_sample_ratio",
+            "max_leaf_size",
         ):
             value = getattr(self, option)
             if value is not None:
@@ -279,9 +269,10 @@ class ParadeDBIndex(models.Index):
             f"{create_stmt} %(name)s ON %(table)s\n"
             "USING paradedb (\n"
             "    %(expressions)s\n"
-            ")\n"
-            f"WITH ({', '.join(storage_params)})"
+            ")"
         )
+        if storage_params:
+            template += f"\nWITH ({', '.join(storage_params)})"
 
         condition_sql = self._get_condition_sql(model, schema_editor)  # type: ignore[attr-defined]
         if condition_sql:

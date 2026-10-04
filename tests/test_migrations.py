@@ -148,11 +148,9 @@ def test_apply_and_unapply_create_model_migration(
                         },
                         "embedding": {"metric": "cosine"},
                     },
-                    key_field="id",
                     name=index_name,
-                    centroid_ratio=0.01,
-                    training_samples_per_centroid=32,
-                    cluster_replication=1,
+                    training_sample_ratio=0.01,
+                    max_leaf_size=32,
                 )
             ],
         },
@@ -189,9 +187,8 @@ def test_apply_and_unapply_create_model_migration(
         )
         assert f"title::pdb.{tokenizer_name}" in normalized_index_def, index_def
         assert "vector_cosine_ops" in index_def, index_def
-        assert "centroid_ratio" in index_def, index_def
-        assert "training_samples_per_centroid" in index_def, index_def
-        assert "cluster_replication" in index_def, index_def
+        assert "training_sample_ratio" in index_def, index_def
+        assert "max_leaf_size" in index_def, index_def
         assert {"id", "title", "metadata", "embedding"}.issubset(column_names)
 
         # Insert test data in a separate transaction (simulates real usage)
@@ -264,7 +261,6 @@ def test_create_model_migration_with_index_expressions() -> None:
                             alias="rating_plus_one",
                         ),
                     ],
-                    key_field="id",
                     name=index_name,
                 )
             ],
@@ -351,7 +347,6 @@ def test_multiple_tokenizers_per_field_migration() -> None:
                             ]
                         },
                     },
-                    key_field="id",
                     name=index_name,
                 )
             ],
@@ -451,7 +446,6 @@ def test_multiple_tokenizers_with_ngram_options_migration() -> None:
                             ]
                         },
                     },
-                    key_field="id",
                     name=index_name,
                 )
             ],
@@ -510,7 +504,6 @@ def test_add_and_remove_index_concurrently() -> None:
             "id": {},
             "title": {"tokenizer": Tokenizer.unicode_words()},
         },
-        key_field="id",
         name=index_name,
     )
 
@@ -594,7 +587,6 @@ def test_remove_and_add_index_concurrently() -> None:
             "id": {},
             "title": {"tokenizer": Tokenizer.unicode_words()},
         },
-        key_field="id",
         name=index_name,
     )
 
@@ -666,7 +658,6 @@ def test_add_partial_index() -> None:
             "id": {},
             "title": {"tokenizer": Tokenizer.unicode_words()},
         },
-        key_field="id",
         name=index_name,
         condition=Q(is_active=True),
     )

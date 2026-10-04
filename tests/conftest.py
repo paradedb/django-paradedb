@@ -73,7 +73,7 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
                 f"ParadeDB pg_search extension unavailable in target database: {exc}"
             )
         cursor.execute(
-            "CALL paradedb.create_bm25_test_table(schema_name => 'public', table_name => 'mock_items');"
+            "CALL paradedb.create_paradedb_test_table(schema_name => 'public', table_name => 'mock_items');"
         )
         cursor.execute("DROP INDEX IF EXISTS mock_items_search_idx;")
         cursor.execute(
@@ -86,7 +86,7 @@ def paradedb_ready(django_db_setup: object, django_db_blocker: object) -> None:
             "metadata, "
             "embedding vector_cosine_ops, "
             "(((description || ' ' || category)::pdb.simple('alias=combined')))"
-            ") WITH (key_field='id', json_fields='{\"metadata\":{\"fast\":true}}');"
+            ') WITH (json_fields=\'{"metadata":{"fast":true}}\');'
         )
         cursor.execute(
             "SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'mock_items_search_idx';"

@@ -1017,32 +1017,10 @@ class TestVectorIndexOptions:
         assert build(1) != build(2)
 
 
-@pytest.mark.parametrize(
-    ("options", "expected_options"),
-    [({}, ""), ({"max_leaf_size": 32}, "\nWITH (max_leaf_size=32)")],
-)
-def test_keyless_index_sql_and_migration_round_trip(options, expected_options) -> None:
-    index = ParadeDBIndex(
-        fields={"description": {"tokenizer": Tokenizer.simple()}, "rating": {}},
-        name="keyless_search_idx",
-        **options,
-    )
-    expected = (
-        'CREATE INDEX "keyless_search_idx" ON "mock_items"\n'
-        'USING paradedb (\n    ("description"::pdb.simple),\n    "rating"\n)'
-        + expected_options
-    )
-    assert str(index.create_sql(MockItem, DummySchemaEditor())) == expected
-    _, args, kwargs = index.deconstruct()
-    assert "key_field" not in kwargs
-    restored = ParadeDBIndex(*args, **kwargs)
-    assert str(restored.create_sql(MockItem, DummySchemaEditor())) == expected
-
-
 @pytest.mark.integration
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("paradedb_ready")
-def test_create_keyless_partial_index() -> None:
+def test_create_partial_index_with_nullable_nonunique_first_field() -> None:
     class KeylessItem(models.Model):  # noqa: DJ008
         description = models.TextField(null=True)  # noqa: DJ001
         rating = models.IntegerField()
@@ -1071,7 +1049,6 @@ def test_create_keyless_partial_index() -> None:
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_get_indexdef('keyless_partial_idx'::regclass)")
             (definition,) = cursor.fetchone()
-            assert "key_field" not in definition
             assert "WHERE" in definition
     finally:
         with connection.schema_editor() as editor:

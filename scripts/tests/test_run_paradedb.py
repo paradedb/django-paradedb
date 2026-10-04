@@ -18,6 +18,9 @@ class DatabaseStartupTests(unittest.TestCase):
         pg="18",
         image=None,
         sourced=False,
+        ready=True,
+        report_connection=False,
+        password="postgres",
     ):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -27,14 +30,22 @@ class DatabaseStartupTests(unittest.TestCase):
                 "import json, os, sys\n"
                 "with open(os.environ['DOCKER_CALLS'], 'a') as out: out.write(json.dumps(sys.argv[1:]) + '\\n')\n"
                 "command = sys.argv[1]\n"
+                "if command == 'exec' and os.environ['MOCK_READY'] == '0': sys.exit(1)\n"
                 "if command == 'ps' and os.environ['MOCK_EXISTS'] == '1': print('orm-test')\n"
                 "elif command == 'inspect': print(os.environ['MOCK_IMAGE'])\n"
                 "elif command == 'port': print('0.0.0.0:55439')\n"
             )
             docker.chmod(0o755)
+            sleep = root / "sleep"
+            sleep.write_text(
+                "#!" + sys.executable + "\n"
+                "import json, os, sys\n"
+                "with open(os.environ['DOCKER_CALLS'], 'a') as out: out.write(json.dumps(['sleep'] + sys.argv[1:]) + '\\n')\n"
+            )
+            sleep.chmod(0o755)
             calls_path = root / "calls.jsonl"
             env = os.environ.copy()
-            for key in ("PARADEDB_IMAGE", "DATABASE_URL"):
+            for key in ("PARADEDB_IMAGE", "DATABASE_URL", "PARADEDB_TEST_DSN"):
                 env.pop(key, None)
             env.update(
                 {
@@ -42,6 +53,11 @@ class DatabaseStartupTests(unittest.TestCase):
                     "DOCKER_CALLS": str(calls_path),
                     "MOCK_EXISTS": "1" if exists else "0",
                     "MOCK_IMAGE": actual_image,
+                    "MOCK_READY": "1" if ready else "0",
+                    "PARADEDB_HOST": "127.0.0.2",
+                    "PARADEDB_PASSWORD": password,
+                    "PARADEDB_WAIT_ATTEMPTS": "3",
+                    "PARADEDB_WAIT_INTERVAL": "0.1",
                     "PARADEDB_CONTAINER_NAME": "orm-test",
                     "PARADEDB_VERSION": version,
                     "PARADEDB_POSTGRES_VERSION": pg,
@@ -56,6 +72,14 @@ class DatabaseStartupTests(unittest.TestCase):
                     "bash",
                     "-c",
                     'set +e; set +u; set +o pipefail; before="$(set +o)"; source "$1"; after="$(set +o)"; [[ "$before" == "$after" ]]',
+                    "bash",
+                    str(SCRIPT),
+                ]
+            if report_connection:
+                command = [
+                    "bash",
+                    "-c",
+                    'source "$1"; printf "\\nEXPORTED_URL=%s\\nEXPORTED_DSN=%s\\n" "$DATABASE_URL" "${PARADEDB_TEST_DSN:-}"',
                     "bash",
                     str(SCRIPT),
                 ]
@@ -94,6 +118,20 @@ class DatabaseStartupTests(unittest.TestCase):
         self.assertIn("but paradedb/paradedb:0.26.0-pg18 was requested", result.stderr)
         self.assertFalse(
             any(call[0] in ("run", "rm", "start", "exec") for call in calls)
+        )
+
+    def test_custom_host_and_port_reach_exported_connection(self):
+        result, _ = self.run_script(report_connection=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("@127.0.0.2:55439/postgres", result.stdout)
+
+    def test_readiness_failure_uses_configured_attempts_and_interval(self):
+        result, calls = self.run_script(ready=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("did not become ready", result.stderr)
+        self.assertEqual(sum(call[0] == "exec" for call in calls), 4)
+        self.assertEqual(
+            [call for call in calls if call[0] == "sleep"], [["sleep", "0.1"]] * 3
         )
 
     @unittest.skipIf(

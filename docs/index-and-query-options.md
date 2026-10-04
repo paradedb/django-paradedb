@@ -9,7 +9,12 @@ from paradedb import Agg, ParadeDBIndex, paradedb_vector_config
 
 index = ParadeDBIndex(
     name="items_search_idx",
-    fields={"id": {}, "tenant_id": {}, "description": {}, "embedding": {"metric": "cosine"}},
+    fields={
+        "id": {},
+        "tenant_id": {},
+        "description": {},
+        "embedding": {"metric": "cosine"},
+    },
     partition_by="tenant_id",
     target_segment_count=8,
     vector_fields={"embedding": {"quantization": False}},

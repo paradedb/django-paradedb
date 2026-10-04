@@ -9,7 +9,6 @@
     "pdb.agg_fn",
     "pdb.agg_placeholder_agg_placeholder_finalize",
     "pdb.agg_placeholder_agg_placeholder_state",
-    // Internal transition/final functions for visibility-aware aggregates.
     "pdb.agg_placeholder_visibility_agg_placeholder_visibility_finalize",
     "pdb.agg_placeholder_visibility_agg_placeholder_visibility_state",
     "pdb.agg_placeholder_with_mvcc_agg_placeholder_with_mvcc_finalize",

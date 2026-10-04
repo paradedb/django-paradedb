@@ -57,7 +57,7 @@ bash scripts/run_tests.sh tests/test_queries.py::test_more_like_this_document_in
 
 The script starts a ParadeDB container via Docker and sets `DATABASE_URL` automatically. The default container is `django-paradedb` on port `5432`. To use an existing test database, set `PARADEDB_TEST_DSN` (or `DATABASE_URL`). The runner preserves the supplied connection and skips local Docker startup.
 
-Some tests require newer pg_search versions and are skipped automatically if the feature is not available.
+Local container startup supports `PARADEDB_HOST` (default `127.0.0.1`), `PARADEDB_PORT` (default `5432`), `PARADEDB_WAIT_ATTEMPTS` (default `30`), and `PARADEDB_WAIT_INTERVAL` (default `2` seconds).
 
 ### Linting and Formatting
 

@@ -7,7 +7,7 @@ from paradedb.vector import VectorField
 
 
 class MockItem(models.Model):
-    """ParadeDB mock data table created via `paradedb.create_bm25_test_table`."""
+    """ParadeDB mock data table created via `paradedb.create_paradedb_test_table`."""
 
     id = models.IntegerField(primary_key=True)
     description = models.TextField()

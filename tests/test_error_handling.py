@@ -99,7 +99,7 @@ class TestNoticeHandling:
         with connection.cursor() as cursor:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS mock_items_search_idx ON mock_items "
-                "USING paradedb (id, description) WITH (key_field='id');"
+                "USING paradedb (id, description);"
             )
             cursor.execute("SELECT COUNT(*) FROM mock_items;")
             (count,) = cursor.fetchone()

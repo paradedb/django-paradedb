@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Changed
 
-- Indexes no longer require `key_field`. Omitted values stay out of generated SQL and migrations; explicit values remain supported for older pg_search versions.
+- **Breaking:** Remove the `key_field` argument from `ParadeDBIndex` and require ParadeDB 0.26.0 or newer.
+- **Breaking:** Update vector index build options to `training_sample_ratio` and `max_leaf_size` for ParadeDB 0.26.0 and remove the obsolete cluster replication option.
 
 ## [0.13.0] - 2026-08-19
 

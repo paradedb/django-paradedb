@@ -30,6 +30,16 @@ if ! command -v docker >/dev/null 2>&1; then
   if [[ "$RUNNING" == "1" ]]; then exit 1; else return 1; fi
 fi
 
+# Keep a container with a different image intact; never test the wrong release.
+if docker ps -a --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
+  paradedb_actual_image="$(docker inspect --format '{{.Config.Image}}' "${CONTAINER_NAME}")"
+  if [[ "${paradedb_actual_image}" != "${IMAGE}" ]]; then
+    echo "Container ${CONTAINER_NAME} uses ${paradedb_actual_image}, but ${IMAGE} was requested." >&2
+    echo "Choose another PARADEDB_CONTAINER_NAME or remove the old container before retrying." >&2
+    if [[ "${RUNNING}" == "1" ]]; then exit 1; else return 1; fi
+  fi
+fi
+
 # A container left over from a failed run can exist without publishing the
 # port, in which case reusing it yields confusing connection errors. Drop it
 # so the normal creation path below builds a working one.

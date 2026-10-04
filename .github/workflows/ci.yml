@@ -61,6 +61,9 @@ jobs:
       - name: Check API coverage
         run: uv run --no-sync python scripts/check_api_coverage.py
 
+      - name: Test tooling scripts
+        run: uv run --no-sync python -m unittest discover -s scripts/tests -p "test_*.py"
+
       - name: Check API stub sync
         run: uv run --no-sync python scripts/check_api_stub_sync.py
 
@@ -125,7 +128,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-cmd "pg_isready -h 127.0.0.1 -U postgres -d postgres"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 12

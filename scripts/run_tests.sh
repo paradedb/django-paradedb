@@ -3,16 +3,17 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
 
-source "${SCRIPT_DIR}/run_paradedb.sh"
+if [[ -z "${PARADEDB_TEST_DSN:-${DATABASE_URL:-}}" ]]; then
+  # shellcheck source=scripts/run_paradedb.sh
+  source "${SCRIPT_DIR}/run_paradedb.sh"
+fi
 
-PORT="${PARADEDB_PORT:-5432}"
-USER="${PARADEDB_USER:-postgres}"
-PASSWORD="${PARADEDB_PASSWORD:-postgres}"
-DB="${PARADEDB_DB:-postgres}"
-
-export PARADEDB_TEST_DSN="postgres://${USER}:${PASSWORD}@localhost:${PORT}/${DB}"
-export PGPASSWORD="${PASSWORD}"
+export PARADEDB_TEST_DSN="${PARADEDB_TEST_DSN:-${DATABASE_URL}}"
+export DATABASE_URL="${DATABASE_URL:-${PARADEDB_TEST_DSN}}"
+export PGPASSWORD="${PGPASSWORD:-${PARADEDB_PASSWORD:-postgres}}"
 
 if ! command -v uv >/dev/null 2>&1; then
   echo "uv is required to run integration tests." >&2

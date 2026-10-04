@@ -68,7 +68,7 @@ jobs:
 
           # Validate beta suffix
           if [[ "${BETA}" == "true" && "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "❌ Beta releases must have prerelease suffix (e.g., 0.1.0-beta.1)"
+            echo "❌ Beta releases must have prerelease suffix (e.g., 0.1.0-rc.1)"
             exit 1
           fi
 

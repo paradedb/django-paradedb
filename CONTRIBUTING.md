@@ -55,9 +55,7 @@ To run a subset of tests, pass pytest selectors:
 bash scripts/run_tests.sh tests/test_queries.py::test_more_like_this_document_input_generates_correct_sql
 ```
 
-The script starts a ParadeDB container via Docker and sets `DATABASE_URL` automatically. The default container is `django-paradedb` on port `5432`.
-To use an existing test database, set `PARADEDB_TEST_DSN` (or `DATABASE_URL`).
-The runner preserves the supplied connection and skips local Docker startup.
+The script starts a ParadeDB container via Docker and sets `DATABASE_URL` automatically. The default container is `django-paradedb` on port `5432`. To use an existing test database, set `PARADEDB_TEST_DSN` (or `DATABASE_URL`). The runner preserves the supplied connection and skips local Docker startup.
 
 Some tests require newer pg_search versions and are skipped automatically if the feature is not available.
 

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from django.contrib.postgres.fields import ArrayField
 from django.db import DEFAULT_DB_ALIAS, connections
@@ -22,6 +23,7 @@ from paradedb.api import (
     FN_VERIFY_ALL_INDEXES,
     FN_VERIFY_INDEX,
 )
+from paradedb.queries import SearchQuery
 
 
 def _quote_term(value: str) -> str:
@@ -62,9 +64,14 @@ class Snippet(Func):
         start_sel: str | None = None,
         stop_sel: str | None = None,
         max_num_chars: int | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> None:
         _validate_non_negative_int("max_num_chars", max_num_chars)
-        self._formatting = (start_sel, stop_sel, max_num_chars)
+        for name, value in (("limit", limit), ("offset", offset)):
+            if value is not None:
+                _validate_non_negative_int(name, value)
+        self._formatting = (start_sel, stop_sel, max_num_chars, limit, offset)
         super().__init__(F(field))
 
     def as_sql(  # type: ignore[override]
@@ -73,21 +80,23 @@ class Snippet(Func):
         _connection: BaseDatabaseWrapper,
         **_extra_context: Any,
     ) -> tuple[str, list[Any]]:
-        field_sql, params = compiler.compile(self.source_expressions[0])
+        field_sql, compiled_params = compiler.compile(self.source_expressions[0])
+        params = list(compiled_params)
         if params:
             raise ValueError("Snippet does not support parameterized fields.")
 
         args = [field_sql]
-        start_sel, stop_sel, max_num_chars = self._formatting
-        if start_sel is not None:
-            args.append(_quote_term(start_sel))
-        if stop_sel is not None:
-            args.append(_quote_term(stop_sel))
-        if max_num_chars is not None:
-            args.append(str(max_num_chars))
+        for name, value in zip(
+            ("start_tag", "end_tag", "max_num_chars", '"limit"', '"offset"'),
+            self._formatting,
+            strict=True,
+        ):
+            if value is not None:
+                args.append(f"{name} => %s")
+                params.append(value)
 
         sql = f"{self.function}({', '.join(args)})"
-        return sql, []
+        return sql, params
 
 
 class Snippets(Func):
@@ -122,7 +131,8 @@ class Snippets(Func):
         _connection: BaseDatabaseWrapper,
         **_extra_context: Any,
     ) -> tuple[str, list[Any]]:
-        field_sql, params = compiler.compile(self.source_expressions[0])
+        field_sql, compiled_params = compiler.compile(self.source_expressions[0])
+        params = list(compiled_params)
         if params:
             raise ValueError("Snippets does not support parameterized fields.")
 
@@ -156,7 +166,13 @@ class SnippetPositions(Func):
     function = FN_SNIPPET_POSITIONS
     output_field = ArrayField(base_field=ArrayField(base_field=IntegerField()))
 
-    def __init__(self, field: str) -> None:
+    def __init__(
+        self, field: str, *, limit: int | None = None, offset: int | None = None
+    ) -> None:
+        self._pagination = {"limit": limit, "offset": offset}
+        for name, value in self._pagination.items():
+            if value is not None:
+                _validate_non_negative_int(name, value)
         super().__init__(F(field))
 
     def as_sql(  # type: ignore[override]
@@ -165,12 +181,17 @@ class SnippetPositions(Func):
         _connection: BaseDatabaseWrapper,
         **_extra_context: Any,
     ) -> tuple[str, list[Any]]:
-        field_sql, params = compiler.compile(self.source_expressions[0])
+        field_sql, compiled_params = compiler.compile(self.source_expressions[0])
+        params = list(compiled_params)
         if params:
             raise ValueError("SnippetPositions does not support parameterized fields.")
 
-        sql = f"{self.function}({field_sql})"
-        return sql, []
+        args = [field_sql]
+        for name, value in self._pagination.items():
+            if value is not None:
+                args.append(f'"{name}" => %s')
+                params.append(value)
+        return f"{self.function}({', '.join(args)})", params
 
 
 class Agg(Func):
@@ -376,6 +397,7 @@ __all__ = [
     "Snippet",
     "SnippetPositions",
     "Snippets",
+    "paradedb_aggregate",
     "paradedb_index_segments",
     "paradedb_indexes",
     "paradedb_verify_all_indexes",
@@ -423,3 +445,44 @@ def paradedb_vector_estimator_info(
         args += ", %s::vector[]"
     sql = f"SELECT * FROM paradedb.vector_estimator_info({args})"
     return _execute_table_function(sql, params, using=using)
+
+
+def paradedb_aggregate(
+    index: str,
+    query: str | SearchQuery,
+    spec: dict[str, Any],
+    *,
+    solve_mvcc: bool | None = None,
+    memory_limit: int = 500000000,
+    bucket_limit: int | None = None,
+    visibility: str | None = None,
+    using: str = DEFAULT_DB_ALIAS,
+) -> dict[str, Any]:
+    """Execute a direct index aggregate with explicit resource limits."""
+    for name, value in (("memory_limit", memory_limit), ("bucket_limit", bucket_limit)):
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value <= 0
+        ):
+            raise ValueError(f"{name} must be a positive integer")
+    if visibility is not None and visibility not in ("transaction", "raw", "threshold"):
+        raise ValueError("visibility must be transaction, raw, or threshold")
+    if solve_mvcc is not None and visibility is not None:
+        raise ValueError("Specify solve_mvcc or visibility, not both")
+    query = SearchQuery.parse(query) if isinstance(query, str) else query
+    query_sql, query_params = query.as_sql()
+    params = [
+        index,
+        *query_params,
+        json.dumps(spec),
+        solve_mvcc,
+        memory_limit,
+        bucket_limit,
+        visibility,
+    ]
+    with connections[using].cursor() as cursor:
+        cursor.execute(
+            f"SELECT paradedb.aggregate(%s::regclass, {query_sql}, %s::json, %s, %s, %s, %s)",
+            params,
+        )
+        value = cursor.fetchone()[0]
+    return cast(dict[str, Any], json.loads(value) if isinstance(value, str) else value)

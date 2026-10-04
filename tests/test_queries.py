@@ -1349,7 +1349,7 @@ class TestSnippetAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippet("mock_items"."description", \'<mark>\', \'</mark>\', 100) AS "snippet" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippet("mock_items"."description", start_tag => <mark>, end_tag => </mark>, max_num_chars => 100) AS "snippet" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
         )
         _run_query(queryset)
 

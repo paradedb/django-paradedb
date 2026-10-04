@@ -14,9 +14,11 @@ except PackageNotFoundError:
 __all__ = [
     "Agg",
     "All",
+    "BooleanQuery",
     "Boost",
     "Const",
     "CosineDistance",
+    "DisjunctionMax",
     "Exists",
     "Fuzzy",
     "FuzzyTerm",
@@ -41,6 +43,7 @@ __all__ = [
     "Regex",
     "RegexPhrase",
     "Score",
+    "SearchQuery",
     "Slop",
     "Snippet",
     "SnippetPositions",
@@ -50,6 +53,7 @@ __all__ = [
     "Tokenized",
     "Tokenizer",
     "VectorField",
+    "paradedb_aggregate",
     "paradedb_index_segments",
     "paradedb_indexes",
     "paradedb_vector_config",
@@ -60,6 +64,10 @@ __all__ = [
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "SearchQuery": ("paradedb.queries", "SearchQuery"),
+    "BooleanQuery": ("paradedb.queries", "BooleanQuery"),
+    "DisjunctionMax": ("paradedb.queries", "DisjunctionMax"),
+    "paradedb_aggregate": ("paradedb.functions", "paradedb_aggregate"),
     "paradedb_vector_estimator_info": (
         "paradedb.functions",
         "paradedb_vector_estimator_info",

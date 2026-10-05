@@ -10,7 +10,13 @@ from unittest.mock import patch
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import connection
 
+from paradedb import (
+    paradedb_vector_config,
+    paradedb_vector_estimator_info,
+    paradedb_vector_info,
+)
 from paradedb.functions import (
     paradedb_index_segments,
     paradedb_indexes,
@@ -504,3 +510,20 @@ def test_paradedb_verify_all_indexes_command() -> None:
     payload = json.loads(stdout.getvalue())
     assert payload
     assert "check_name" in payload[0]
+
+
+@pytest.mark.django_db(transaction=True)
+def test_vector_configuration_after_reindex(partitioned_vector_index):
+    _ = partitioned_vector_index
+    assert paradedb_vector_config("pg26_idx", "embedding")[0]["quantized"] is False
+    assert paradedb_vector_info("pg26_idx", "embedding")
+    with connection.cursor() as cursor:
+        cursor.execute(
+            'ALTER INDEX pg26_idx SET (target_segment_count = 1, max_leaf_size = 16, vector_fields = \'{"embedding":{"quantization":true}}\')'
+        )
+        cursor.execute("REINDEX INDEX pg26_idx")
+    assert paradedb_vector_config("pg26_idx", "embedding")[0]["quantized"] is True
+    assert isinstance(paradedb_vector_estimator_info("pg26_idx", "embedding"), list)
+    assert isinstance(
+        paradedb_vector_estimator_info("pg26_idx", "embedding", [[0.1] * 64]), list
+    )

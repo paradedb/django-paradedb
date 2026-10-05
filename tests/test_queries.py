@@ -1762,3 +1762,31 @@ def test_all_tokenizers(expected: str, tokenizer: Tokenizer) -> None:
         WHERE "mock_items"."description" &&& 'running shoes'::{expected}
         """,
     )
+
+
+@pytest.mark.django_db(transaction=True)
+def test_partitioned_search(partitioned_vector_index):
+    _ = partitioned_vector_index
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT COUNT(*) FROM pg26_items WHERE description @@@ 'shoes' AND rating = 1"
+        )
+        assert cursor.fetchone()[0] == 683
+
+
+@pytest.mark.parametrize("visibility", ["transaction", "raw", "threshold"])
+@pytest.mark.django_db
+@pytest.mark.integration
+@pytest.mark.usefixtures("mock_items")
+def test_aggregate_visibility(visibility):
+    value = MockItem.objects.aggregate(
+        result=Agg('{"value_count":{"field":"id"}}', visibility=visibility)
+    )
+    assert value["result"]["value"] == MockItem.objects.count()
+
+
+def test_invalid_aggregate_visibility():
+    with pytest.raises(ValueError, match="visibility"):
+        Agg("{}", visibility="invalid")
+    with pytest.raises(ValueError, match="not both"):
+        Agg("{}", visibility="raw", exact=False)

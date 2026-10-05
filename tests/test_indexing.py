@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -1053,3 +1054,27 @@ def test_create_partial_index_with_nullable_nonunique_first_field() -> None:
     finally:
         with connection.schema_editor() as editor:
             editor.delete_model(KeylessItem)
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+def test_partitioned_index_options(partitioned_vector_index):
+    index = partitioned_vector_index
+    _, _, kwargs = index.deconstruct()
+    assert kwargs["partition_by"] == "rating,id"
+    assert ParadeDBIndex(**kwargs) == index
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT reloptions FROM pg_class WHERE oid = 'pg26_idx'::regclass"
+        )
+        options = dict(option.split("=", 1) for option in cursor.fetchone()[0])
+        assert options["partition_by"] == "rating,id"
+        assert options["target_segment_count"] == "8"
+        assert (
+            json.loads(options["vector_fields"])["embedding"]["quantization"] is False
+        )
+
+
+def test_invalid_partition():
+    with pytest.raises(ValueError, match="partition_by"):
+        ParadeDBIndex(fields={"id": {}}, name="bad", partition_by="id,")

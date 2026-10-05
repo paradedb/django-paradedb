@@ -48,8 +48,6 @@ The official [Django](https://www.djangoproject.com/) integration for ParadeDB. 
 | pgvector             | 0.7.0+ (provides vector types for ParadeDB’s [native vector search](https://www.paradedb.com/docs/reference/vector/overview)) |
 | ParadeDB / pg_search | 0.26.0+                                                                                                                       |
 
-See [index and query options](docs/index-and-query-options.md) for partitioning, vector configuration, aggregate visibility, and diagnostics.
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, running tests, linting, and the PR workflow.

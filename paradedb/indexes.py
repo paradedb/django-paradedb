@@ -208,7 +208,6 @@ class ParadeDBIndex(models.Index):
         training_sample_ratio: float | None = None,
         max_leaf_size: int | None = None,
         partition_by: str | None = None,
-        vector_router: str | None = None,
         target_segment_count: int | None = None,
         vector_fields: dict[str, dict[str, Any]] | None = None,
     ) -> None:
@@ -229,9 +228,6 @@ class ParadeDBIndex(models.Index):
             raise ValueError(
                 "partition_by must be a comma-separated list of non-empty index field names."
             )
-        if vector_router is not None and vector_router not in ("graph", "ivf"):
-            raise ValueError("vector_router must be graph or ivf.")
-        self.vector_router = vector_router
         self.partition_by = partition_by
         self.target_segment_count = target_segment_count
         self.vector_fields = vector_fields
@@ -255,7 +251,7 @@ class ParadeDBIndex(models.Index):
             value = getattr(self, option)
             if value is not None:
                 kwargs[option] = value
-        for option in ("partition_by", "vector_fields", "vector_router"):
+        for option in ("partition_by", "vector_fields"):
             value = getattr(self, option)
             if value is not None:
                 kwargs[option] = value
@@ -289,8 +285,6 @@ class ParadeDBIndex(models.Index):
             if value is not None:
                 storage_params.append(f"{option}={value}")
 
-        if self.vector_router is not None:
-            storage_params.append("vector_router=" + _quote_term(self.vector_router))
         if self.partition_by is not None:
             storage_params.append("partition_by=" + _quote_term(self.partition_by))
         if self.vector_fields is not None:

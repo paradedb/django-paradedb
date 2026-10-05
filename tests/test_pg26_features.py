@@ -43,7 +43,6 @@ def test_partitioning_quantization_and_diagnostics():
             "embedding": {"metric": "l2"},
         },
         name="pg26_idx",
-        vector_router="ivf",
         partition_by="rating,id",
         target_segment_count=8,
         vector_fields={"embedding": {"quantization": False}},

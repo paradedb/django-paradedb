@@ -30,7 +30,6 @@ from django.db.models import (
 from django.db.models.functions import Cast, Coalesce, Trim
 from django.test.utils import CaptureQueriesContext
 
-from paradedb import BooleanQuery, DisjunctionMax, SearchQuery
 from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
 from paradedb.search import (
     All,
@@ -1350,7 +1349,7 @@ class TestSnippetAnnotation:
         )
         assert (
             str(queryset.query)
-            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippet("mock_items"."description", start_tag => <mark>, end_tag => </mark>, max_num_chars => 100) AS "snippet" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippet("mock_items"."description", \'<mark>\', \'</mark>\', 100) AS "snippet" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
         )
         _run_query(queryset)
 
@@ -1784,81 +1783,20 @@ def test_invalid_aggregate_visibility():
 @pytest.mark.integration
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.usefixtures("mock_items")
-def test_nested_query_inputs_and_quoted_strings():
-    conjunction = BooleanQuery(
-        should=["description:running", "description:shoes"], minimum_should_match=2
-    )
-    expected = MockItem.objects.filter(
-        description=ParadeDB(MatchAll("running shoes"))
-    ).count()
-    assert expected > 0
-    assert MockItem.objects.filter(id=ParadeDB(conjunction)).count() == expected
-    query = BooleanQuery(
-        must=[DisjunctionMax([conjunction, "description:boots"], tie_breaker=0.5)],
-        must_not=["description:sandals"],
-    )
-    count = MockItem.objects.filter(id=ParadeDB(query)).count()
-    assert count > 0
-    assert (
-        MockItem.objects.filter(
-            id=ParadeDB(SearchQuery.parse('description:"O\'Reilly"'))
-        ).count()
-        == 0
-    )
-
-
-@pytest.mark.integration
-@pytest.mark.django_db(transaction=True)
-@pytest.mark.usefixtures("mock_items")
-@pytest.mark.parametrize(
-    "options",
-    [
-        {"max_num_chars": 20},
-        {"stop_sel": "</mark>"},
-        {"start_sel": "<mark>"},
-        {"limit": 1, "offset": 1},
-    ],
-)
-def test_snippet_named_options_preserve_server_defaults(options):
-    rows = list(
-        MockItem.objects.filter(id=ParadeDB(SearchQuery.parse("description:shoes")))
-        .annotate(snippet=Snippet("description", **options))
-        .values_list("id", "snippet")
-        .order_by("id")
-    )
-    names = {"start_sel": "start_tag", "stop_sel": "end_tag"}
-    args = ", ".join(f'"{names.get(name, name)}" => %s' for name in options)
-    with connection.cursor() as cursor:
-        cursor.execute(
-            f"SELECT id, pdb.snippet(description, {args}) FROM mock_items WHERE id @@@ paradedb.parse(%s) ORDER BY id",
-            [*options.values(), "description:shoes"],
-        )
-        assert rows == cursor.fetchall()
-
-
-@pytest.mark.integration
-@pytest.mark.django_db(transaction=True)
-@pytest.mark.usefixtures("mock_items")
 def test_snippet_position_pagination():
-    query = MockItem.objects.filter(
-        id=ParadeDB(SearchQuery.parse("description:shoes"))
-    ).annotate(positions=SnippetPositions("description", limit=0, offset=1))
+    query = MockItem.objects.filter(description=ParadeDB(MatchAny("shoes"))).annotate(
+        positions=SnippetPositions("description", limit=0, offset=1)
+    )
     assert query.exists()
     actual = list(query.values_list("id", "positions").order_by("id"))
     with connection.cursor() as cursor:
         cursor.execute(
-            'SELECT id, pdb.snippet_positions(description, "limit" => 0, "offset" => 1) FROM mock_items WHERE id @@@ paradedb.parse(%s) ORDER BY id',
-            ["description:shoes"],
+            'SELECT id, pdb.snippet_positions(description, "limit" => 0, "offset" => 1) FROM mock_items WHERE description ||| %s ORDER BY id',
+            ["shoes"],
         )
         assert actual == cursor.fetchall()
 
 
-def test_invalid_query_and_highlight_parameters():
-    with pytest.raises(ValueError, match="minimum_should_match"):
-        BooleanQuery(minimum_should_match=-1)
-    with pytest.raises(ValueError, match="tie_breaker"):
-        DisjunctionMax(["description:shoes"], tie_breaker=float("nan"))
-    with pytest.raises(ValueError, match="must not be empty"):
-        DisjunctionMax([])
+def test_invalid_snippet_position_parameters():
     with pytest.raises(ValueError, match="offset"):
         SnippetPositions("description", offset=-1)

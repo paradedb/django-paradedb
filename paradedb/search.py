@@ -64,7 +64,6 @@ from paradedb.api import (
     PDB_TYPE_TOKENIZER_UNICODE_WORDS,
     PDB_TYPE_TOKENIZER_WHITESPACE,
 )
-from paradedb.queries import SearchQuery
 
 SearchValue: TypeAlias = (
     "str | list[str] | tuple[str, ...] | Modifier | BaseExpression | F"
@@ -785,7 +784,7 @@ QueryExpression: TypeAlias = (
     | Regex
     | All
 )
-TermType: TypeAlias = QueryExpression | MoreLikeThis | Modifier | SearchQuery
+TermType: TypeAlias = QueryExpression | MoreLikeThis | Modifier
 
 
 class ParadeDB(BaseExpression):
@@ -949,9 +948,6 @@ class ParadeDB(BaseExpression):
     def _render_term(
         self, term: TermType, compiler: SQLCompiler
     ) -> tuple[str, list[Any]]:
-        if isinstance(term, SearchQuery):
-            sql, params = term.as_sql()
-            return f"{OP_SEARCH} {sql}", params
         if isinstance(term, Boost | Const | Fuzzy | Slop | Tokenized):
             return self._render_search_value(term, compiler)
         if isinstance(term, Phrase):

@@ -211,6 +211,10 @@ class ParadeDBIndex(models.Index):
         partition_by: Sequence[str] | None = None,
         target_segment_count: int | None = None,
         vector_fields: dict[str, dict[str, Any]] | None = None,
+        search_tokenizer: Tokenizer | str | None = None,
+        layer_sizes: str | None = None,
+        background_layer_sizes: str | None = None,
+        mutable_segment_rows: int | None = None,
     ) -> None:
         _validate_training_sample_ratio(training_sample_ratio)
         _validate_int_index_option(
@@ -218,6 +222,30 @@ class ParadeDBIndex(models.Index):
             max_leaf_size,
             maximum=2147483647,
         )
+        if mutable_segment_rows is not None and (
+            isinstance(mutable_segment_rows, bool)
+            or not isinstance(mutable_segment_rows, int)
+            or not 0 <= mutable_segment_rows <= 10000
+        ):
+            raise ValueError(
+                "mutable_segment_rows must be an integer between 0 and 10000"
+            )
+        for option, value in (
+            ("layer_sizes", layer_sizes),
+            ("background_layer_sizes", background_layer_sizes),
+        ):
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"{option} must be a non-empty size string")
+        if search_tokenizer is not None and not isinstance(
+            search_tokenizer, (Tokenizer, str)
+        ):
+            raise TypeError("search_tokenizer must be a Tokenizer or string")
+        if isinstance(search_tokenizer, str) and not search_tokenizer.strip():
+            raise ValueError("search_tokenizer must be a non-empty string")
+        self.search_tokenizer = search_tokenizer
+        self.layer_sizes = layer_sizes
+        self.background_layer_sizes = background_layer_sizes
+        self.mutable_segment_rows = mutable_segment_rows
         self.partition_by = list(partition_by) if partition_by is not None else None
         self.target_segment_count = target_segment_count
         self.vector_fields = vector_fields
@@ -241,7 +269,14 @@ class ParadeDBIndex(models.Index):
             value = getattr(self, option)
             if value is not None:
                 kwargs[option] = value
-        for option in ("partition_by", "vector_fields"):
+        for option in (
+            "partition_by",
+            "vector_fields",
+            "search_tokenizer",
+            "layer_sizes",
+            "background_layer_sizes",
+            "mutable_segment_rows",
+        ):
             value = getattr(self, option)
             if value is not None:
                 kwargs[option] = value
@@ -275,6 +310,27 @@ class ParadeDBIndex(models.Index):
             if value is not None:
                 storage_params.append(f"{option}={value}")
 
+        for option in ("layer_sizes", "background_layer_sizes"):
+            value = getattr(self, option)
+            if value is not None:
+                storage_params.append(f"{option}=" + _quote_term(value))
+        if self.mutable_segment_rows is not None:
+            storage_params.append(f"mutable_segment_rows={self.mutable_segment_rows}")
+        if self.search_tokenizer is not None:
+            tokenizer = self.search_tokenizer
+            if isinstance(tokenizer, Tokenizer):
+                parts = [
+                    str(value).lower() if isinstance(value, bool) else str(value)
+                    for value in (tokenizer.positional_arguments or ())
+                ]
+                parts += [
+                    f"{key}={str(value).lower() if isinstance(value, bool) else value}"
+                    for key, value in (tokenizer.options or {}).items()
+                ]
+                tokenizer = tokenizer.name.removeprefix("pdb.") + (
+                    "(" + ",".join(parts) + ")" if parts else ""
+                )
+            storage_params.append("search_tokenizer=" + _quote_term(tokenizer))
         if self.partition_by is not None:
             storage_params.append(
                 "partition_by=" + _quote_term(",".join(self.partition_by))

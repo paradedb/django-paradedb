@@ -1062,3 +1062,42 @@ def test_create_partial_index_with_nullable_nonunique_first_field() -> None:
     finally:
         with connection.schema_editor() as editor:
             editor.delete_model(KeylessItem)
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("mock_items")
+def test_index_tuning_round_trip():
+    options = {
+        "search_tokenizer": Tokenizer.simple(options={"lowercase": False}),
+        "layer_sizes": "0",
+        "background_layer_sizes": "100MB, 1GB",
+        "mutable_segment_rows": 1000,
+    }
+    index = ParadeDBIndex(
+        fields={"id": {}, "description": {}}, name="api_options_idx", **options
+    )
+    _, _, kwargs = index.deconstruct()
+    assert ParadeDBIndex(**kwargs) == index
+    with connection.cursor() as cursor:
+        cursor.execute("CREATE TABLE api_options_items (id int, description text)")
+        ddl = str(index.create_sql(MockItem, connection.schema_editor())).replace(
+            '"mock_items"', '"api_options_items"'
+        )
+        cursor.execute(ddl)
+        try:
+            cursor.execute(
+                "SELECT reloptions FROM pg_class WHERE oid = 'api_options_idx'::regclass"
+            )
+            actual = dict(value.split("=", 1) for value in cursor.fetchone()[0])
+            assert actual["search_tokenizer"] == "simple(lowercase=false)"
+            assert actual["layer_sizes"] == "0"
+            assert actual["background_layer_sizes"] == "100MB, 1GB"
+            assert actual["mutable_segment_rows"] == "1000"
+        finally:
+            cursor.execute("DROP TABLE api_options_items")
+
+
+def test_invalid_mutable_segment_rows():
+    with pytest.raises(ValueError, match="mutable_segment_rows"):
+        ParadeDBIndex(fields={"id": {}}, name="invalid_idx", mutable_segment_rows=10001)

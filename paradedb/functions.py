@@ -156,7 +156,13 @@ class SnippetPositions(Func):
     function = FN_SNIPPET_POSITIONS
     output_field = ArrayField(base_field=ArrayField(base_field=IntegerField()))
 
-    def __init__(self, field: str) -> None:
+    def __init__(
+        self, field: str, *, limit: int | None = None, offset: int | None = None
+    ) -> None:
+        self._pagination = {"limit": limit, "offset": offset}
+        for name, value in self._pagination.items():
+            if value is not None:
+                _validate_non_negative_int(name, value)
         super().__init__(F(field))
 
     def as_sql(  # type: ignore[override]
@@ -165,12 +171,17 @@ class SnippetPositions(Func):
         _connection: BaseDatabaseWrapper,
         **_extra_context: Any,
     ) -> tuple[str, list[Any]]:
-        field_sql, params = compiler.compile(self.source_expressions[0])
+        field_sql, compiled_params = compiler.compile(self.source_expressions[0])
+        params = list(compiled_params)
         if params:
             raise ValueError("SnippetPositions does not support parameterized fields.")
 
-        sql = f"{self.function}({field_sql})"
-        return sql, []
+        args = [field_sql]
+        for name, value in self._pagination.items():
+            if value is not None:
+                args.append(f'"{name}" => %s')
+                params.append(value)
+        return f"{self.function}({', '.join(args)})", params
 
 
 class Agg(Func):

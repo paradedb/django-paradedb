@@ -1778,3 +1778,25 @@ def test_aggregate_visibility(visibility):
 def test_invalid_aggregate_visibility():
     with pytest.raises(ValueError, match="not both"):
         Agg("{}", visibility="raw", exact=False)
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("mock_items")
+def test_snippet_position_pagination():
+    query = MockItem.objects.filter(description=ParadeDB(MatchAny("shoes"))).annotate(
+        positions=SnippetPositions("description", limit=0, offset=1)
+    )
+    assert query.exists()
+    actual = list(query.values_list("id", "positions").order_by("id"))
+    with connection.cursor() as cursor:
+        cursor.execute(
+            'SELECT id, pdb.snippet_positions(description, "limit" => 0, "offset" => 1) FROM mock_items WHERE description ||| %s ORDER BY id',
+            ["shoes"],
+        )
+        assert actual == cursor.fetchall()
+
+
+def test_invalid_snippet_position_parameters():
+    with pytest.raises(ValueError, match="offset"):
+        SnippetPositions("description", offset=-1)

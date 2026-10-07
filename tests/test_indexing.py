@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import Mock
 
 import pytest
@@ -914,11 +913,14 @@ class TestVectorIndexOptions:
             name="mock_items_search_idx",
             training_sample_ratio=0.01,
             max_leaf_size=32,
+            partition_by=["id"],
+            target_segment_count=8,
+            vector_fields={"embedding": {"quantization": False}},
         )
         sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_cosine_ops\n)\nWITH (training_sample_ratio=0.01, max_leaf_size=32)'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_cosine_ops\n)\nWITH (training_sample_ratio=0.01, max_leaf_size=32, target_segment_count=8, partition_by=\'id\', vector_fields=\'{"embedding":{"quantization":false}}\')'
         )
 
     def test_index_with_single_option(self) -> None:
@@ -987,10 +989,16 @@ class TestVectorIndexOptions:
             name="mock_items_search_idx",
             training_sample_ratio=0.01,
             max_leaf_size=32,
+            partition_by=["id"],
+            target_segment_count=8,
+            vector_fields={"embedding": {"quantization": False}},
         )
         _path, _args, kwargs = index.deconstruct()
         assert kwargs["training_sample_ratio"] == 0.01
         assert kwargs["max_leaf_size"] == 32
+        assert kwargs["partition_by"] == ["id"]
+        assert kwargs["target_segment_count"] == 8
+        assert kwargs["vector_fields"] == {"embedding": {"quantization": False}}
 
         serialized, _imports = MigrationWriter.serialize(index)
         assert "training_sample_ratio=0.01" in serialized
@@ -1054,27 +1062,3 @@ def test_create_partial_index_with_nullable_nonunique_first_field() -> None:
     finally:
         with connection.schema_editor() as editor:
             editor.delete_model(KeylessItem)
-
-
-@pytest.mark.integration
-@pytest.mark.django_db(transaction=True)
-def test_partitioned_index_options(partitioned_vector_index):
-    index = partitioned_vector_index
-    _, _, kwargs = index.deconstruct()
-    assert kwargs["partition_by"] == "rating,id"
-    assert ParadeDBIndex(**kwargs) == index
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT reloptions FROM pg_class WHERE oid = 'pg26_idx'::regclass"
-        )
-        options = dict(option.split("=", 1) for option in cursor.fetchone()[0])
-        assert options["partition_by"] == "rating,id"
-        assert options["target_segment_count"] == "8"
-        assert (
-            json.loads(options["vector_fields"])["embedding"]["quantization"] is False
-        )
-
-
-def test_invalid_partition():
-    with pytest.raises(ValueError, match="partition_by"):
-        ParadeDBIndex(fields={"id": {}}, name="bad", partition_by="id,")

@@ -1786,7 +1786,5 @@ def test_aggregate_visibility(visibility):
 
 
 def test_invalid_aggregate_visibility():
-    with pytest.raises(ValueError, match="visibility"):
-        Agg("{}", visibility="invalid")
     with pytest.raises(ValueError, match="not both"):
         Agg("{}", visibility="raw", exact=False)

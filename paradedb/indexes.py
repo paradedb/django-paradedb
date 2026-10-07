@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
@@ -207,7 +208,7 @@ class ParadeDBIndex(models.Index):
         condition: models.Q | None = None,
         training_sample_ratio: float | None = None,
         max_leaf_size: int | None = None,
-        partition_by: str | None = None,
+        partition_by: Sequence[str] | None = None,
         target_segment_count: int | None = None,
         vector_fields: dict[str, dict[str, Any]] | None = None,
     ) -> None:
@@ -217,18 +218,7 @@ class ParadeDBIndex(models.Index):
             max_leaf_size,
             maximum=2147483647,
         )
-        _validate_int_index_option(
-            "target_segment_count", target_segment_count, maximum=2147483647
-        )
-        if partition_by is not None and (
-            not isinstance(partition_by, str)
-            or not partition_by.strip()
-            or any(not field.strip() for field in partition_by.split(","))
-        ):
-            raise ValueError(
-                "partition_by must be a comma-separated list of non-empty index field names."
-            )
-        self.partition_by = partition_by
+        self.partition_by = list(partition_by) if partition_by is not None else None
         self.target_segment_count = target_segment_count
         self.vector_fields = vector_fields
         self.fields_config = fields
@@ -286,7 +276,9 @@ class ParadeDBIndex(models.Index):
                 storage_params.append(f"{option}={value}")
 
         if self.partition_by is not None:
-            storage_params.append("partition_by=" + _quote_term(self.partition_by))
+            storage_params.append(
+                "partition_by=" + _quote_term(",".join(self.partition_by))
+            )
         if self.vector_fields is not None:
             storage_params.append(
                 "vector_fields="

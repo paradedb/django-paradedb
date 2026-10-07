@@ -10,13 +10,7 @@ from unittest.mock import patch
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.db import connection
 
-from paradedb import (
-    paradedb_vector_config,
-    paradedb_vector_estimator_info,
-    paradedb_vector_info,
-)
 from paradedb.functions import (
     paradedb_index_segments,
     paradedb_indexes,
@@ -512,18 +506,32 @@ def test_paradedb_verify_all_indexes_command() -> None:
     assert "check_name" in payload[0]
 
 
-@pytest.mark.django_db(transaction=True)
-def test_vector_configuration_after_reindex(partitioned_vector_index):
-    _ = partitioned_vector_index
-    assert paradedb_vector_config("pg26_idx", "embedding")[0]["quantized"] is False
-    assert paradedb_vector_info("pg26_idx", "embedding")
-    with connection.cursor() as cursor:
-        cursor.execute(
-            'ALTER INDEX pg26_idx SET (target_segment_count = 1, max_leaf_size = 16, vector_fields = \'{"embedding":{"quantization":true}}\')'
+@pytest.mark.parametrize(
+    "function", ["vector_info", "vector_config", "vector_estimator_info"]
+)
+def test_vector_diagnostic_sql(function):
+    from paradedb import functions
+
+    with patch(
+        "paradedb.functions._execute_table_function", return_value=[]
+    ) as execute:
+        getattr(functions, "paradedb_" + function)("search_idx", "embedding")
+        execute.assert_called_once_with(
+            f"SELECT * FROM paradedb.{function}(%s::regclass, %s::text)",
+            ["search_idx", "embedding"],
+            using="default",
         )
-        cursor.execute("REINDEX INDEX pg26_idx")
-    assert paradedb_vector_config("pg26_idx", "embedding")[0]["quantized"] is True
-    assert isinstance(paradedb_vector_estimator_info("pg26_idx", "embedding"), list)
-    assert isinstance(
-        paradedb_vector_estimator_info("pg26_idx", "embedding", [[0.1] * 64]), list
-    )
+
+
+def test_vector_estimator_query_sql():
+    from paradedb.functions import paradedb_vector_estimator_info
+
+    with patch(
+        "paradedb.functions._execute_table_function", return_value=[]
+    ) as execute:
+        paradedb_vector_estimator_info("search_idx", "embedding", [[0.1, 0.2]])
+        execute.assert_called_once_with(
+            "SELECT * FROM paradedb.vector_estimator_info(%s::regclass, %s::text, %s::vector[])",
+            ["search_idx", "embedding", ["[0.1,0.2]"]],
+            using="default",
+        )

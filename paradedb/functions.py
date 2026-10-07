@@ -201,16 +201,13 @@ class Agg(Func):
         json_spec: str,
         *,
         exact: bool | None = None,
-        visibility: str | None = None,
+        visibility: Literal["transaction", "raw", "threshold"] | None = None,
         filter: Any | None = None,
     ) -> None:
         if exact is not None and not isinstance(exact, bool):
             raise TypeError("Agg exact must be a boolean when provided.")
-        if visibility is not None:
-            if visibility not in ("transaction", "raw", "threshold"):
-                raise ValueError("visibility must be transaction, raw, or threshold.")
-            if exact is not None:
-                raise ValueError("Specify visibility or exact, not both.")
+        if visibility is not None and exact is not None:
+            raise ValueError("Specify visibility or exact, not both.")
         self._visibility = visibility
         self._json_spec = json_spec
         self._exact = exact

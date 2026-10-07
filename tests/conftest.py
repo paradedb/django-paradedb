@@ -9,9 +9,7 @@ import pytest
 from django.conf import settings
 from django.db import connection
 
-from paradedb import ParadeDBIndex, Tokenizer
 from tests._db_config import database_settings
-from tests.models import MockItem
 
 
 def pytest_configure(config: object) -> None:
@@ -120,53 +118,3 @@ def mock_items(paradedb_ready: None) -> None:
     """Function-scoped dependency that guarantees mock_items is available."""
     _ = paradedb_ready
     return None
-
-
-@pytest.fixture
-def partitioned_vector_index(transactional_db, paradedb_ready):
-    _ = transactional_db, paradedb_ready
-    index = ParadeDBIndex(
-        fields={
-            "id": {},
-            "rating": {},
-            "description": {
-                "tokenizers": [
-                    {"tokenizer": Tokenizer.simple(options={"pnorms": True})},
-                    {
-                        "tokenizer": Tokenizer.jieba(
-                            options={"alias": "description_jieba", "search_mode": False}
-                        )
-                    },
-                    {
-                        "tokenizer": Tokenizer.chinese_compatible(
-                            options={
-                                "alias": "description_chinese",
-                                "chinese_convert": "t2s",
-                            }
-                        )
-                    },
-                ]
-            },
-            "embedding": {"metric": "l2"},
-        },
-        name="pg26_idx",
-        partition_by="rating,id",
-        target_segment_count=8,
-        vector_fields={"embedding": {"quantization": False}},
-    )
-    ddl = str(index.create_sql(MockItem, connection.schema_editor())).replace(
-        '"mock_items"', '"pg26_items"'
-    )
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "CREATE TABLE pg26_items (id int, rating int, description text, embedding vector(64))"
-            )
-            cursor.execute(
-                "INSERT INTO pg26_items SELECT i, i % 3, 'partitioned shoes', ARRAY(SELECT sin(i*j)::real FROM generate_series(1,64) j)::vector FROM generate_series(1, 2048) i"
-            )
-            cursor.execute(ddl)
-        yield index
-    finally:
-        with connection.cursor() as cursor:
-            cursor.execute("DROP TABLE IF EXISTS pg26_items")

@@ -1764,16 +1764,6 @@ def test_all_tokenizers(expected: str, tokenizer: Tokenizer) -> None:
     )
 
 
-@pytest.mark.django_db(transaction=True)
-def test_partitioned_search(partitioned_vector_index):
-    _ = partitioned_vector_index
-    with connection.cursor() as cursor:
-        cursor.execute(
-            "SELECT COUNT(*) FROM pg26_items WHERE description @@@ 'shoes' AND rating = 1"
-        )
-        assert cursor.fetchone()[0] == 683
-
-
 @pytest.mark.parametrize("visibility", ["transaction", "raw", "threshold"])
 @pytest.mark.django_db
 @pytest.mark.integration

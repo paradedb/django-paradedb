@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-07
+
+### Added
+
+- Index partitioning, target segment count, and vector quantization configuration.
+- Vector storage, configuration, and estimator diagnostics, plus aggregation visibility modes.
+- Snippet-position pagination with `limit` and `offset`.
+- Index layer sizes, background layer sizes, and mutable segment row limits.
+- Index search tokenizer configuration.
+
 ### Changed
 
 - **Breaking:** Remove the unused `MoreLikeThis.key_field` argument and rename the scoring argument to `field`. MLT document lookup uses the query’s left-hand field.
@@ -242,6 +252,7 @@ All notable changes to this project will be documented in this file. The format 
 - JSON field key indexing support
 - Full Django ORM integration with `Q` objects and standard filters
 
+[0.14.0]: https://github.com/paradedb/django-paradedb/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/paradedb/django-paradedb/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/paradedb/django-paradedb/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/paradedb/django-paradedb/compare/v0.10.0...v0.11.0

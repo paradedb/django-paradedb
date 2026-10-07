@@ -504,3 +504,34 @@ def test_paradedb_verify_all_indexes_command() -> None:
     payload = json.loads(stdout.getvalue())
     assert payload
     assert "check_name" in payload[0]
+
+
+@pytest.mark.parametrize(
+    "function", ["vector_info", "vector_config", "vector_estimator_info"]
+)
+def test_vector_diagnostic_sql(function):
+    from paradedb import functions
+
+    with patch(
+        "paradedb.functions._execute_table_function", return_value=[]
+    ) as execute:
+        getattr(functions, "paradedb_" + function)("search_idx", "embedding")
+        execute.assert_called_once_with(
+            f"SELECT * FROM paradedb.{function}(%s::regclass, %s::text)",
+            ["search_idx", "embedding"],
+            using="default",
+        )
+
+
+def test_vector_estimator_query_sql():
+    from paradedb.functions import paradedb_vector_estimator_info
+
+    with patch(
+        "paradedb.functions._execute_table_function", return_value=[]
+    ) as execute:
+        paradedb_vector_estimator_info("search_idx", "embedding", [[0.1, 0.2]])
+        execute.assert_called_once_with(
+            "SELECT * FROM paradedb.vector_estimator_info(%s::regclass, %s::text, %s::vector[])",
+            ["search_idx", "embedding", ["[0.1,0.2]"]],
+            using="default",
+        )

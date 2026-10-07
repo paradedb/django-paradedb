@@ -52,11 +52,20 @@ __all__ = [
     "VectorField",
     "paradedb_index_segments",
     "paradedb_indexes",
+    "paradedb_vector_config",
+    "paradedb_vector_estimator_info",
+    "paradedb_vector_info",
     "paradedb_verify_all_indexes",
     "paradedb_verify_index",
 ]
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "paradedb_vector_estimator_info": (
+        "paradedb.functions",
+        "paradedb_vector_estimator_info",
+    ),
+    "paradedb_vector_config": ("paradedb.functions", "paradedb_vector_config"),
+    "paradedb_vector_info": ("paradedb.functions", "paradedb_vector_info"),
     "Agg": ("paradedb.functions", "Agg"),
     "Score": ("paradedb.functions", "Score"),
     "Snippet": ("paradedb.functions", "Snippet"),

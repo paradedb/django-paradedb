@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
@@ -207,6 +208,9 @@ class ParadeDBIndex(models.Index):
         condition: models.Q | None = None,
         training_sample_ratio: float | None = None,
         max_leaf_size: int | None = None,
+        partition_by: Sequence[str] | None = None,
+        target_segment_count: int | None = None,
+        vector_fields: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         _validate_training_sample_ratio(training_sample_ratio)
         _validate_int_index_option(
@@ -214,6 +218,9 @@ class ParadeDBIndex(models.Index):
             max_leaf_size,
             maximum=2147483647,
         )
+        self.partition_by = list(partition_by) if partition_by is not None else None
+        self.target_segment_count = target_segment_count
+        self.vector_fields = vector_fields
         self.fields_config = fields
         self.index_expressions = list(expressions or [])
         self.training_sample_ratio = training_sample_ratio
@@ -229,7 +236,12 @@ class ParadeDBIndex(models.Index):
         for option in (
             "training_sample_ratio",
             "max_leaf_size",
+            "target_segment_count",
         ):
+            value = getattr(self, option)
+            if value is not None:
+                kwargs[option] = value
+        for option in ("partition_by", "vector_fields"):
             value = getattr(self, option)
             if value is not None:
                 kwargs[option] = value
@@ -257,10 +269,25 @@ class ParadeDBIndex(models.Index):
         for option in (
             "training_sample_ratio",
             "max_leaf_size",
+            "target_segment_count",
         ):
             value = getattr(self, option)
             if value is not None:
                 storage_params.append(f"{option}={value}")
+
+        if self.partition_by is not None:
+            storage_params.append(
+                "partition_by=" + _quote_term(",".join(self.partition_by))
+            )
+        if self.vector_fields is not None:
+            storage_params.append(
+                "vector_fields="
+                + _quote_term(
+                    json.dumps(
+                        self.vector_fields, separators=(",", ":"), sort_keys=True
+                    )
+                )
+            )
 
         create_stmt = "CREATE INDEX"
         if concurrently:

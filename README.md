@@ -48,6 +48,8 @@ The official [Django](https://www.djangoproject.com/) integration for ParadeDB. 
 | pgvector             | 0.7.0+ (provides vector types for ParadeDB’s [native vector search](https://www.paradedb.com/docs/reference/vector/overview)) |
 | ParadeDB / pg_search | 0.26.0+                                                                                                                       |
 
+Cross-group facets using `pdb.combine_agg` require ParadeDB 0.26.2 or newer.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, running tests, linting, and the PR workflow.

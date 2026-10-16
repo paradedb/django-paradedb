@@ -30,7 +30,14 @@ from django.db.models import (
 from django.db.models.functions import Cast, Coalesce, Trim
 from django.test.utils import CaptureQueriesContext
 
-from paradedb.functions import Agg, Score, Snippet, SnippetPositions, Snippets
+from paradedb.functions import (
+    Agg,
+    CombineAgg,
+    Score,
+    Snippet,
+    SnippetPositions,
+    Snippets,
+)
 from paradedb.search import (
     All,
     Boost,
@@ -76,6 +83,32 @@ class TestAggAnnotation:
     """Test Agg annotation SQL generation."""
 
     pytestmark = pytest.mark.usefixtures("mock_items")
+
+    def test_combine_agg_across_groups(self) -> None:
+        queryset = (
+            MockItem.objects.filter(id=ParadeDB(All()))
+            .values("in_stock")
+            .annotate(
+                group_rows=Count("id"),
+                total=Window(CombineAgg(Agg('{"value_count": {"field": "id"}}'))),
+            )
+            .order_by("in_stock")
+        )
+        assert str(queryset.query) == (
+            'SELECT "mock_items"."in_stock" AS "in_stock", '
+            'COUNT("mock_items"."id") AS "group_rows", '
+            'pdb.combine_agg(pdb.agg(\'{"value_count": {"field": "id"}}\')) OVER () AS "total" '
+            'FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() '
+            "GROUP BY 1 ORDER BY 1 ASC"
+        )
+        rows = list(queryset)
+        assert len(rows) == 2
+        total = sum(row["group_rows"] for row in rows)
+        assert all(row["total"]["value"] == total for row in rows)
+
+    def test_combine_agg_rejects_filtered_inner_aggregate(self) -> None:
+        with pytest.raises(ValueError, match="filtered"):
+            CombineAgg(Agg('{"value_count": {"field": "id"}}', filter=Q(in_stock=True)))
 
     def test_agg_annotation_with_raw_sql(self) -> None:
         json_spec = '{"value_count": {"field": "id"}}'

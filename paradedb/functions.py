@@ -13,6 +13,7 @@ from django.db.models.sql.compiler import SQLCompiler
 
 from paradedb.api import (
     FN_AGG,
+    FN_COMBINE_AGG,
     FN_INDEX_SEGMENTS,
     FN_INDEXES,
     FN_SCORE,
@@ -182,6 +183,26 @@ class SnippetPositions(Func):
                 args.append(f'"{name}" => %s')
                 params.append(value)
         return f"{self.function}({', '.join(args)})", params
+
+
+class CombineAgg(Func):
+    """Combine an ``Agg`` across GROUP BY groups (ParadeDB 0.26.2+).
+
+    Use ``Window(CombineAgg(Agg(json_spec)))`` alongside grouped annotations.
+    """
+
+    function = FN_COMBINE_AGG
+    output_field = JSONField()
+    contains_aggregate = True
+    window_compatible = True
+    arity = 1
+
+    def __init__(self, aggregate: Agg) -> None:
+        if not isinstance(aggregate, Agg):
+            raise TypeError("CombineAgg requires an Agg expression.")
+        if aggregate._filter is not None:
+            raise ValueError("CombineAgg does not support filtered Agg expressions.")
+        super().__init__(aggregate)
 
 
 class Agg(Func):

@@ -18,8 +18,6 @@
     "pdb.term_set_agg_i_64_term_set_agg_i_64_state",
     "pdb.window_agg",
 
-    // Cross-group aggregation is not wrapped by this ORM.
-    "pdb.combine_agg",
     // Internal state/finalize functions for pdb.combine_agg.
     "pdb.combine_agg_stub_combine_agg_stub_finalize",
     "pdb.combine_agg_stub_combine_agg_stub_state",

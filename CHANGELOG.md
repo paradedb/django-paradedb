@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Added
+
+- Cross-group facets using `CombineAgg(Agg(...))` with Django `Window` (ParadeDB 0.26.2+).
+
 ## [0.14.0] - 2026-10-07
 
 ### Added

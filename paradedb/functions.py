@@ -186,7 +186,7 @@ class SnippetPositions(Func):
 
 
 class CombineAgg(Func):
-    """Combine an ``Agg`` across GROUP BY groups (ParadeDB 0.26.2+).
+    """Combine an ``Agg`` across GROUP BY groups.
 
     Use ``Window(CombineAgg(Agg(json_spec)))`` alongside grouped annotations.
     """

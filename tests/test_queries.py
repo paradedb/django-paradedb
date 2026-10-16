@@ -87,15 +87,15 @@ class TestAggAnnotation:
     def test_combine_agg_across_groups(self) -> None:
         queryset = (
             MockItem.objects.filter(id=ParadeDB(All()))
-            .values("in_stock")
+            .values(stock=F("in_stock"))
             .annotate(
                 group_rows=Count("id"),
                 total=Window(CombineAgg(Agg('{"value_count": {"field": "id"}}'))),
             )
-            .order_by("in_stock")
+            .order_by("stock")
         )
         assert str(queryset.query) == (
-            'SELECT "mock_items"."in_stock" AS "in_stock", '
+            'SELECT "mock_items"."in_stock" AS "stock", '
             'COUNT("mock_items"."id") AS "group_rows", '
             'pdb.combine_agg(pdb.agg(\'{"value_count": {"field": "id"}}\')) OVER () AS "total" '
             'FROM "mock_items" WHERE "mock_items"."id" @@@ pdb.all() '

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-16
+
+### Added
+
+- Cross-group facets using `CombineAgg(Agg(...))` with Django `Window`.
+
+### Changed
+
+- **Breaking:** Require ParadeDB 0.26.2 or newer.
+
 ## [0.14.0] - 2026-10-07
 
 ### Added
@@ -252,6 +262,7 @@ All notable changes to this project will be documented in this file. The format 
 - JSON field key indexing support
 - Full Django ORM integration with `Q` objects and standard filters
 
+[0.15.0]: https://github.com/paradedb/django-paradedb/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/paradedb/django-paradedb/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/paradedb/django-paradedb/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/paradedb/django-paradedb/compare/v0.11.0...v0.12.0

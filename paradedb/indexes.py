@@ -352,20 +352,19 @@ class ParadeDBIndex(models.Index):
             f"{create_stmt} %(name)s ON %(table)s\n"
             "USING paradedb (\n"
             "    %(expressions)s\n"
-            ")"
+            ")%(storage)s%(condition)s"
         )
-        if storage_params:
-            template += f"\nWITH ({', '.join(storage_params)})"
+        storage_sql = f"\nWITH ({', '.join(storage_params)})" if storage_params else ""
 
         condition_sql = self._get_condition_sql(model, schema_editor)  # type: ignore[attr-defined]
-        if condition_sql:
-            template += f"\nWHERE {condition_sql}"
 
         return Statement(
             template,
             name=index_name,
             table=table,
             expressions=expr_sql,
+            storage=storage_sql,
+            condition=f"\nWHERE {condition_sql}" if condition_sql else "",
         )
 
     def _build_index_expressions(

@@ -1833,3 +1833,84 @@ def test_snippet_position_pagination():
 def test_invalid_snippet_position_parameters():
     with pytest.raises(ValueError, match="offset"):
         SnippetPositions("description", offset=-1)
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("mock_items")
+class TestPercentInLiterals:
+    """Literals containing % reach ParadeDB intact instead of failing in the driver."""
+
+    @staticmethod
+    def _ids(term: object) -> list[int]:
+        return list(
+            MockItem.objects.filter(description=ParadeDB(term))  # type: ignore[arg-type]
+            .order_by("id")
+            .values_list("id", flat=True)
+        )
+
+    def test_percent_is_tokenized_like_other_punctuation(self) -> None:
+        expected = self._ids(MatchAll("running", "shoes"))
+        assert expected
+        assert self._ids(MatchAll("running% shoes")) == expected
+        assert self._ids(Phrase("running% shoes")) == self._ids(Phrase("running shoes"))
+
+    @pytest.mark.parametrize(
+        "term",
+        [
+            MatchAny("100% cotton"),
+            MatchAny("50%"),
+            MatchAny("%s"),
+            MatchAny("%(name)s"),
+            Parse("shoes 50%", lenient=True),
+            Term("100%"),
+            Regex("sho.*%?"),
+            PhrasePrefix("running%", "sh"),
+            FuzzyTerm("shoez%"),
+            TermSet("shoes", "50%"),
+            Proximity("running%").within(2, "shoes"),
+        ],
+    )
+    def test_terms_with_percent_execute(self, term: object) -> None:
+        self._ids(term)
+
+    def test_placeholder_like_term_keeps_other_parameters_aligned(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAny("shoes %s")), category="Footwear"
+        )
+        expected = MockItem.objects.filter(
+            description=ParadeDB(MatchAny("shoes")), category="Footwear"
+        )
+        assert set(queryset.values_list("id", flat=True)) == set(
+            expected.values_list("id", flat=True)
+        )
+        assert expected.exists()
+
+    def test_snippet_delimiters_with_percent(self) -> None:
+        snippet = (
+            MockItem.objects.filter(description=ParadeDB(MatchAny("shoes")))
+            .annotate(
+                snippet=Snippet(
+                    "description", start_sel="<b title='100%'>", stop_sel="</b>"
+                )
+            )
+            .values_list("snippet", flat=True)
+            .first()
+        )
+        assert snippet is not None
+        assert "<b title='100%'>" in snippet
+        assert "%%" not in snippet
+
+    def test_aggregation_spec_with_percent(self) -> None:
+        facets = MockItem.objects.filter(
+            description=ParadeDB(MatchAny("shoes"))
+        ).facets(
+            agg={
+                "terms": {"field": "rating"},
+                "aggs": {"share%": {"value_count": {"field": "id"}}},
+            },
+            include_rows=False,
+        )
+        buckets = facets["buckets"]  # type: ignore[index]
+        assert buckets
+        assert all("share%" in bucket for bucket in buckets)

@@ -265,7 +265,7 @@ class Tokenizer:
                 elif isinstance(param, int | float):
                     arguments.append(str(param))
                 elif isinstance(param, str):
-                    arguments.append(_quote_term(param))
+                    arguments.append(_quote_literal(param))
                 else:
                     raise TypeError(
                         f"Unsupported self arg type: {type(param).__name__}"
@@ -283,7 +283,7 @@ class Tokenizer:
                     raise TypeError(
                         f"Unsupported self named arg type: {type(value).__name__}"
                     )
-                arguments.append(_quote_term(f"{key}={rendered}"))
+                arguments.append(_quote_literal(f"{key}={rendered}"))
 
         return f"{self.name}({','.join(arguments)})"
 
@@ -902,7 +902,8 @@ class ParadeDB(BaseExpression):
             return f"{rendered}::{PDB_TYPE_SLOP}({value.distance})", params
         if isinstance(value, Tokenized):
             rendered, params = ParadeDB._render_search_value(value.value, compiler)
-            return f"{rendered}::{value.tokenizer.render()}", params
+            tokenizer_sql = _escape_percent(value.tokenizer.render())
+            return f"{rendered}::{tokenizer_sql}", params
         if isinstance(value, QueryExpression):
             return ParadeDB(value)._render_term(value, compiler)
         if isinstance(value, BaseExpression):
@@ -1083,11 +1084,19 @@ class ParadeDB(BaseExpression):
         raise TypeError("Unsupported option value type.")
 
 
-def _quote_term(term: str) -> str:
-    if not isinstance(term, str):
+def _quote_literal(value: str) -> str:
+    if not isinstance(value, str):
         raise TypeError("Search term literal must be a string.")
-    escaped = term.replace("'", "''")
+    escaped = value.replace("'", "''")
     return f"'{escaped}'"
+
+
+def _escape_percent(sql: str) -> str:
+    return sql.replace("%", "%%")
+
+
+def _quote_term(term: str) -> str:
+    return _escape_percent(_quote_literal(term))
 
 
 class ParadeDBExact(Exact):  # type: ignore[type-arg]

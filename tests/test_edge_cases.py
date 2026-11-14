@@ -9,10 +9,13 @@ from __future__ import annotations
 import pytest
 from django.db import connection
 
+from paradedb.functions import Agg, Snippet, Snippets
 from paradedb.search import (
     Boost,
     Const,
+    FuzzyTerm,
     MatchAll,
+    MatchAny,
     MoreLikeThis,
     ParadeDB,
     Parse,
@@ -21,8 +24,13 @@ from paradedb.search import (
     Proximity,
     ProximityNode,
     ProxRegex,
+    RangeTerm,
     Regex,
     RegexPhrase,
+    Term,
+    TermSet,
+    Tokenized,
+    Tokenizer,
 )
 from paradedb.vector import VectorField, parse_vector, serialize_vector
 from tests.models import MockItem
@@ -86,6 +94,89 @@ class TestSpecialCharacterEscaping:
         )
         sql = str(queryset.query)
         assert "test.*[a-z]+\\d{2,3}" in sql
+
+
+class TestPercentEscaping:
+    """A literal % must survive the driver's placeholder interpolation."""
+
+    @pytest.mark.parametrize(
+        ("term", "expected"),
+        [
+            (MatchAll("100% cotton"), "&&& '100%% cotton'"),
+            (MatchAny("50%", "off"), "||| ARRAY['50%%', 'off']"),
+            (Phrase("100% cotton"), "### '100%% cotton'"),
+            (Parse("discount:50%"), "pdb.parse('discount:50%%')"),
+            (Term("100%"), "pdb.term('100%%')"),
+            (Regex("[0-9]+%"), "pdb.regex('[0-9]+%%')"),
+            (PhrasePrefix("100%", "cot"), "pdb.phrase_prefix(ARRAY['100%%', 'cot'])"),
+            (
+                RegexPhrase("[0-9]+%", "off"),
+                "pdb.regex_phrase(ARRAY['[0-9]+%%', 'off'])",
+            ),
+            (FuzzyTerm("50%"), "pdb.fuzzy_term('50%%')"),
+            (TermSet("50%", "75%"), "pdb.term_set(ARRAY['50%%', '75%%']::text[])"),
+            (RangeTerm("50%"), "pdb.range_term('50%%')"),
+            (
+                Proximity("50%").within(2, ProxRegex("of+%")),
+                "'50%%' ## 2 ## pdb.prox_regex('of+%%')",
+            ),
+            (
+                MatchAny(Tokenized("50%", Tokenizer.regex_pattern("[0-9]+%"))),
+                "||| '50%%'::pdb.regex_pattern('[0-9]+%%')",
+            ),
+            (Boost(MatchAny("50%"), 2.0), "||| '50%%'::pdb.boost(2.0)"),
+        ],
+    )
+    def test_percent_in_search_literal_is_doubled(
+        self, term: object, expected: str
+    ) -> None:
+        queryset = MockItem.objects.filter(description=ParadeDB(term))  # type: ignore[arg-type]
+        sql, params = queryset.query.sql_with_params()
+        assert expected in sql
+        assert params == ()
+
+    def test_percent_is_single_in_printed_query(self) -> None:
+        """str(query) interpolates like the driver does, so % reads back single."""
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll("100% cotton"))
+        )
+        assert "&&& '100% cotton'" in str(queryset.query)
+
+    def test_placeholder_like_term_does_not_consume_a_parameter(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll("%s")), category="footwear"
+        )
+        sql, params = queryset.query.sql_with_params()
+        assert "&&& '%%s'" in sql
+        assert params == ("footwear",)
+        assert "&&& '%s'" in str(queryset.query)
+
+    def test_percent_in_snippet_delimiters_is_doubled(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).annotate(
+            snippet=Snippet(
+                "description", start_sel="<b title='100%'>", stop_sel="</b>"
+            ),
+            snippets=Snippets("description", start_tag="<i w='50%'>", end_tag="</i>"),
+        )
+        sql, _ = queryset.query.sql_with_params()
+        assert "'<b title=''100%%''>'" in sql
+        assert "start_tag => '<i w=''50%%''>'" in sql
+
+    def test_percent_in_aggregation_spec_is_doubled(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).annotate(
+            facets=Agg('{"terms": {"field": "category", "missing": "0%"}}'),
+        )
+        sql, _ = queryset.query.sql_with_params()
+        assert '"missing": "0%%"' in sql
+
+    def test_tokenizer_render_keeps_percent_single_for_index_ddl(self) -> None:
+        """Index DDL runs without interpolation, so % must not be doubled there."""
+        tokenizer = Tokenizer.regex_pattern("[0-9]+%", options={"alias": "pct%"})
+        assert tokenizer.render() == "pdb.regex_pattern('[0-9]+%','alias=pct%')"
 
 
 class TestExpressionValidation:

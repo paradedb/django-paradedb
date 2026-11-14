@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Fixed
+
+- Search terms, snippet delimiters, and aggregation specs that contain a literal `%` no longer fail before reaching the database. A query such as `ParadeDB(MatchAny("100% cotton"))` raised `ProgrammingError: incomplete placeholder` on psycopg 3 and `IndexError: tuple index out of range` on psycopg2, because the inlined literal went through the driver's placeholder interpolation unescaped. `str(queryset.query)` raised `TypeError` for the same input and now prints the query.
+
 ## [0.15.0] - 2026-10-16
 
 ### Added

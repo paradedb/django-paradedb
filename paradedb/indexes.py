@@ -7,10 +7,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
+import django
 from django.db import models
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
 from django.db.models.expressions import Expression
+from django.db.models.sql import Query
 from django.utils.deconstruct import deconstructible
 
 from paradedb.api import PDB_TYPE_TOKENIZER_ALIAS
@@ -21,6 +23,9 @@ if TYPE_CHECKING:
     ModelField = models.Field[Any, Any]
 else:
     ModelField = models.Field
+
+
+_QUOTE_VALUE_DOUBLES_PERCENT = django.VERSION < (5, 0)
 
 
 def _quote_term(value: str) -> str:
@@ -42,7 +47,11 @@ def _render_sql_arg(value: Any) -> str:
 
 def _quote_compiled_param(value: Any, schema_editor: BaseDatabaseSchemaEditor) -> str:
     try:
-        return schema_editor.quote_value(value)
+        quoted = schema_editor.quote_value(value)
+        # Django 4.2 quotes strings for another interpolation pass.
+        if _QUOTE_VALUE_DOUBLES_PERCENT and isinstance(value, str):
+            quoted = quoted.replace("%%", "%")
+        return quoted
     except NotImplementedError:
         return _render_sql_arg(value)
 
@@ -352,20 +361,28 @@ class ParadeDBIndex(models.Index):
             f"{create_stmt} %(name)s ON %(table)s\n"
             "USING paradedb (\n"
             "    %(expressions)s\n"
-            ")"
+            ")%(storage)s%(condition)s"
         )
-        if storage_params:
-            template += f"\nWITH ({', '.join(storage_params)})"
+        storage_sql = f"\nWITH ({', '.join(storage_params)})" if storage_params else ""
 
-        condition_sql = self._get_condition_sql(model, schema_editor)  # type: ignore[attr-defined]
-        if condition_sql:
-            template += f"\nWHERE {condition_sql}"
+        condition_sql = ""
+        if self.condition is not None:
+            query = Query(model=model, alias_cols=False)
+            compiler = query.get_compiler(connection=schema_editor.connection)
+            condition_sql, params = query.build_where(self.condition).as_sql(
+                compiler, schema_editor.connection
+            )
+            condition_sql %= tuple(
+                _quote_compiled_param(value, schema_editor) for value in params
+            )
 
         return Statement(
             template,
             name=index_name,
             table=table,
             expressions=expr_sql,
+            storage=storage_sql,
+            condition=f"\nWHERE {condition_sql}" if condition_sql else "",
         )
 
     def _build_index_expressions(
@@ -472,8 +489,6 @@ class ParadeDBIndex(models.Index):
             expr = raw_expr
 
         # Compile the expression to SQL
-        from django.db.models.sql import Query
-
         query = Query(model)
         compiler = query.get_compiler(connection=schema_editor.connection)
 

@@ -13,6 +13,7 @@ from django.db.migrations.questioner import NonInteractiveMigrationQuestioner
 from django.db.migrations.state import ModelState, ProjectState
 from django.db.migrations.writer import MigrationWriter
 from django.db.models import F, Func, Q, Value
+from django.db.models.expressions import RawSQL
 from django.db.models.functions import Length, Lower
 
 from paradedb.indexes import IndexExpression, ParadeDBIndex
@@ -603,6 +604,60 @@ class TestParadeDBIndex:
         sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
         assert "WHERE" not in sql
 
+    @pytest.mark.parametrize(
+        ("condition", "expected"),
+        [
+            (Q(category__startswith="Foot"), "\"category\"::text LIKE 'Foot%'"),
+            (Q(category="100%%"), "\"category\" = '100%%'"),
+            (
+                Q(
+                    RawSQL(
+                        "category = '100%%%%'", [], output_field=models.BooleanField()
+                    )
+                ),
+                "(category = '100%%')",
+            ),
+        ],
+    )
+    def test_create_sql_with_percent_in_condition(
+        self, condition: Q, expected: str
+    ) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
+            name="mock_items_search_idx",
+            condition=condition,
+        )
+        schema_editor = _schema_editor()
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
+        assert sql == (
+            'CREATE INDEX "mock_items_search_idx" ON "mock_items"\n'
+            "USING paradedb (\n"
+            '    "id",\n'
+            '    ("description"::pdb.simple)\n'
+            ")\n"
+            f"WHERE {expected}"
+        )
+
+    def test_create_sql_with_percent_in_storage_params(self) -> None:
+        """A % inside a WITH (...) value survives Statement formatting."""
+        index = ParadeDBIndex(
+            fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
+            name="mock_items_search_idx",
+            search_tokenizer=Tokenizer.regex_pattern("[0-9]+%"),
+            condition=Q(category__startswith="Foot"),
+        )
+        schema_editor = _schema_editor()
+        sql = str(index.create_sql(model=MockItem, schema_editor=schema_editor))
+        assert sql == (
+            'CREATE INDEX "mock_items_search_idx" ON "mock_items"\n'
+            "USING paradedb (\n"
+            '    "id",\n'
+            '    ("description"::pdb.simple)\n'
+            ")\n"
+            "WITH (search_tokenizer='regex_pattern([0-9]+%)')\n"
+            """WHERE "category"::text LIKE 'Foot%'"""
+        )
+
     def test_index_expression_with_lower_and_tokenizer(self) -> None:
         """IndexExpression with Lower() and tokenizer generates correct SQL."""
         index = ParadeDBIndex(
@@ -1101,3 +1156,51 @@ def test_index_tuning_round_trip():
 def test_invalid_mutable_segment_rows():
     with pytest.raises(ValueError, match="mutable_segment_rows"):
         ParadeDBIndex(fields={"id": {}}, name="invalid_idx", mutable_segment_rows=10001)
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("paradedb_ready")
+def test_create_partial_index_with_like_condition() -> None:
+    class PrefixItem(models.Model):  # noqa: DJ008
+        description = models.TextField()
+        category = models.CharField(max_length=100)
+
+        class Meta:
+            app_label = "tests"
+            db_table = "prefix_items"
+
+    index = ParadeDBIndex(
+        fields={"id": {}, "description": {"tokenizer": Tokenizer.simple()}},
+        name="prefix_items_partial_idx",
+        condition=Q(category__startswith="Foot"),
+    )
+    with connection.schema_editor() as editor:
+        editor.create_model(PrefixItem)
+    try:
+        PrefixItem.objects.bulk_create(
+            [
+                PrefixItem(description="running shoes", category="Footwear"),
+                PrefixItem(description="running watch", category="Electronics"),
+            ]
+        )
+        with connection.schema_editor() as editor:
+            assert str(index.create_sql(PrefixItem, editor)) == (
+                'CREATE INDEX "prefix_items_partial_idx" ON "prefix_items"\n'
+                "USING paradedb (\n"
+                '    "id",\n'
+                '    ("description"::pdb.simple)\n'
+                ")\n"
+                """WHERE "category"::text LIKE 'Foot%'"""
+            )
+            editor.add_index(PrefixItem, index)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT pg_get_indexdef('prefix_items_partial_idx'::regclass)"
+            )
+            (definition,) = cursor.fetchone()
+        assert "USING paradedb" in definition
+        assert "'Foot%'" in definition
+    finally:
+        with connection.schema_editor() as editor:
+            editor.delete_model(PrefixItem)

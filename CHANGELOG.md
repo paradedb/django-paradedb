@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file. The format 
 ### Fixed
 
 - Search terms, snippet delimiters, and aggregation specs that contain a literal `%` no longer fail before reaching the database.
+- `ParadeDBIndex` with a `condition` or storage parameter whose SQL contains a `%` can now be created without errors.
 
 ## [0.15.0] - 2026-10-16
 

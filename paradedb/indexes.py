@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
+import django
 from django.db import models
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
@@ -21,6 +22,9 @@ if TYPE_CHECKING:
     ModelField = models.Field[Any, Any]
 else:
     ModelField = models.Field
+
+
+_QUOTE_VALUE_DOUBLES_PERCENT = django.VERSION < (5, 0)
 
 
 def _quote_term(value: str) -> str:
@@ -357,6 +361,8 @@ class ParadeDBIndex(models.Index):
         storage_sql = f"\nWITH ({', '.join(storage_params)})" if storage_params else ""
 
         condition_sql = self._get_condition_sql(model, schema_editor)  # type: ignore[attr-defined]
+        if condition_sql and _QUOTE_VALUE_DOUBLES_PERCENT:
+            condition_sql = condition_sql.replace("%%", "%")
 
         return Statement(
             template,

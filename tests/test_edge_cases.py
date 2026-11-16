@@ -9,10 +9,12 @@ from __future__ import annotations
 import pytest
 from django.db import connection
 
+from paradedb.functions import Snippet, Snippets
 from paradedb.search import (
     Boost,
     Const,
     MatchAll,
+    MatchAny,
     MoreLikeThis,
     ParadeDB,
     Parse,
@@ -23,6 +25,8 @@ from paradedb.search import (
     ProxRegex,
     Regex,
     RegexPhrase,
+    Tokenized,
+    Tokenizer,
 )
 from paradedb.vector import VectorField, parse_vector, serialize_vector
 from tests.models import MockItem
@@ -86,6 +90,42 @@ class TestSpecialCharacterEscaping:
         )
         sql = str(queryset.query)
         assert "test.*[a-z]+\\d{2,3}" in sql
+
+
+class TestPercentEscaping:
+    """A literal % must survive the driver's placeholder interpolation."""
+
+    def test_placeholder_like_term_does_not_consume_a_parameter(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll("%s")), category="footwear"
+        )
+        sql, params = queryset.query.sql_with_params()
+        assert "&&& '%%s'" in sql
+        assert params == ("footwear",)
+        assert "&&& '%s'" in str(queryset.query)
+
+    def test_percent_in_snippet_delimiters_is_doubled(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).annotate(
+            snippet=Snippet(
+                "description", start_sel="<b title='100%'>", stop_sel="</b>"
+            ),
+            snippets=Snippets("description", start_tag="<i w='50%'>", end_tag="</i>"),
+        )
+        sql, _ = queryset.query.sql_with_params()
+        assert "'<b title=''100%%''>'" in sql
+        assert "start_tag => '<i w=''50%%''>'" in sql
+
+    def test_tokenizer_percent_escaping_in_queries_and_index_ddl(self) -> None:
+        tokenizer = Tokenizer.regex_pattern("[0-9]+%", options={"alias": "pct%"})
+        assert tokenizer.render() == "pdb.regex_pattern('[0-9]+%','alias=pct%')"
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAny(Tokenized("50%", tokenizer)))
+        )
+        sql, params = queryset.query.sql_with_params()
+        assert "||| '50%%'::pdb.regex_pattern('[0-9]+%%','alias=pct%%')" in sql
+        assert params == ()
 
 
 class TestExpressionValidation:

@@ -1833,3 +1833,139 @@ def test_snippet_position_pagination():
 def test_invalid_snippet_position_parameters():
     with pytest.raises(ValueError, match="offset"):
         SnippetPositions("description", offset=-1)
+
+
+@pytest.mark.integration
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.usefixtures("mock_items")
+class TestPercentInLiterals:
+    """Literals containing % reach ParadeDB intact instead of failing in the driver."""
+
+    @pytest.mark.parametrize(
+        ("term", "plain_term", "expected"),
+        [
+            (
+                MatchAll("running% shoes"),
+                MatchAll("running", "shoes"),
+                "&&& 'running% shoes'",
+            ),
+            (Phrase("running% shoes"), Phrase("running shoes"), "### 'running% shoes'"),
+        ],
+    )
+    def test_percent_is_tokenized_like_other_punctuation(
+        self, term: object, plain_term: object, expected: str
+    ) -> None:
+        queryset = MockItem.objects.filter(description=ParadeDB(term))  # type: ignore[arg-type]
+        _assert_sql(
+            str(queryset.query),
+            f"""
+            SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
+            FROM "mock_items" WHERE "mock_items"."description" {expected}
+            """,
+        )
+        expected_ids = _ids(MockItem.objects.filter(description=ParadeDB(plain_term)))  # type: ignore[arg-type]
+        assert expected_ids
+        assert _ids(queryset) == expected_ids
+
+    @pytest.mark.parametrize(
+        ("term", "expected"),
+        [
+            (MatchAny("100% cotton"), "||| '100% cotton'"),
+            (MatchAny("50%"), "||| '50%'"),
+            (MatchAny("50%", "off"), "||| ARRAY['50%', 'off']"),
+            (MatchAny("%s"), "||| '%s'"),
+            (MatchAny("%(name)s"), "||| '%(name)s'"),
+            (
+                Parse("shoes 50%", lenient=True),
+                "@@@ pdb.parse('shoes 50%', lenient => true)",
+            ),
+            (Term("100%"), "@@@ pdb.term('100%')"),
+            (Regex("sho.*%?"), "@@@ pdb.regex('sho.*%?')"),
+            (
+                PhrasePrefix("running%", "sh"),
+                "@@@ pdb.phrase_prefix(ARRAY['running%', 'sh'])",
+            ),
+            (FuzzyTerm("shoez%"), "@@@ pdb.fuzzy_term('shoez%')"),
+            (
+                TermSet("shoes", "50%"),
+                "@@@ pdb.term_set(ARRAY['shoes', '50%']::text[])",
+            ),
+            (
+                Proximity("running%").within(2, "shoes"),
+                "@@@ ('running%' ## 2 ## 'shoes')",
+            ),
+        ],
+    )
+    def test_terms_with_percent_execute(self, term: object, expected: str) -> None:
+        queryset = MockItem.objects.filter(description=ParadeDB(term))  # type: ignore[arg-type]
+        _assert_sql(
+            str(queryset.query),
+            f"""
+            SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
+            FROM "mock_items" WHERE "mock_items"."description" {expected}
+            """,
+        )
+        _run_query(queryset)
+
+    def test_placeholder_like_term_keeps_other_parameters_aligned(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAny("shoes %s")), category="Footwear"
+        )
+        sql, params = queryset.query.sql_with_params()
+        _assert_sql(
+            sql,
+            """
+            SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding"
+            FROM "mock_items" WHERE ("mock_items"."category" = %s AND "mock_items"."description" ||| 'shoes %%s')
+            """,
+        )
+        assert params == ("Footwear",)
+        expected = MockItem.objects.filter(
+            description=ParadeDB(MatchAny("shoes")), category="Footwear"
+        )
+        assert set(queryset.values_list("id", flat=True)) == set(
+            expected.values_list("id", flat=True)
+        )
+        assert expected.exists()
+
+    def test_snippet_delimiters_with_percent(self) -> None:
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAny("shoes"))
+        ).annotate(
+            snippet=Snippet(
+                "description", start_sel="<b title='100%'>", stop_sel="</b>"
+            )
+        )
+        _assert_sql(
+            str(queryset.query),
+            """
+            SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.snippet("mock_items"."description", '<b title=''100%''>', '</b>') AS "snippet"
+            FROM "mock_items" WHERE "mock_items"."description" ||| 'shoes'
+            """,
+        )
+        snippet = queryset.values_list("snippet", flat=True).first()
+        assert snippet is not None
+        assert "<b title='100%'>" in snippet
+        assert "%%" not in snippet
+
+    def test_aggregation_spec_with_percent(self) -> None:
+        queryset = MockItem.objects.filter(description=ParadeDB(MatchAny("shoes")))
+        with CaptureQueriesContext(connection) as queries:
+            facets = queryset.facets(
+                agg={
+                    "terms": {"field": "rating"},
+                    "aggs": {"share%": {"value_count": {"field": "id"}}},
+                },
+                include_rows=False,
+            )
+        assert len(queries) == 1
+        _assert_sql(
+            queries[0]["sql"],
+            """
+            SELECT pdb.agg('{"aggs":{"share%":{"value_count":{"field":"id"}}},"terms":{"field":"rating"}}') AS "_paradedb_facets"
+            FROM "mock_items" WHERE "mock_items"."description" ||| 'shoes'
+            """,
+        )
+        buckets = facets["buckets"]  # type: ignore[index]
+        assert buckets
+        assert all("share%" in bucket for bucket in buckets)

@@ -26,7 +26,7 @@ from paradedb.api import (
 
 
 def _quote_term(value: str) -> str:
-    escaped = value.replace("'", "''")
+    escaped = value.replace("'", "''").replace("%", "%%")
     return f"'{escaped}'"
 
 

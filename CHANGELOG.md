@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Fixed
 
-- `ParadeDBIndex` with a `condition` or storage parameter whose SQL contains a `%` can now be created. A partial index such as `condition=Q(category__startswith="Foot")` raised `TypeError: not enough arguments for format string` while rendering `CREATE INDEX`, so the migration failed.
+- `ParadeDBIndex` with a `condition` or storage parameter whose SQL contains a `%` can now be created without errors.
 
 ## [0.15.0] - 2026-10-16
 

@@ -13,6 +13,7 @@ from paradedb.functions import Snippet, Snippets
 from paradedb.search import (
     Boost,
     Const,
+    Expand,
     MatchAll,
     MatchAny,
     MoreLikeThis,
@@ -195,6 +196,10 @@ class TestExpressionValidation:
     def test_regex_pattern_must_be_string(self) -> None:
         with pytest.raises(TypeError, match="Regex pattern must be a string"):
             Regex(123)  # type: ignore[arg-type]
+
+    def test_expand_rules_must_be_a_model_or_queryset(self) -> None:
+        with pytest.raises(TypeError, match="model class or a queryset"):
+            Expand("sofa", "shop_synonyms", "rule")  # type: ignore[arg-type]
 
     def test_proximity_negative_distance_raises(self) -> None:
         with pytest.raises(

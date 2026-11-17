@@ -16,10 +16,15 @@ from django.db.models import (
     BooleanField,
     CharField,
     Field,
+    Func,
     IntegerField,
+    Model,
+    QuerySet,
     SmallIntegerField,
+    Subquery,
     TextField,
     UUIDField,
+    Value,
 )
 from django.db.models.expressions import BaseExpression, Expression, F
 from django.db.models.lookups import Exact
@@ -29,6 +34,7 @@ from django.utils.deconstruct import deconstructible
 from paradedb.api import (
     FN_ALL,
     FN_EXISTS,
+    FN_EXPAND,
     FN_FUZZY_TERM,
     FN_MORE_LIKE_THIS,
     FN_PARSE,
@@ -596,6 +602,60 @@ class MatchAll:
         object.__setattr__(self, "terms", tuple(terms))
 
 
+class Expand(Subquery):
+    """Synonym expansion of a search text with the rules of a synonym table.
+
+    Usage:
+        # A synonym index on the whole rules table
+        ParadeDB(MatchAny(Expand('sofa', ShopSynonym, 'rule')))
+
+        # One set of rules, with a partial synonym index per set
+        ParadeDB(MatchAny(Expand('sofa', Synonym.objects.filter(set_name='shop'), 'rule')))
+
+        # Fuzzy and Boost go around the expansion
+        ParadeDB(MatchAny(Fuzzy(Expand('sofa', ShopSynonym, 'rule'), 1)))
+
+    `rules` is the model of the rules table, or a queryset of it. A query uses a
+    partial synonym index when the filter of the queryset is the `WHERE` of that
+    index. `rule_field` names the field that holds the rules. Only `MatchAny` and
+    `MatchAll` accept an expansion.
+    """
+
+    def __init__(
+        self,
+        text: str,
+        rules: type[Model] | QuerySet[Any],
+        rule_field: str,
+    ) -> None:
+        _validate_string("Expand text", text)
+        _validate_string("Expand rule_field", rule_field)
+        if isinstance(rules, type) and issubclass(rules, Model):
+            rules = rules._default_manager.all()
+        if not isinstance(rules, QuerySet):
+            raise TypeError("Expand rules must be a model class or a queryset.")
+        # `pdb.expand` is an aggregate, so an `ORDER BY` on a rule column is an
+        # error, and the order of the rules does not matter.
+        super().__init__(
+            rules.order_by().values(
+                query=Func(
+                    Value(text),
+                    F(rule_field),
+                    function=FN_EXPAND,
+                    output_field=TextField(),
+                )
+            )
+        )
+
+    def as_sql(
+        self, compiler: SQLCompiler, connection: BaseDatabaseWrapper
+    ) -> tuple[str, list[Any]]:
+        sql, params = super().as_sql(compiler, connection)
+        # A bind parameter in the subquery's `WHERE` keeps a generic plan from
+        # picking the partial synonym index, so the values go in as literals.
+        composed = connection.ops.compose_sql(sql, params)  # type: ignore[attr-defined]
+        return _escape_percent(composed), []
+
+
 class MoreLikeThis(Expression):
     conditional = True
     output_field = BooleanField()
@@ -1131,6 +1191,7 @@ __all__ = [
     "Boost",
     "Const",
     "Exists",
+    "Expand",
     "Fuzzy",
     "FuzzyTerm",
     "MatchAll",

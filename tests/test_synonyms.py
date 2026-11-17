@@ -8,7 +8,16 @@ from typing import Any
 import pytest
 from django.db import DEFAULT_DB_ALIAS, connection, connections
 
-from paradedb.search import Boost, Expand, Fuzzy, MatchAll, MatchAny, ParadeDB
+from paradedb.search import (
+    Boost,
+    Expand,
+    Fuzzy,
+    MatchAll,
+    MatchAny,
+    ParadeDB,
+    Parse,
+    Phrase,
+)
 from tests.models import MockItem, ShopSynonym, Synonym
 
 pytestmark = [
@@ -122,6 +131,29 @@ def test_expand_set_filter_picks_the_partial_index_with_server_side_binding() ->
     finally:
         server_binding.close()
     assert ids == {3, 4, 5}
+
+
+def test_expand_with_phrase_and_parse() -> None:
+    subquery = (
+        '(SELECT pdb.expand(\'%s\', U0."rule") AS "query" FROM "shop_synonyms" U0)'
+    )
+    phrase = MockItem.objects.filter(
+        description=ParadeDB(Phrase(Expand("leather couch", ShopSynonym, "rule")))
+    )
+    parse = MockItem.objects.filter(
+        description=ParadeDB(Parse(Expand("leather AND couch", ShopSynonym, "rule")))
+    )
+    _assert_sql(
+        str(phrase.query),
+        f"""{_SELECT_MOCK_ITEMS} WHERE "mock_items"."description" ### {subquery % "leather couch"}""",
+    )
+    _assert_sql(
+        str(parse.query),
+        f"""{_SELECT_MOCK_ITEMS} WHERE "mock_items"."description" @@@ {subquery % "leather AND couch"}""",
+    )
+    for queryset in (phrase, parse):
+        assert _ids(queryset) == {24}
+        assert "Synonyms: shop_synonyms_idx" in queryset.explain()
 
 
 def test_expand_composes_with_fuzzy_and_boost() -> None:

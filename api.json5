@@ -25,6 +25,7 @@
     "FN_EXPAND":           "pdb.expand",
 
     "FN_SCORE":              "pdb.score",
+    "FN_EXPLAIN_SCORE":      "pdb.explain_score",
     "FN_SNIPPET":            "pdb.snippet",
     "FN_SNIPPETS":           "pdb.snippets",
     "FN_SNIPPET_POSITIONS":  "pdb.snippet_positions",

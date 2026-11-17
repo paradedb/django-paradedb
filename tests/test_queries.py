@@ -34,6 +34,7 @@ from paradedb.functions import (
     Agg,
     CombineAgg,
     Score,
+    ScoreExplanation,
     Snippet,
     SnippetPositions,
     Snippets,
@@ -1223,6 +1224,25 @@ class TestScoreAnnotation:
             == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.score("mock_items"."id") AS "search_score" FROM "mock_items" WHERE "mock_items"."description" &&& ARRAY[\'running\', \'shoes\']'
         )
         _run_query(queryset)
+
+    def test_score_explanation_annotation(self) -> None:
+        """ScoreExplanation generates: SELECT ..., pdb.explain_score(id)."""
+        queryset = MockItem.objects.filter(
+            description=ParadeDB(MatchAll("shoes"))
+        ).annotate(search_score=Score(), explanation=ScoreExplanation())
+        assert (
+            str(queryset.query)
+            == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.score("mock_items"."id") AS "search_score", pdb.explain_score("mock_items"."id") AS "explanation" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT to_regprocedure('pdb.explain_score(anyelement)') IS NOT NULL"
+            )
+            if not cursor.fetchone()[0]:
+                pytest.skip("this ParadeDB has no pdb.explain_score")
+        item = queryset.order_by("-search_score", "id")[0]
+        assert item.explanation["value"] == item.search_score
+        assert item.explanation["description"] == "TermQuery, product of..."
 
     def test_score_with_ordering(self) -> None:
         """Score with ORDER BY search_score DESC."""

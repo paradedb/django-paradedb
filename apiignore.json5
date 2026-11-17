@@ -22,8 +22,6 @@
     "pdb.combine_agg_stub_combine_agg_stub_finalize",
     "pdb.combine_agg_stub_combine_agg_stub_state",
 
-    "pdb.explain_score",
-
     // Internal state/finalize functions for pdb.expand.
     "pdb.expand_agg_expand_agg_finalize",
     "pdb.expand_agg_expand_agg_state",

@@ -315,14 +315,18 @@ class Phrase:
 
 @dataclass(frozen=True)
 class Parse:
-    """Parse query expression."""
+    """Parse query expression. `query` is the query string, or an `Expand` of it."""
 
-    query: str
+    query: str | Modifier | BaseExpression
     lenient: bool | None = None
     conjunction_mode: bool | None = None
 
     def __post_init__(self) -> None:
-        _validate_string("Parse query", self.query)
+        if _is_expansion(self.query):
+            if self.lenient is not None or self.conjunction_mode is not None:
+                raise ValueError("Parse options do not apply to an expansion.")
+        else:
+            _validate_string("Parse query", self.query)  # type: ignore[arg-type]
         _validate_optional_bool("Parse lenient", self.lenient)
         _validate_optional_bool("Parse conjunction_mode", self.conjunction_mode)
 
@@ -615,10 +619,14 @@ class Expand(Subquery):
         # Fuzzy and Boost go around the expansion
         ParadeDB(MatchAny(Fuzzy(Expand('sofa', ShopSynonym, 'rule'), 1)))
 
+        # A phrase, and a query string for the query parser
+        ParadeDB(Phrase(Expand('leather sofa', ShopSynonym, 'rule')))
+        ParadeDB(Parse(Expand('leather AND sofa', ShopSynonym, 'rule')))
+
     `rules` is the model of the rules table, or a queryset of it. A query uses a
     partial synonym index when the filter of the queryset is the `WHERE` of that
-    index. `rule_field` names the field that holds the rules. Only `MatchAny` and
-    `MatchAll` accept an expansion.
+    index. `rule_field` names the field that holds the rules. `MatchAny`,
+    `MatchAll`, `Phrase` and `Parse` accept an expansion.
     """
 
     def __init__(
@@ -844,6 +852,14 @@ QueryExpression: TypeAlias = (
     | Regex
     | All
 )
+
+
+def _is_expansion(value: object) -> bool:
+    while isinstance(value, Modifier):
+        value = value.value
+    return isinstance(value, Expand)
+
+
 TermType: TypeAlias = QueryExpression | MoreLikeThis | Modifier
 
 
@@ -880,6 +896,8 @@ class ParadeDB(BaseExpression):
             return [value]
         if isinstance(value, Modifier | Term):
             return ParadeDB._source_expressions(value.value)
+        if isinstance(value, Parse):
+            return ParadeDB._source_expressions(value.query)
         if isinstance(value, Phrase | MatchAny | MatchAll):
             return [
                 expression
@@ -899,6 +917,11 @@ class ParadeDB(BaseExpression):
             )
         if isinstance(value, Term):
             return Term(ParadeDB._replace_source_expressions(value.value, exprs))
+        if isinstance(value, Parse):
+            return replace(
+                value,
+                query=ParadeDB._replace_source_expressions(value.query, exprs),
+            )
         if isinstance(value, Phrase | MatchAny | MatchAll):
             return type(value)(
                 *(
@@ -1019,6 +1042,11 @@ class ParadeDB(BaseExpression):
         if isinstance(term, ProximityNode):
             return self._render_proximity_node(term), []
         if isinstance(term, Parse):
+            if _is_expansion(term.query):
+                # `pdb.parse` takes only text, and `Expand` already returns a query.
+                rendered, params = self._render_search_value(term.query, compiler)
+                return f"{OP_SEARCH} {rendered}", params
+            assert isinstance(term.query, str)
             rendered = (
                 f"{OP_SEARCH} {FN_PARSE}({_quote_term(term.query)}"
                 f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"

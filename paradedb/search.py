@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Any, Literal, TypeAlias
 
+from django.core.exceptions import EmptyResultSet
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import (
     AutoField,
@@ -317,7 +318,7 @@ class Phrase:
 class Parse:
     """Parse query expression. `query` is the query string, or an `Expand` of it."""
 
-    query: str | Modifier | BaseExpression
+    query: str | Modifier | Expand
     lenient: bool | None = None
     conjunction_mode: bool | None = None
 
@@ -504,6 +505,11 @@ class Term:
 
     value: SearchValue
 
+    def __post_init__(self) -> None:
+        # The term operator does not tokenize its text, so no rule applies to it.
+        if _is_expansion(self.value):
+            raise TypeError("Term does not take an expansion.")
+
 
 @dataclass(frozen=True)
 class Regex:
@@ -627,6 +633,9 @@ class Expand(Subquery):
     partial synonym index when the filter of the queryset is the `WHERE` of that
     index. `rule_field` names the field that holds the rules. `MatchAny`,
     `MatchAll`, `Phrase` and `Parse` accept an expansion.
+
+    The database driver writes the filter values into the SQL as literals, so
+    compiling the query needs a database connection.
     """
 
     def __init__(
@@ -641,11 +650,16 @@ class Expand(Subquery):
             rules = rules._default_manager.all()
         if not isinstance(rules, QuerySet):
             raise TypeError("Expand rules must be a model class or a queryset.")
+        # The subquery returns the one row of an aggregate, so a slice or a
+        # `DISTINCT` would not pick rules.
+        if rules.query.is_sliced or rules.query.distinct:
+            raise TypeError("Expand rules can't be a sliced or distinct queryset.")
+        self.text = text
         # `pdb.expand` is an aggregate, so an `ORDER BY` on a rule column is an
         # error, and the order of the rules does not matter.
         super().__init__(
             rules.order_by().values(
-                query=Func(
+                paradedb_expansion=Func(
                     Value(text),
                     F(rule_field),
                     function=FN_EXPAND,
@@ -657,7 +671,12 @@ class Expand(Subquery):
     def as_sql(
         self, compiler: SQLCompiler, connection: BaseDatabaseWrapper
     ) -> tuple[str, list[Any]]:
-        sql, params = super().as_sql(compiler, connection)
+        try:
+            sql, params = super().as_sql(compiler, connection)
+        except EmptyResultSet:
+            # A queryset that can't return a row has no rule, and the search
+            # then takes the text as typed.
+            return _quote_term(self.text), []
         # A bind parameter in the subquery's `WHERE` keeps a generic plan from
         # picking the partial synonym index, so the values go in as literals.
         composed = connection.ops.compose_sql(sql, params)  # type: ignore[attr-defined]

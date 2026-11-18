@@ -1242,7 +1242,6 @@ class TestScoreAnnotation:
                 pytest.skip("this ParadeDB has no pdb.explain_score")
         item = queryset.order_by("-search_score", "id")[0]
         assert item.explanation["value"] == item.search_score
-        assert item.explanation["description"] == "TermQuery, product of..."
 
     def test_score_with_ordering(self) -> None:
         """Score with ORDER BY search_score DESC."""

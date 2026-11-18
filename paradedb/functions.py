@@ -417,6 +417,7 @@ def paradedb_verify_all_indexes(
 __all__ = [
     "Agg",
     "Score",
+    "ScoreExplanation",
     "Snippet",
     "SnippetPositions",
     "Snippets",

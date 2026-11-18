@@ -26,6 +26,7 @@ from paradedb.search import (
     ProxRegex,
     Regex,
     RegexPhrase,
+    Term,
     Tokenized,
     Tokenizer,
 )
@@ -201,9 +202,17 @@ class TestExpressionValidation:
         with pytest.raises(TypeError, match="model class or a queryset"):
             Expand("sofa", "shop_synonyms", "rule")  # type: ignore[arg-type]
 
+    def test_expand_rules_can_not_be_sliced(self) -> None:
+        with pytest.raises(TypeError, match="sliced or distinct"):
+            Expand("sofa", MockItem.objects.all()[:5], "description")
+
     def test_parse_options_do_not_apply_to_an_expansion(self) -> None:
         with pytest.raises(ValueError, match="do not apply to an expansion"):
             Parse(Expand("sofa", MockItem, "description"), lenient=True)
+
+    def test_term_does_not_take_an_expansion(self) -> None:
+        with pytest.raises(TypeError, match="does not take an expansion"):
+            Term(Expand("sofa", MockItem, "description"))
 
     def test_proximity_negative_distance_raises(self) -> None:
         with pytest.raises(

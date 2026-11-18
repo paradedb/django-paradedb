@@ -23,7 +23,6 @@ from tests.models import MockItem, ShopSynonym, Synonym
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.django_db(transaction=True),
-    pytest.mark.usefixtures("synonym_tables"),
 ]
 
 _SELECT_MOCK_ITEMS = (
@@ -31,6 +30,46 @@ _SELECT_MOCK_ITEMS = (
     '"mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", '
     '"mock_items"."metadata", "mock_items"."embedding" FROM "mock_items"'
 )
+
+_SHOP_RULES = '(SELECT pdb.expand(\'%s\', U0."rule") AS "paradedb_expansion" FROM "shop_synonyms" U0)'
+
+# Each case is a query, the SQL of its right side, its rows and its synonym index.
+_CASES = {
+    "whole_table": (
+        MatchAny(Expand("couch", ShopSynonym, "rule")),
+        f"||| {_SHOP_RULES % 'couch'}",
+        {24},
+        "shop_synonyms_idx",
+    ),
+    # The other set also expands `sneakers` and `white`, so its rules would add row 2.
+    "set": (
+        MatchAll(
+            Expand("white sneakers", Synonym.objects.filter(set_name="shop"), "rule")
+        ),
+        '&&& (SELECT pdb.expand(\'white sneakers\', U0."rule") AS "paradedb_expansion" '
+        'FROM "synonyms" U0 WHERE U0."set_name" = \'shop\')',
+        {4},
+        "synonyms_shop_idx",
+    ),
+    "phrase": (
+        Phrase(Expand("leather couch", ShopSynonym, "rule")),
+        f"### {_SHOP_RULES % 'leather couch'}",
+        {24},
+        "shop_synonyms_idx",
+    ),
+    "parse": (
+        Parse(Expand("leather AND couch", ShopSynonym, "rule")),
+        f"@@@ {_SHOP_RULES % 'leather AND couch'}",
+        {24},
+        "shop_synonyms_idx",
+    ),
+    "fuzzy_and_boost": (
+        MatchAny(Boost(Fuzzy(Expand("couch keyboards", ShopSynonym, "rule"), 1), 2.0)),
+        f"||| {_SHOP_RULES % 'couch keyboards'}::pdb.fuzzy(1)::pdb.boost(2.0)",
+        {1, 2, 24},
+        "shop_synonyms_idx",
+    ),
+}
 
 
 @pytest.fixture(scope="module")
@@ -57,54 +96,51 @@ def synonym_tables(paradedb_ready: None, django_db_blocker: Any) -> Iterator[Non
         cursor.execute("DROP TABLE IF EXISTS shop_synonyms, synonyms")
 
 
-def _assert_sql(sql: str, expected: str) -> None:
-    assert " ".join(sql.split()) == " ".join(expected.split())
+def _search(term: Any) -> Any:
+    return MockItem.objects.filter(description=ParadeDB(term))
+
+
+def _assert_where(queryset: Any, expected: str) -> None:
+    sql, params = queryset.query.sql_with_params()
+    assert params == ()
+    assert " ".join(sql.split()) == (
+        f'{_SELECT_MOCK_ITEMS} WHERE "mock_items"."description" {expected}'
+    )
 
 
 def _ids(queryset: Any) -> set[int]:
     return set(queryset.values_list("id", flat=True))
 
 
-def test_expand_with_a_synonym_index_on_the_whole_table() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(MatchAny(Expand("couch", ShopSynonym, "rule")))
-    )
-    _assert_sql(
-        str(queryset.query),
-        f"""
-        {_SELECT_MOCK_ITEMS}
-        WHERE "mock_items"."description" ||| (SELECT pdb.expand('couch', U0."rule") AS "query" FROM "shop_synonyms" U0)
-        """,
-    )
-    assert _ids(queryset) == {24}
-    assert "Synonyms: shop_synonyms_idx" in queryset.explain()
+@pytest.mark.parametrize("case", _CASES)
+def test_expand_renders_the_subquery_with_literals(case: str) -> None:
+    term, expected, _, _ = _CASES[case]
+    _assert_where(_search(term), expected)
 
 
-def test_expand_with_a_partial_synonym_index_per_set() -> None:
-    # The other set also expands `sneakers` and `white`, so its rules would add row 2.
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            MatchAll(
-                Expand(
-                    "white sneakers", Synonym.objects.filter(set_name="shop"), "rule"
-                )
-            )
-        )
+def test_expand_with_an_empty_queryset_renders_the_text() -> None:
+    _assert_where(
+        _search(MatchAny(Expand("sofa", Synonym.objects.none(), "rule"))), "||| 'sofa'"
     )
-    sql, params = queryset.query.sql_with_params()
-    _assert_sql(
-        sql,
-        f"""
-        {_SELECT_MOCK_ITEMS}
-        WHERE "mock_items"."description" &&& (SELECT pdb.expand('white sneakers', U0."rule") AS "query" FROM "synonyms" U0 WHERE U0."set_name" = 'shop')
-        """,
-    )
-    assert params == ()
-    assert _ids(queryset) == {4}
-    assert "Synonyms: synonyms_shop_idx" in queryset.explain()
 
 
-def test_expand_set_filter_picks_the_partial_index_with_server_side_binding() -> None:
+@pytest.mark.usefixtures("synonym_tables")
+@pytest.mark.parametrize("case", _CASES)
+def test_expand_reads_the_synonym_index(case: str) -> None:
+    term, _, ids, index = _CASES[case]
+    queryset = _search(term)
+    assert _ids(queryset) == ids
+    assert f"Synonyms: {index}" in queryset.explain()
+
+
+@pytest.mark.usefixtures("synonym_tables")
+def test_expand_with_no_rule_searches_the_text_as_typed() -> None:
+    for rules in (Synonym.objects.none(), Synonym.objects.filter(set_name="none")):
+        assert _ids(_search(MatchAny(Expand("sofa", rules, "rule")))) == {24}
+
+
+@pytest.mark.usefixtures("synonym_tables")
+def test_expand_set_filter_picks_the_partial_index_in_a_generic_plan() -> None:
     settings = {
         **connection.settings_dict,
         "OPTIONS": {**connection.settings_dict["OPTIONS"], "server_side_binding": True},
@@ -112,14 +148,18 @@ def test_expand_set_filter_picks_the_partial_index_with_server_side_binding() ->
     server_binding = type(connections[DEFAULT_DB_ALIAS])(
         settings, alias="server_side_binding"
     )
+    # psycopg prepares only a statement that has a parameter, so the rating
+    # filter gives it one.
     queryset = MockItem.objects.filter(
+        rating__gte=1,
         description=ParadeDB(
             MatchAny(
                 Expand("sneakers", Synonym.objects.filter(set_name="shop"), "rule")
             )
-        )
+        ),
     ).values_list("id", flat=True)
     sql, params = queryset.query.get_compiler(connection=server_binding).as_sql()
+    assert params == (1,)
     try:
         with server_binding.cursor() as cursor:
             # A generic plan has no values for bind parameters, and the error
@@ -131,45 +171,3 @@ def test_expand_set_filter_picks_the_partial_index_with_server_side_binding() ->
     finally:
         server_binding.close()
     assert ids == {3, 4, 5}
-
-
-def test_expand_with_phrase_and_parse() -> None:
-    subquery = (
-        '(SELECT pdb.expand(\'%s\', U0."rule") AS "query" FROM "shop_synonyms" U0)'
-    )
-    phrase = MockItem.objects.filter(
-        description=ParadeDB(Phrase(Expand("leather couch", ShopSynonym, "rule")))
-    )
-    parse = MockItem.objects.filter(
-        description=ParadeDB(Parse(Expand("leather AND couch", ShopSynonym, "rule")))
-    )
-    _assert_sql(
-        str(phrase.query),
-        f"""{_SELECT_MOCK_ITEMS} WHERE "mock_items"."description" ### {subquery % "leather couch"}""",
-    )
-    _assert_sql(
-        str(parse.query),
-        f"""{_SELECT_MOCK_ITEMS} WHERE "mock_items"."description" @@@ {subquery % "leather AND couch"}""",
-    )
-    for queryset in (phrase, parse):
-        assert _ids(queryset) == {24}
-        assert "Synonyms: shop_synonyms_idx" in queryset.explain()
-
-
-def test_expand_composes_with_fuzzy_and_boost() -> None:
-    queryset = MockItem.objects.filter(
-        description=ParadeDB(
-            MatchAny(
-                Boost(Fuzzy(Expand("couch keyboards", ShopSynonym, "rule"), 1), 2.0)
-            )
-        )
-    )
-    _assert_sql(
-        str(queryset.query),
-        f"""
-        {_SELECT_MOCK_ITEMS}
-        WHERE "mock_items"."description" ||| (SELECT pdb.expand('couch keyboards', U0."rule") AS "query" FROM "shop_synonyms" U0)::pdb.fuzzy(1)::pdb.boost(2.0)
-        """,
-    )
-    assert _ids(queryset) == {1, 2, 24}
-    assert "Synonyms: shop_synonyms_idx" in queryset.explain()

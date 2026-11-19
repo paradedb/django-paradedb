@@ -150,7 +150,8 @@ def test_apply_and_unapply_create_model_migration(
                     },
                     name=index_name,
                     training_sample_ratio=0.01,
-                    max_leaf_size=32,
+                    target_leaf_size=32,
+                    quantization=0,
                 )
             ],
         },
@@ -188,7 +189,8 @@ def test_apply_and_unapply_create_model_migration(
         assert f"title::pdb.{tokenizer_name}" in normalized_index_def, index_def
         assert "vector_cosine_ops" in index_def, index_def
         assert "training_sample_ratio" in index_def, index_def
-        assert "max_leaf_size" in index_def, index_def
+        assert "target_leaf_size" in index_def, index_def
+        assert "quantization" in index_def, index_def
         assert {"id", "title", "metadata", "embedding"}.issubset(column_names)
 
         # Insert test data in a separate transaction (simulates real usage)

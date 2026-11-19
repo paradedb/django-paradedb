@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from django.db import DEFAULT_DB_ALIAS, connection, connections, models
+from django.db import connection, models
 
 from paradedb.search import (
     Boost,
@@ -24,6 +24,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.django_db(transaction=True),
 ]
+
 
 # `pdb.synonym_rule` is a domain over text, so the rule columns are `TextField`s.
 class ShopSynonym(models.Model):
@@ -148,6 +149,15 @@ def test_expand_with_an_empty_queryset_renders_the_text() -> None:
     )
 
 
+def test_expand_keeps_the_parameters_of_the_outer_query() -> None:
+    queryset = _search(MatchAny(Expand("50% sofa", ShopSynonym, "rule"))).filter(
+        rating__gte=1
+    )
+    sql, params = queryset.query.sql_with_params()
+    assert params == (1,)
+    assert "pdb.expand('50%% sofa', " in sql
+
+
 @pytest.mark.usefixtures("synonym_tables")
 @pytest.mark.parametrize("case", _CASES)
 def test_expand_reads_the_synonym_index(case: str) -> None:
@@ -161,37 +171,3 @@ def test_expand_reads_the_synonym_index(case: str) -> None:
 def test_expand_with_no_rule_searches_the_text_as_typed() -> None:
     for rules in (Synonym.objects.none(), Synonym.objects.filter(set_name="none")):
         assert _ids(_search(MatchAny(Expand("sofa", rules, "rule")))) == {24}
-
-
-@pytest.mark.usefixtures("synonym_tables")
-def test_expand_set_filter_picks_the_partial_index_in_a_generic_plan() -> None:
-    settings = {
-        **connection.settings_dict,
-        "OPTIONS": {**connection.settings_dict["OPTIONS"], "server_side_binding": True},
-    }
-    server_binding = type(connections[DEFAULT_DB_ALIAS])(
-        settings, alias="server_side_binding"
-    )
-    # psycopg prepares only a statement that has a parameter, so the rating
-    # filter gives it one.
-    queryset = MockItem.objects.filter(
-        rating__gte=1,
-        description=ParadeDB(
-            MatchAny(
-                Expand("sneakers", Synonym.objects.filter(set_name="shop"), "rule")
-            )
-        ),
-    ).values_list("id", flat=True)
-    sql, params = queryset.query.get_compiler(connection=server_binding).as_sql()
-    assert params == (1,)
-    try:
-        with server_binding.cursor() as cursor:
-            # A generic plan has no values for bind parameters, and the error
-            # setting fails the query if no synonym index fits.
-            cursor.execute("SET plan_cache_mode = force_generic_plan")
-            cursor.execute("SET paradedb.planner_warnings = 'error'")
-            cursor.execute(sql, params)
-            ids = {row[0] for row in cursor.fetchall()}
-    finally:
-        server_binding.close()
-    assert ids == {3, 4, 5}

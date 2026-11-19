@@ -76,10 +76,6 @@ _CASES = {
 def synonym_tables(paradedb_ready: None, django_db_blocker: Any) -> Iterator[None]:
     _ = paradedb_ready
     with django_db_blocker.unblock(), connection.cursor() as cursor:
-        cursor.execute("SELECT to_regprocedure('pdb.expand(text, text)') IS NOT NULL")
-        (has_expand,) = cursor.fetchone()
-        if not has_expand:
-            pytest.skip("this ParadeDB has no pdb.expand")
         for statement in (
             "DROP TABLE IF EXISTS shop_synonyms, synonyms",
             "CREATE TABLE shop_synonyms (id bigserial PRIMARY KEY, rule pdb.synonym_rule NOT NULL)",

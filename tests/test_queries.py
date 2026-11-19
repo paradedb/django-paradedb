@@ -1234,12 +1234,6 @@ class TestScoreAnnotation:
             str(queryset.query)
             == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding", pdb.score("mock_items"."id") AS "search_score", pdb.explain_score("mock_items"."id") AS "explanation" FROM "mock_items" WHERE "mock_items"."description" &&& \'shoes\''
         )
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT to_regprocedure('pdb.explain_score(anyelement)') IS NOT NULL"
-            )
-            if not cursor.fetchone()[0]:
-                pytest.skip("this ParadeDB has no pdb.explain_score")
         item = queryset.order_by("-search_score", "id")[0]
         assert item.explanation["value"] == item.search_score
 

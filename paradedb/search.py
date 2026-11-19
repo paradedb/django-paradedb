@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime
 from typing import Any, Literal, TypeAlias
 
+from django.core.exceptions import EmptyResultSet
 from django.db.backends.base.base import BaseDatabaseWrapper
 from django.db.models import (
     AutoField,
@@ -16,10 +17,15 @@ from django.db.models import (
     BooleanField,
     CharField,
     Field,
+    Func,
     IntegerField,
+    Model,
+    QuerySet,
     SmallIntegerField,
+    Subquery,
     TextField,
     UUIDField,
+    Value,
 )
 from django.db.models.expressions import BaseExpression, Expression, F
 from django.db.models.lookups import Exact
@@ -29,6 +35,7 @@ from django.utils.deconstruct import deconstructible
 from paradedb.api import (
     FN_ALL,
     FN_EXISTS,
+    FN_EXPAND,
     FN_FUZZY_TERM,
     FN_MORE_LIKE_THIS,
     FN_PARSE,
@@ -309,14 +316,18 @@ class Phrase:
 
 @dataclass(frozen=True)
 class Parse:
-    """Parse query expression."""
+    """Parse query expression. `query` is the query string, or an `Expand` of it."""
 
-    query: str
+    query: str | Modifier | Expand
     lenient: bool | None = None
     conjunction_mode: bool | None = None
 
     def __post_init__(self) -> None:
-        _validate_string("Parse query", self.query)
+        if _is_expansion(self.query):
+            if self.lenient is not None or self.conjunction_mode is not None:
+                raise ValueError("Parse options do not apply to an expansion.")
+        else:
+            _validate_string("Parse query", self.query)  # type: ignore[arg-type]
         _validate_optional_bool("Parse lenient", self.lenient)
         _validate_optional_bool("Parse conjunction_mode", self.conjunction_mode)
 
@@ -494,6 +505,11 @@ class Term:
 
     value: SearchValue
 
+    def __post_init__(self) -> None:
+        # The term operator does not tokenize its text, so no rule applies to it.
+        if _is_expansion(self.value):
+            raise TypeError("Term does not take an expansion.")
+
 
 @dataclass(frozen=True)
 class Regex:
@@ -594,6 +610,77 @@ class MatchAll:
         *terms: SearchValue,
     ) -> None:
         object.__setattr__(self, "terms", tuple(terms))
+
+
+class Expand(Subquery):
+    """Synonym expansion of a search text with the rules of a synonym table.
+
+    Usage:
+        # A synonym index on the whole rules table
+        ParadeDB(MatchAny(Expand('sofa', ShopSynonym, 'rule')))
+
+        # One set of rules, with a partial synonym index per set
+        ParadeDB(MatchAny(Expand('sofa', Synonym.objects.filter(set_name='shop'), 'rule')))
+
+        # Fuzzy and Boost go around the expansion
+        ParadeDB(MatchAny(Fuzzy(Expand('sofa', ShopSynonym, 'rule'), 1)))
+
+        # A phrase, and a query string for the query parser
+        ParadeDB(Phrase(Expand('leather sofa', ShopSynonym, 'rule')))
+        ParadeDB(Parse(Expand('leather AND sofa', ShopSynonym, 'rule')))
+
+    `rules` is the model of the rules table, or a queryset of it. A query uses a
+    partial synonym index when the filter of the queryset is the `WHERE` of that
+    index. `rule_field` names the field that holds the rules. `MatchAny`,
+    `MatchAll`, `Phrase` and `Parse` accept an expansion.
+
+    The database driver writes the filter values into the SQL as literals, so
+    compiling the query needs a database connection.
+    """
+
+    def __init__(
+        self,
+        text: str,
+        rules: type[Model] | QuerySet[Any],
+        rule_field: str,
+    ) -> None:
+        _validate_string("Expand text", text)
+        _validate_string("Expand rule_field", rule_field)
+        if isinstance(rules, type) and issubclass(rules, Model):
+            rules = rules._default_manager.all()
+        if not isinstance(rules, QuerySet):
+            raise TypeError("Expand rules must be a model class or a queryset.")
+        # The subquery returns the one row of an aggregate, so a slice or a
+        # `DISTINCT` would not pick rules.
+        if rules.query.is_sliced or rules.query.distinct:
+            raise TypeError("Expand rules can't be a sliced or distinct queryset.")
+        self.text = text
+        # `pdb.expand` is an aggregate, so an `ORDER BY` on a rule column is an
+        # error, and the order of the rules does not matter.
+        super().__init__(
+            rules.order_by().values(
+                paradedb_expansion=Func(
+                    Value(text),
+                    F(rule_field),
+                    function=FN_EXPAND,
+                    output_field=TextField(),
+                )
+            )
+        )
+
+    def as_sql(
+        self, compiler: SQLCompiler, connection: BaseDatabaseWrapper
+    ) -> tuple[str, list[Any]]:
+        try:
+            sql, params = super().as_sql(compiler, connection)
+        except EmptyResultSet:
+            # A queryset that can't return a row has no rule, and the search
+            # then takes the text as typed.
+            return _quote_term(self.text), []
+        # A bind parameter in the subquery's `WHERE` keeps a generic plan from
+        # picking the partial synonym index, so the values go in as literals.
+        composed = connection.ops.compose_sql(sql, params)  # type: ignore[attr-defined]
+        return _escape_percent(composed), []
 
 
 class MoreLikeThis(Expression):
@@ -784,6 +871,14 @@ QueryExpression: TypeAlias = (
     | Regex
     | All
 )
+
+
+def _is_expansion(value: object) -> bool:
+    while isinstance(value, Modifier):
+        value = value.value
+    return isinstance(value, Expand)
+
+
 TermType: TypeAlias = QueryExpression | MoreLikeThis | Modifier
 
 
@@ -820,6 +915,8 @@ class ParadeDB(BaseExpression):
             return [value]
         if isinstance(value, Modifier | Term):
             return ParadeDB._source_expressions(value.value)
+        if isinstance(value, Parse):
+            return ParadeDB._source_expressions(value.query)
         if isinstance(value, Phrase | MatchAny | MatchAll):
             return [
                 expression
@@ -839,6 +936,11 @@ class ParadeDB(BaseExpression):
             )
         if isinstance(value, Term):
             return Term(ParadeDB._replace_source_expressions(value.value, exprs))
+        if isinstance(value, Parse):
+            return replace(
+                value,
+                query=ParadeDB._replace_source_expressions(value.query, exprs),
+            )
         if isinstance(value, Phrase | MatchAny | MatchAll):
             return type(value)(
                 *(
@@ -959,6 +1061,11 @@ class ParadeDB(BaseExpression):
         if isinstance(term, ProximityNode):
             return self._render_proximity_node(term), []
         if isinstance(term, Parse):
+            if _is_expansion(term.query):
+                # `pdb.parse` takes only text, and `Expand` already returns a query.
+                rendered, params = self._render_search_value(term.query, compiler)
+                return f"{OP_SEARCH} {rendered}", params
+            assert isinstance(term.query, str)
             rendered = (
                 f"{OP_SEARCH} {FN_PARSE}({_quote_term(term.query)}"
                 f"{self._render_options({'lenient': term.lenient, 'conjunction_mode': term.conjunction_mode})})"
@@ -1131,6 +1238,7 @@ __all__ = [
     "Boost",
     "Const",
     "Exists",
+    "Expand",
     "Fuzzy",
     "FuzzyTerm",
     "MatchAll",

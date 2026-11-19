@@ -14,6 +14,7 @@ from django.db.models.sql.compiler import SQLCompiler
 from paradedb.api import (
     FN_AGG,
     FN_COMBINE_AGG,
+    FN_EXPLAIN_SCORE,
     FN_INDEX_SEGMENTS,
     FN_INDEXES,
     FN_SCORE,
@@ -44,6 +45,17 @@ class Score(Func):
 
     function = FN_SCORE
     output_field = FloatField()
+
+    def __init__(self, field: str | None = None) -> None:
+        expression = F(field or "pk")
+        super().__init__(expression)
+
+
+class ScoreExplanation(Func):
+    """Explanation of the BM25 score, as a dict."""
+
+    function = FN_EXPLAIN_SCORE
+    output_field = JSONField()
 
     def __init__(self, field: str | None = None) -> None:
         expression = F(field or "pk")
@@ -405,6 +417,7 @@ def paradedb_verify_all_indexes(
 __all__ = [
     "Agg",
     "Score",
+    "ScoreExplanation",
     "Snippet",
     "SnippetPositions",
     "Snippets",

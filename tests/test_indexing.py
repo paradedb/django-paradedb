@@ -967,15 +967,15 @@ class TestVectorIndexOptions:
             fields={"id": {}, "embedding": {"metric": "cosine"}},
             name="mock_items_search_idx",
             training_sample_ratio=0.01,
-            max_leaf_size=32,
+            target_leaf_size=32,
             partition_by=["id"],
             target_segment_count=8,
-            vector_fields={"embedding": {"quantization": False}},
+            quantization=[1, 4],
         )
         sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
         assert (
             sql
-            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_cosine_ops\n)\nWITH (training_sample_ratio=0.01, max_leaf_size=32, target_segment_count=8, partition_by=\'id\', vector_fields=\'{"embedding":{"quantization":false}}\')'
+            == 'CREATE INDEX "mock_items_search_idx" ON "mock_items"\nUSING paradedb (\n    "id",\n    "embedding" vector_cosine_ops\n)\nWITH (training_sample_ratio=0.01, target_leaf_size=32, target_segment_count=8, partition_by=\'id\', quantization=\'[1,4]\')'
         )
 
     def test_index_with_single_option(self) -> None:
@@ -1020,22 +1020,42 @@ class TestVectorIndexOptions:
                 training_sample_ratio="0.01",  # type: ignore[arg-type]
             )
 
-    @pytest.mark.parametrize("max_leaf_size", [0, 2147483648, -1])
-    def test_max_leaf_size_out_of_range_raises(self, max_leaf_size: int) -> None:
-        with pytest.raises(ValueError, match="max_leaf_size must be between"):
+    @pytest.mark.parametrize("target_leaf_size", [0, 2147483648, -1])
+    def test_target_leaf_size_out_of_range_raises(self, target_leaf_size: int) -> None:
+        with pytest.raises(ValueError, match="target_leaf_size must be between"):
             ParadeDBIndex(
                 fields={"id": {}},
                 name="mock_items_search_idx",
-                max_leaf_size=max_leaf_size,
+                target_leaf_size=target_leaf_size,
             )
 
-    @pytest.mark.parametrize("max_leaf_size", [32.5, True, "32"])
-    def test_max_leaf_size_invalid_type_raises(self, max_leaf_size: object) -> None:
-        with pytest.raises(TypeError, match="max_leaf_size must be an integer"):
+    @pytest.mark.parametrize("target_leaf_size", [32.5, True, "32"])
+    def test_target_leaf_size_invalid_type_raises(
+        self, target_leaf_size: object
+    ) -> None:
+        with pytest.raises(TypeError, match="target_leaf_size must be an integer"):
             ParadeDBIndex(
                 fields={"id": {}},
                 name="mock_items_search_idx",
-                max_leaf_size=max_leaf_size,  # type: ignore[arg-type]
+                target_leaf_size=target_leaf_size,  # type: ignore[arg-type]
+            )
+
+    def test_quantization_zero_emits_with_clause(self) -> None:
+        index = ParadeDBIndex(
+            fields={"id": {}, "embedding": {"metric": "cosine"}},
+            name="mock_items_search_idx",
+            quantization=0,
+        )
+        sql = str(index.create_sql(model=MockItem, schema_editor=_schema_editor()))
+        assert sql.endswith("WITH (quantization='0')")
+
+    @pytest.mark.parametrize("quantization", [False, 1, "[1,1]", [], [1.5], [True]])
+    def test_quantization_invalid_type_raises(self, quantization: object) -> None:
+        with pytest.raises(TypeError, match="quantization must be 0 or a sequence"):
+            ParadeDBIndex(
+                fields={"id": {}},
+                name="mock_items_search_idx",
+                quantization=quantization,  # type: ignore[arg-type]
             )
 
     def test_options_deconstruct_and_serialize(self) -> None:
@@ -1043,21 +1063,21 @@ class TestVectorIndexOptions:
             fields={"id": {}, "embedding": {"metric": "cosine"}},
             name="mock_items_search_idx",
             training_sample_ratio=0.01,
-            max_leaf_size=32,
+            target_leaf_size=32,
             partition_by=["id"],
             target_segment_count=8,
-            vector_fields={"embedding": {"quantization": False}},
+            quantization=[1, 4],
         )
         _path, _args, kwargs = index.deconstruct()
         assert kwargs["training_sample_ratio"] == 0.01
-        assert kwargs["max_leaf_size"] == 32
+        assert kwargs["target_leaf_size"] == 32
         assert kwargs["partition_by"] == ["id"]
         assert kwargs["target_segment_count"] == 8
-        assert kwargs["vector_fields"] == {"embedding": {"quantization": False}}
+        assert kwargs["quantization"] == [1, 4]
 
         serialized, _imports = MigrationWriter.serialize(index)
         assert "training_sample_ratio=0.01" in serialized
-        assert "max_leaf_size=32" in serialized
+        assert "target_leaf_size=32" in serialized
 
     def test_unset_options_omitted_from_deconstruct(self) -> None:
         index = ParadeDBIndex(
@@ -1066,15 +1086,15 @@ class TestVectorIndexOptions:
         )
         _path, _args, kwargs = index.deconstruct()
         assert "training_sample_ratio" not in kwargs
-        assert "max_leaf_size" not in kwargs
+        assert "target_leaf_size" not in kwargs
 
     def test_indexes_with_equal_options_compare_equal(self) -> None:
-        def build(max_leaf_size: int) -> ParadeDBIndex:
+        def build(target_leaf_size: int) -> ParadeDBIndex:
             return ParadeDBIndex(
                 fields={"id": {}, "embedding": {"metric": "cosine"}},
                 name="mock_items_search_idx",
                 training_sample_ratio=0.01,
-                max_leaf_size=max_leaf_size,
+                target_leaf_size=target_leaf_size,
             )
 
         assert build(1) == build(1)

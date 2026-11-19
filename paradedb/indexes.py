@@ -111,6 +111,19 @@ def _validate_int_index_option(name: str, value: Any, *, maximum: int) -> None:
         raise ValueError(f"{name} must be between 1 and {maximum}, inclusive.")
 
 
+def _validate_quantization(value: Any) -> None:
+    if value is None or (type(value) is int and value == 0):
+        return
+    if (
+        not isinstance(value, list | tuple)
+        or not value
+        or any(type(bits) is not int for bits in value)
+    ):
+        raise TypeError(
+            "quantization must be 0 or a sequence of layer widths, such as [1, 1]."
+        )
+
+
 def _validate_training_sample_ratio(value: Any) -> None:
     if value is None:
         return
@@ -201,9 +214,11 @@ class ParadeDBIndex(models.Index):
     The index is created with ``USING paradedb``, the index access method
     name in pg_search 0.26.0+.
 
-    ``training_sample_ratio`` and ``max_leaf_size`` are index-wide vector build options emitted in
-    the ``WITH (...)`` clause. They apply to every vector field in the index
-    and are meaningful only when the index contains a vector field.
+    ``training_sample_ratio``, ``target_leaf_size`` and ``quantization`` are
+    index-wide vector build options emitted in the ``WITH (...)`` clause. They
+    apply to every vector field in the index and are meaningful only when the
+    index contains a vector field. ``quantization`` is the list of layer
+    widths, such as ``[1, 1]``, or ``0`` for no quantization.
     """
 
     suffix = "search"
@@ -216,10 +231,10 @@ class ParadeDBIndex(models.Index):
         expressions: list[IndexExpression] | None = None,
         condition: models.Q | None = None,
         training_sample_ratio: float | None = None,
-        max_leaf_size: int | None = None,
+        target_leaf_size: int | None = None,
         partition_by: Sequence[str] | None = None,
         target_segment_count: int | None = None,
-        vector_fields: dict[str, dict[str, Any]] | None = None,
+        quantization: Sequence[int] | int | None = None,
         search_tokenizer: Tokenizer | str | None = None,
         layer_sizes: str | None = None,
         background_layer_sizes: str | None = None,
@@ -227,10 +242,11 @@ class ParadeDBIndex(models.Index):
     ) -> None:
         _validate_training_sample_ratio(training_sample_ratio)
         _validate_int_index_option(
-            "max_leaf_size",
-            max_leaf_size,
+            "target_leaf_size",
+            target_leaf_size,
             maximum=2147483647,
         )
+        _validate_quantization(quantization)
         if mutable_segment_rows is not None and (
             isinstance(mutable_segment_rows, bool)
             or not isinstance(mutable_segment_rows, int)
@@ -257,11 +273,13 @@ class ParadeDBIndex(models.Index):
         self.mutable_segment_rows = mutable_segment_rows
         self.partition_by = list(partition_by) if partition_by is not None else None
         self.target_segment_count = target_segment_count
-        self.vector_fields = vector_fields
+        self.quantization = (
+            list(quantization) if isinstance(quantization, tuple) else quantization
+        )
         self.fields_config = fields
         self.index_expressions = list(expressions or [])
         self.training_sample_ratio = training_sample_ratio
-        self.max_leaf_size = max_leaf_size
+        self.target_leaf_size = target_leaf_size
         super().__init__(name=name, fields=list(fields.keys()), condition=condition)
 
     def deconstruct(self) -> tuple[str, Any, dict[str, Any]]:
@@ -272,7 +290,7 @@ class ParadeDBIndex(models.Index):
             kwargs["expressions"] = self.index_expressions
         for option in (
             "training_sample_ratio",
-            "max_leaf_size",
+            "target_leaf_size",
             "target_segment_count",
         ):
             value = getattr(self, option)
@@ -280,7 +298,7 @@ class ParadeDBIndex(models.Index):
                 kwargs[option] = value
         for option in (
             "partition_by",
-            "vector_fields",
+            "quantization",
             "search_tokenizer",
             "layer_sizes",
             "background_layer_sizes",
@@ -312,7 +330,7 @@ class ParadeDBIndex(models.Index):
             )
         for option in (
             "training_sample_ratio",
-            "max_leaf_size",
+            "target_leaf_size",
             "target_segment_count",
         ):
             value = getattr(self, option)
@@ -344,14 +362,10 @@ class ParadeDBIndex(models.Index):
             storage_params.append(
                 "partition_by=" + _quote_term(",".join(self.partition_by))
             )
-        if self.vector_fields is not None:
+        if self.quantization is not None:
             storage_params.append(
-                "vector_fields="
-                + _quote_term(
-                    json.dumps(
-                        self.vector_fields, separators=(",", ":"), sort_keys=True
-                    )
-                )
+                "quantization="
+                + _quote_term(json.dumps(self.quantization, separators=(",", ":")))
             )
 
         create_stmt = "CREATE INDEX"

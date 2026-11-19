@@ -22,6 +22,17 @@
     "pdb.combine_agg_stub_combine_agg_stub_finalize",
     "pdb.combine_agg_stub_combine_agg_stub_state",
 
+    "pdb.expand",
+    "pdb.explain_score",
+
+    // Internal state/finalize functions for pdb.expand.
+    "pdb.expand_agg_expand_agg_finalize",
+    "pdb.expand_agg_expand_agg_state",
+
+    // The check of the pdb.synonym_rule domain, and a diagnostic for synonym indexes.
+    "pdb.synonym_expansion",
+    "pdb.synonym_rule_is_valid",
+
     "pdb.alias_in",
     "pdb.alias_out",
 

@@ -27,32 +27,3 @@ class MockItem(models.Model):
 
     def __str__(self) -> str:
         return f"MockItem(id={self.id})"
-
-
-# The synonym tests create these tables. `pdb.synonym_rule` is a domain over
-# text, so the rule columns are `TextField`s.
-class ShopSynonym(models.Model):
-    rule = models.TextField()
-
-    class Meta:
-        app_label = "tests"
-        managed = False
-        db_table = "shop_synonyms"
-        # `Expand` has to drop a default ordering.
-        ordering = ("rule",)
-
-    def __str__(self) -> str:
-        return self.rule
-
-
-class Synonym(models.Model):
-    set_name = models.TextField()
-    rule = models.TextField()
-
-    class Meta:
-        app_label = "tests"
-        managed = False
-        db_table = "synonyms"
-
-    def __str__(self) -> str:
-        return f"{self.set_name}: {self.rule}"

@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
-from django.db import DEFAULT_DB_ALIAS, connection, connections
+from django.db import DEFAULT_DB_ALIAS, connection, connections, models
 
 from paradedb.search import (
     Boost,
@@ -18,12 +18,40 @@ from paradedb.search import (
     Parse,
     Phrase,
 )
-from tests.models import MockItem, ShopSynonym, Synonym
+from tests.models import MockItem
 
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.django_db(transaction=True),
 ]
+
+# `pdb.synonym_rule` is a domain over text, so the rule columns are `TextField`s.
+class ShopSynonym(models.Model):
+    rule = models.TextField()
+
+    class Meta:
+        app_label = "tests"
+        managed = False
+        db_table = "shop_synonyms"
+        # `Expand` has to drop a default ordering.
+        ordering = ("rule",)
+
+    def __str__(self) -> str:
+        return self.rule
+
+
+class Synonym(models.Model):
+    set_name = models.TextField()
+    rule = models.TextField()
+
+    class Meta:
+        app_label = "tests"
+        managed = False
+        db_table = "synonyms"
+
+    def __str__(self) -> str:
+        return f"{self.set_name}: {self.rule}"
+
 
 _SELECT_MOCK_ITEMS = (
     'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", '

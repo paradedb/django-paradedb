@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Require Python 3.11 or newer. Python 3.10 has reached end of life.
+
 ## [0.17.0] - 2026-11-19
 
 ### Added

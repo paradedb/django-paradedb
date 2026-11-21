@@ -71,52 +71,33 @@ jobs:
         run: bash scripts/smoke_package_install.sh
 
   matrix-tests:
-    name: Python ${{ matrix.python-version }} / Django ${{ matrix.django-version }} / PG ${{ matrix.postgres-version }}
+    name: Python ${{ matrix.runtime.python-version }} / Django ${{ matrix.runtime.django-version }} / PG ${{ matrix.postgres-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Django 4 supports Python 3.8-3.12, but we only support Python 3.10+
-          - django-version: "4.2"
-            python-version: "3.10"
-            postgres-version: "18"
+        postgres-version: ["15", "16", "17", "18"]
+        runtime:
           - django-version: "4.2"
             python-version: "3.11"
-            postgres-version: "18"
           - django-version: "4.2"
             python-version: "3.12"
-            postgres-version: "18"
-          # Django 5 supports Python 3.10-3.12
-          - django-version: "5.2"
-            python-version: "3.10"
-            postgres-version: "18"
           - django-version: "5.2"
             python-version: "3.11"
-            postgres-version: "18"
           - django-version: "5.2"
             python-version: "3.12"
-            postgres-version: "18"
-          # Django 6 supports Python 3.12-3.14
-          - django-version: "6.0"
-            python-version: "3.12"
-            postgres-version: "18"
-          - django-version: "6.0"
+          - django-version: "5.2"
             python-version: "3.13"
-            postgres-version: "18"
-          - django-version: "6.0"
+          - django-version: "5.2"
             python-version: "3.14"
-            postgres-version: "18"
-          # Postgres compatibility coverage for supported older versions
-          - django-version: "5.2"
+          - django-version: "6.1"
             python-version: "3.12"
-            postgres-version: "15"
-          - django-version: "5.2"
-            python-version: "3.12"
-            postgres-version: "16"
-          - django-version: "5.2"
-            python-version: "3.12"
-            postgres-version: "17"
+          - django-version: "6.1"
+            python-version: "3.13"
+          - django-version: "6.1"
+            python-version: "3.14"
+          - django-version: "6.1"
+            python-version: "3.15"
 
     services:
       paradedb:
@@ -138,16 +119,16 @@ jobs:
       PGPASSWORD: postgres
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       PYTHONPATH: ${{ github.workspace }}
-      DJANGO_SPEC: Django~=${{ matrix.django-version }}.0
+      DJANGO_SPEC: Django~=${{ matrix.runtime.django-version }}.0
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.runtime.python-version }}
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ matrix.runtime.python-version }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
@@ -156,7 +137,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv venv --python "${{ matrix.python-version }}"
+          uv venv --python "${{ matrix.runtime.python-version }}"
           uv sync --extra dev
 
       - name: Run tests
@@ -166,7 +147,7 @@ jobs:
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
         with:
           files: ./coverage.xml
-          flags: django-paradedb,py${{ matrix.python-version }},dj${{ matrix.django-version }},pg${{ matrix.postgres-version }}
+          flags: django-paradedb,py${{ matrix.runtime.python-version }},dj${{ matrix.runtime.django-version }},pg${{ matrix.postgres-version }}
           fail_ci_if_error: false
           verbose: true
         env:

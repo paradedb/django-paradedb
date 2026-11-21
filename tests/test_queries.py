@@ -377,6 +377,7 @@ class TestParadeDBLookup:
 
 
 class TestSearchTermInSubquery:
+    # Django 6.1 quotes its generated subquery table aliases.
     def test_contains_subquery(self) -> None:
         term = ParadeDB(
             Term(
@@ -396,7 +397,7 @@ class TestSearchTermInSubquery:
         )
         assert (
             # Django 4.2 omits the selected-column alias added by newer versions.
-            str(queryset.query).replace(' AS "pk"', "")
+            str(queryset.query).replace('"U0"', "U0").replace(' AS "pk"', "")
             == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" FROM "mock_items" U0 WHERE U0."description" &&& \'shoes\')'
         )
         _run_query(queryset)
@@ -409,7 +410,7 @@ class TestSearchTermInSubquery:
         )
         assert (
             # Django 4.2 omits the selected-column alias added by newer versions.
-            str(queryset.query).replace(' AS "pk"', "")
+            str(queryset.query).replace('"U0"', "U0").replace(' AS "pk"', "")
             == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" FROM "mock_items" U0 WHERE U0."description" @@@ pdb.term(TRIM(U0."category")))'
         )
         _run_query(queryset)
@@ -422,7 +423,7 @@ class TestSearchTermInSubquery:
         )
         assert (
             # Django 4.2 omits the selected-column alias added by newer versions.
-            str(queryset.query).replace(' AS "pk"', "")
+            str(queryset.query).replace('"U0"', "U0").replace(' AS "pk"', "")
             == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" FROM "mock_items" U0 WHERE U0."description" @@@ pdb.term(U0."category"))'
         )
         _run_query(queryset)
@@ -435,7 +436,7 @@ class TestSearchTermInSubquery:
         )
         assert (
             # Django 4.2 omits the selected-column alias added by newer versions.
-            str(queryset.query).replace(' AS "pk"', "")
+            str(queryset.query).replace('"U0"', "U0").replace(' AS "pk"', "")
             == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE "mock_items"."id" IN (SELECT U0."id" FROM "mock_items" U0 WHERE U0."description" @@@ pdb.term(TRIM(U0."category"))::pdb.boost(2.0))'
         )
         _run_query(queryset)
@@ -450,7 +451,7 @@ class TestSearchTermInSubquery:
             )
         )
         assert (
-            str(queryset.query)
+            str(queryset.query).replace('"U0"', "U0")
             == 'SELECT "mock_items"."id", "mock_items"."description", "mock_items"."category", "mock_items"."rating", "mock_items"."in_stock", "mock_items"."created_at", "mock_items"."metadata", "mock_items"."embedding" FROM "mock_items" WHERE EXISTS(SELECT 1 AS "a" FROM "mock_items" U0 WHERE (U0."description" &&& \'shoes\' AND U0."id" = ("mock_items"."id")) LIMIT 1)'
         )
         _run_query(queryset)
@@ -467,7 +468,7 @@ class TestSearchTermInSubquery:
             .annotate(n=Count("id"))
         )
         assert (
-            str(queryset.query)
+            str(queryset.query).replace('"U0"', "U0")
             == 'SELECT "mock_items"."description" &&& \'shoes\' AS "hit", COUNT("mock_items"."id") AS "n" FROM "mock_items" GROUP BY 1'
         )
         _run_query(queryset)

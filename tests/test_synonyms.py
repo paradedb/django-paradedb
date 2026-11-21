@@ -128,7 +128,8 @@ def _search(term: Any) -> Any:
 def _assert_where(queryset: Any, expected: str) -> None:
     sql, params = queryset.query.sql_with_params()
     assert params == ()
-    assert " ".join(sql.split()) == (
+    # Django 6.1 quotes its generated subquery table aliases.
+    assert " ".join(sql.split()).replace('"U0"', "U0") == (
         f'{_SELECT_MOCK_ITEMS} WHERE "mock_items"."description" {expected}'
     )
 

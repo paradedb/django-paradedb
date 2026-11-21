@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file. The format 
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-21
+
+### Added
+
+- Add support for Python 3.15 with Django 6.1.
+
+### Changed
+
+- **Breaking:** Require Python 3.11 or newer. Python 3.10 has reached end of life.
+
 ## [0.17.0] - 2026-11-19
 
 ### Added
@@ -281,6 +291,7 @@ All notable changes to this project will be documented in this file. The format 
 - JSON field key indexing support
 - Full Django ORM integration with `Q` objects and standard filters
 
+[0.18.0]: https://github.com/paradedb/django-paradedb/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/paradedb/django-paradedb/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/paradedb/django-paradedb/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/paradedb/django-paradedb/compare/v0.14.0...v0.15.0

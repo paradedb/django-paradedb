@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "django-paradedb"
-version = "0.17.0"
+version = "0.18.0"
 description = "The official Django integration for ParadeDB."
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     { name = "ParadeDB", email = "support@paradedb.com" },
 ]
@@ -38,11 +38,11 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Database",
     "Topic :: Internet :: WWW/HTTP",
@@ -108,7 +108,7 @@ ignore = [
 known-first-party = ["paradedb"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 plugins = ["mypy_django_plugin.main"]
 

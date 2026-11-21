@@ -42,7 +42,7 @@ The official [Django](https://www.djangoproject.com/) integration for ParadeDB. 
 
 | Component            | Supported                                                                                                                     |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Python               | 3.10+                                                                                                                         |
+| Python               | 3.11+                                                                                                                         |
 | Django               | 4.2+                                                                                                                          |
 | PostgreSQL           | 15+                                                                                                                           |
 | pgvector             | 0.7.0+ (provides vector types for ParadeDB’s [native vector search](https://www.paradedb.com/docs/reference/vector/overview)) |

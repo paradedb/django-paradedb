@@ -79,13 +79,9 @@ jobs:
         postgres-version: ["15", "16", "17", "18"]
         runtime:
           - django-version: "4.2"
-            python-version: "3.10"
-          - django-version: "4.2"
             python-version: "3.11"
           - django-version: "4.2"
             python-version: "3.12"
-          - django-version: "5.2"
-            python-version: "3.10"
           - django-version: "5.2"
             python-version: "3.11"
           - django-version: "5.2"
@@ -100,6 +96,8 @@ jobs:
             python-version: "3.13"
           - django-version: "6.1"
             python-version: "3.14"
+          - django-version: "6.1"
+            python-version: "3.15"
 
     services:
       paradedb:
